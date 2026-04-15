@@ -1,0 +1,39 @@
+{
+  "$schema": "../../virtual-mapping.schema.json",
+  "root": {
+    "writers_exists": {
+      "type": "boolean",
+      "expansion": {
+        "field": "writers",
+        "data": "{{data}}"
+      }
+    },
+    "duration_in_seconds": {
+      "type": "number",
+      "expansion": {
+        "field": "write_date",
+        "data": "{{data}}"
+      }
+    },
+    "involved_people": {
+      "type": "string",
+      "expansion": {
+        "field": "",
+        "data": [
+          [
+            {
+              "field": "readers",
+              "data": "{{data}}"
+            }
+          ],
+          [
+            {
+              "field": "writers",
+              "data": "{{data}}"
+            }
+          ]
+        ]
+      }
+    }
+  }
+}

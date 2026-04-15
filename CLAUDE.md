@@ -37,8 +37,7 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 
 ### REST endpoints (`/queries`)
 
-- `POST /queries` — validates and echoes the query JSON
-- `POST /queries/parse/{engine}` — translates to Elasticsearch or Solr DSL; `{engine}` is `elasticsearch` or `solr`
+- `POST /queries/parse` — translates to Elasticsearch or Solr DSL for each configured backend
 - `POST /queries/search` — executes against configured backends and returns merged, normalized results
 - `GET /queries/schema` — serves the bundled `search-query-dsl.schema.json`
 

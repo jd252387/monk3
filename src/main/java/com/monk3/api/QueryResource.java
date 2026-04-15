@@ -31,116 +31,12 @@ import java.util.List;
 @Path("/queries")
 @RunOnVirtualThread
 @RequiredArgsConstructor
-@Tag(name = "Queries", description = "Validate, translate, and execute search queries using the monk3 DSL")
+@Tag(name = "Queries", description = "Translate and execute search queries using the monk3 DSL")
 public class QueryResource {
     private static final String SCHEMA_MEDIA_TYPE = "application/schema+json";
 
     private final QueryTranslationService queryTranslationService;
     private final SearchExecutionService searchExecutionService;
-
-    @POST
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    @Operation(summary = "Validate a query", description = "Deserializes and validates a monk3 query, echoing it back on success.")
-    @RequestBody(required = true, content = @Content(examples = {
-            @ExampleObject(name = "Text search",
-                    summary = "Simple phrase search on a single field",
-                    value = """
-                            {
-                              "id": "q1",
-                              "name": "Find Java books by title",
-                              "materialTypes": ["book"],
-                              "query": {
-                                "field": "title",
-                                "data": {
-                                  "type": "text",
-                                  "phrases": ["java records"]
-                                }
-                              }
-                            }
-                            """),
-            @ExampleObject(name = "Numeric range",
-                    summary = "Range query on a numeric field",
-                    value = """
-                            {
-                              "name": "Articles from 2020–2025",
-                              "materialTypes": ["article"],
-                              "query": {
-                                "field": "year",
-                                "data": {
-                                  "type": "range",
-                                  "gte": 2020,
-                                  "lte": 2025
-                                }
-                              }
-                            }
-                            """),
-            @ExampleObject(name = "Boolean with must/should",
-                    summary = "OR of two AND clauses, one negated",
-                    value = """
-                            {
-                              "name": "History books not from the 19th century",
-                              "materialTypes": ["book"],
-                              "query": {
-                                "field": "",
-                                "minimumMatch": 1,
-                                "data": [
-                                  [
-                                    {
-                                      "field": "title",
-                                      "data": { "type": "text", "phrases": ["history"] }
-                                    },
-                                    {
-                                      "field": "year",
-                                      "isNot": true,
-                                      "data": { "type": "range", "gt": 1800, "lte": 1900 }
-                                    }
-                                  ],
-                                  [
-                                    {
-                                      "field": "title",
-                                      "data": { "type": "text", "phrases": ["science"] }
-                                    }
-                                  ]
-                                ]
-                              }
-                            }
-                            """),
-            @ExampleObject(name = "Subdocument query",
-                    summary = "Nested query on chapters subdocuments",
-                    value = """
-                            {
-                              "name": "Books with an introduction chapter",
-                              "materialTypes": ["book"],
-                              "query": {
-                                "field": "chapters",
-                                "data": [
-                                  [
-                                    {
-                                      "field": "title",
-                                      "data": { "type": "text", "phrases": ["introduction"] }
-                                    }
-                                  ]
-                                ]
-                              }
-                            }
-                            """)
-    }))
-    @APIResponses({
-            @APIResponse(responseCode = "200", description = "Query is valid"),
-            @APIResponse(responseCode = "400", description = "Invalid query",
-                    content = @Content(schema = @Schema(example = """
-                            {
-                              "error": {
-                                "code": "invalid_query_structure",
-                                "message": "Unsupported query data type 'geo'. Supported query data types are 'text', 'range', and 'exact'"
-                              }
-                            }
-                            """)))
-    })
-    public SearchQueryRequest validateQuery(@Valid SearchQueryRequest request) {
-        return request;
-    }
 
     @POST
     @Path("/parse")

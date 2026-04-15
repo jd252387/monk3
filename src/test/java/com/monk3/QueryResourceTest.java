@@ -22,212 +22,6 @@ import static org.hamcrest.Matchers.not;
 @QuarkusTestResource(SearchBackendTestResource.class)
 class QueryResourceTest {
     @Test
-    void validTextQueryLeafReturnsEchoedJson() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "id": "query-1",
-                          "name": "Text query",
-                          "materialTypes": ["book"],
-                          "query": {
-                            "field": "title",
-                            "data": {
-                              "type": "text",
-                              "phrases": ["java records"]
-                            }
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("id", equalTo("query-1"))
-                .body("name", equalTo("Text query"))
-                .body("query.field", equalTo("title"))
-                .body("query.data.type", equalTo("text"))
-                .body("query.data.phrases[0]", equalTo("java records"))
-                .body("query.data", not(hasKey("textType")));
-    }
-
-    @Test
-    void validRangeQueryReturnsEchoedJson() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Range query",
-                          "materialTypes": ["article"],
-                          "query": {
-                            "field": "year",
-                            "data": {
-                              "type": "range",
-                              "gte": 1995,
-                              "lte": 2020
-                            }
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("query.data.type", equalTo("range"))
-                .body("query.data.gte", equalTo(1995))
-                .body("query.data.lte", equalTo(2020));
-    }
-
-    @Test
-    void validDatetimeRangeQueryReturnsEchoedJson() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Datetime range query",
-                          "materialTypes": ["article"],
-                          "query": {
-                            "field": "publishedAt",
-                            "data": {
-                              "type": "range",
-                              "gte": "2024-01-01T00:00:00Z",
-                              "lt": "2025-01-01T00:00:00Z"
-                            }
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("query.data.type", equalTo("range"))
-                .body("query.data.gte", equalTo("2024-01-01T00:00:00Z"))
-                .body("query.data.lt", equalTo("2025-01-01T00:00:00Z"));
-    }
-
-    @Test
-    void validNumericExactQueryReturnsEchoedJson() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Numeric exact query",
-                          "materialTypes": ["article"],
-                          "query": {
-                            "field": "year",
-                            "data": {
-                              "type": "exact",
-                              "values": [1995, 2020]
-                            }
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("query.data.type", equalTo("exact"))
-                .body("query.data.values[0]", equalTo(1995))
-                .body("query.data.values[1]", equalTo(2020));
-    }
-
-    @Test
-    void validDatetimeExactQueryReturnsEchoedJson() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Datetime exact query",
-                          "materialTypes": ["article"],
-                          "query": {
-                            "field": "publishedAt",
-                            "data": {
-                              "type": "exact",
-                              "values": ["2024-01-01T00:00:00Z"]
-                            }
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("query.data.type", equalTo("exact"))
-                .body("query.data.values[0]", equalTo("2024-01-01T00:00:00Z"));
-    }
-
-    @Test
-    void validBooleanExactQueryReturnsEchoedJson() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Boolean exact query",
-                          "materialTypes": ["article"],
-                          "query": {
-                            "field": "isPublished",
-                            "data": {
-                              "type": "exact",
-                              "values": [true, false]
-                            }
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("query.data.type", equalTo("exact"))
-                .body("query.data.values[0]", equalTo(true))
-                .body("query.data.values[1]", equalTo(false));
-    }
-
-    @Test
-    void validBooleanQueryRoundTripsNestedClauses() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Boolean query",
-                          "materialTypes": ["book", "article"],
-                          "query": {
-                            "field": "",
-                            "minimumMatch": 1,
-                            "data": [
-                              [
-                                {
-                                  "field": "title",
-                                  "data": {
-                                    "type": "text",
-                                    "phrases": ["history"]
-                                  }
-                                },
-                                {
-                                  "field": "year",
-                                  "isNot": true,
-                                  "data": {
-                                    "type": "range",
-                                    "gt": 1800,
-                                    "lte": 1900
-                                  }
-                                }
-                              ]
-                            ]
-                          }
-                        }
-                        """)
-                .when().post("/queries")
-                .then()
-                .statusCode(200)
-                .contentType(ContentType.JSON)
-                .body("query.field", equalTo(""))
-                .body("query.minimumMatch", equalTo(1))
-                .body("query.data[0][0].data.type", equalTo("text"))
-                .body("query.data[0][1].isNot", equalTo(true))
-                .body("query.data[0][1].data.gt", equalTo(1800));
-    }
-
-    @Test
     void parsesTextQueryToElasticsearchDslUsingConfiguredMapping() {
         given()
                 .contentType(ContentType.JSON)
@@ -639,7 +433,7 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
@@ -665,7 +459,7 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
@@ -691,7 +485,7 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
@@ -716,7 +510,7 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
@@ -961,7 +755,7 @@ class QueryResourceTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .when().post("/queries")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400);
     }
