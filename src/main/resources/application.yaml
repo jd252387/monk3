@@ -1,3 +1,5 @@
 quarkus:
   http:
     port: 8080
+  swagger-ui:
+    always-include: true

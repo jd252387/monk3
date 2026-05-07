@@ -152,7 +152,7 @@
           "description": "Exclusive lower bound."
         },
         "lte": {
-          "typeubuntu switch jdk": [
+          "type": [
             "number",
             "string"
           ],
