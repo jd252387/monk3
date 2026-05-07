@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/search-query-dsl.schema.json",
+  "title": "Search Query DSL",
+  "description": "Defines the root JSON DSL document used to describe a search query before it is translated to Apache Solr or Elasticsearch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "materialTypes",
+    "query"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Optional randomly generated identifier for this query instance."
+    },
+    "name": {
+      "type": "string",
+      "description": "Required human-readable query name used in logs and diagnostics."
+    },
+    "materialTypes": {
+      "type": "array",
+      "description": "Required list of source or material types to fetch data from.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "description": "A source or material type identifier."
+      }
+    },
+    "query": {
+      "$ref": "#/$defs/QueryNode",
+      "description": "Required root query node."
+    }
+  },
+  "$defs": {
+    "QueryNode": {
+      "type": "object",
+      "description": "A recursive query node. A node with an empty field is a boolean/group node; if the field is equal to the name of a document type in the mapping, then the sub-queries in 'data' query the fields in the specified document type; if 'field' is empty, then the node is a leaf field query.",
+      "$comment": "The field value determines the shape of data and whether occur/mm are allowed.",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "data"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Field to query. If empty or equal to the name of a document type, then the 'data' field is expected to be an array of arrays, representing a boolean relationship of sub-queries or a nested query."
+        },
+        "minimumMatch": {
+          "type": "integer",
+          "description": "Required amount of 'should' clauses that should match. Only allowed when 'field' is empty or equal to a document type name."
+        },
+        "isNot": {
+          "type": "boolean",
+          "description": "If true, then perform negation on this clause, i.e. require this query node to NOT match."
+        },
+        "data": {
+          "description": "When 'field' is not empty, contains an object representing the query payload to match on the specified field. When 'field' is empty or equal to the name of a document type, contains an array of arrays representing a boolean sub-query. Each direct array under 'data' represents a 'should' clause, and within each sub-array, there are sub-query nodes which are treated with a 'must' relationship, i.e. every query node within a single sub-array should match. In the case of a nested query (when 'field' is equal to the name of a document type), all clauses under each sub-array must match on the same child document. "
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "field": {
+                "const": ""
+              }
+            }
+          },
+          "then": {
+            "$comment": "Boolean query - contains an array of arrays representing a boolean sub-query. Each direct array under 'data' represents a 'should' clause, and within each sub-array, there are sub-query nodes which are treated with a 'must' relationship, i.e. every query node within a single sub-array should match.",
+            "properties": {
+              "data": {
+                "type": "array",
+                "description": "Child 'should' clauses for this boolean query.",
+                "items": {
+                  "type": "array",
+                  "description": "Child 'must' clauses, under this 'should' clause.",
+                  "items": {
+                    "$ref": "#/$defs/QueryNode"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "$comment": "Leaf query - contains an object representing the query to match on the specified field.",
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/QueryPayload",
+                "description": "Payload for the field query."
+              }
+            }
+          }
+        }
+      ]
+    },
+    "QueryPayload": {
+      "description": "Payload for a leaf field query.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextQuery"
+        },
+        {
+          "$ref": "#/$defs/RangeQuery"
+        }
+      ]
+    },
+    "TextQuery": {
+      "type": "object",
+      "description": "Text query payload for matching string or free-text fields.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "phrases"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "phrases": {
+          "type": "array",
+          "description": "Text values to match. Always treated as phrases - if the text is analyzed to multiple tokens, the resulting query is a phrase query."
+        }
+      }
+    },
+    "RangeQuery": {
+      "type": "object",
+      "description": "Range query payload for matching numeric values within bounds.",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "range"
+        },
+        "gte": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Inclusive lower bound."
+        },
+        "gt": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Exclusive lower bound."
+        },
+        "lte": {
+          "typeubuntu switch jdk": [
+            "number",
+            "string"
+          ],
+          "description": "Inclusive upper bound."
+        },
+        "lt": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "description": "Exclusive upper bound."
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "gte"
+          ]
+        },
+        {
+          "required": [
+            "gt"
+          ]
+        },
+        {
+          "required": [
+            "lte"
+          ]
+        },
+        {
+          "required": [
+            "lt"
+          ]
+        }
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "gte",
+              "gt"
+            ]
+          },
+          {
+            "required": [
+              "lte",
+              "lt"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
