@@ -8,12 +8,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class SearchBackendTestResource implements QuarkusTestResourceLifecycleManager {
-    private static final List<RecordedRequest> REQUESTS = new ArrayList<>();
+    private static final List<RecordedRequest> REQUESTS = new CopyOnWriteArrayList<>();
 
     private HttpServer server;
 
@@ -79,22 +79,18 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
     }
 
     public static void reset() {
-        synchronized (REQUESTS) {
-            REQUESTS.clear();
-        }
+        REQUESTS.clear();
     }
 
     public static List<RecordedRequest> requests() {
-        synchronized (REQUESTS) {
-            return List.copyOf(REQUESTS);
-        }
+        return List.copyOf(REQUESTS);
     }
 
     private static void respond(HttpExchange exchange, String body) throws IOException {
         byte[] requestBody = exchange.getRequestBody().readAllBytes();
-        synchronized (REQUESTS) {
-            REQUESTS.add(new RecordedRequest(exchange.getRequestURI().getPath(), new String(requestBody, StandardCharsets.UTF_8)));
-        }
+        REQUESTS.add(new RecordedRequest(
+                exchange.getRequestURI().getPath(),
+                new String(requestBody, StandardCharsets.UTF_8)));
 
         byte[] responseBody = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");

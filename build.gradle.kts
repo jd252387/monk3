@@ -23,9 +23,6 @@ dependencies {
     implementation(libs.quarkus.rest.jackson)
     implementation(libs.quarkus.hibernate.validator)
     implementation(libs.quarkus.smallrye.openapi)
-    implementation(libs.jsonschema.generator)
-    implementation(libs.jsonschema.module.jackson)
-    implementation(libs.jsonschema.module.jakarta.validation)
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
 

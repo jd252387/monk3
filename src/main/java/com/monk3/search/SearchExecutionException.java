@@ -1,11 +1,7 @@
 package com.monk3.search;
 
-public class SearchExecutionException extends RuntimeException {
-    public SearchExecutionException(String message) {
-        super(message);
-    }
+import lombok.experimental.StandardException;
 
-    public SearchExecutionException(String message, Throwable cause) {
-        super(message, cause);
-    }
+@StandardException
+public class SearchExecutionException extends RuntimeException {
 }

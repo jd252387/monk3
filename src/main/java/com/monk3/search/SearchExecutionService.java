@@ -3,6 +3,7 @@ package com.monk3.search;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.MappedField;
 import com.monk3.mapping.MappingRepository;
@@ -237,14 +238,14 @@ public class SearchExecutionService {
         if (value != null && !value.isNull()) {
             return value.asText();
         }
-        return materialTypes.size() == 1 ? materialTypes.get(0) : null;
+        return materialTypes.size() == 1 ? materialTypes.getFirst() : null;
     }
 
     private static ArrayNode arrayAt(JsonNode node) {
         if (node instanceof ArrayNode arrayNode) {
             return arrayNode;
         }
-        return JsonNodeFactoryHolder.EMPTY_ARRAY;
+        return JsonNodeFactory.instance.arrayNode();
     }
 
     private static double observedMaxScore(ArrayNode docs) {
@@ -291,10 +292,7 @@ public class SearchExecutionService {
     }
 
     private static SearchEngine searchEngine(SearchMappingConfig.Backend backend) {
-        return switch (backend.engine()) {
-            case ELASTICSEARCH -> SearchEngine.ELASTICSEARCH;
-            case SOLR -> SearchEngine.SOLR;
-        };
+        return SearchEngine.valueOf(backend.engine().name());
     }
 
     private static List<String> matchingMaterialTypes(SearchMappingConfig.Backend backend, List<String> requestedMaterialTypes) {
@@ -304,9 +302,5 @@ public class SearchExecutionService {
     }
 
     private record FieldProjection(String logicalName, String storedField) {
-    }
-
-    private static final class JsonNodeFactoryHolder {
-        private static final ArrayNode EMPTY_ARRAY = new ObjectMapper().createArrayNode();
     }
 }

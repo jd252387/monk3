@@ -4,8 +4,7 @@ public record MappedField(
         String logicalName,
         FieldType type,
         String subdocumentType,
-        String destinationField,
-        String sourceField
+        String destinationField
 ) {
     public String searchField() {
         return destinationField == null || destinationField.isBlank() ? logicalName : destinationField;

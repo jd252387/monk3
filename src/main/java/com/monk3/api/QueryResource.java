@@ -1,12 +1,12 @@
-package com.monk3;
+package com.monk3.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchQueryRequest;
-import com.monk3.search.SearchExecutionService;
-import com.monk3.search.QueryTranslationService;
 import com.monk3.search.SearchEngine;
+import com.monk3.search.QueryTranslationService;
+import com.monk3.search.SearchExecutionService;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -64,8 +64,8 @@ public class QueryResource {
     }
 
     private InputStream schemaStream() {
-        InputStream inputStream = Thread.currentThread()
-                .getContextClassLoader()
+        InputStream inputStream = QueryResource.class
+                .getClassLoader()
                 .getResourceAsStream("search-query-dsl.schema.json");
         if (inputStream == null) {
             throw new IllegalStateException("search-query-dsl.schema.json was not found on the classpath");

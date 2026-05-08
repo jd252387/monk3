@@ -19,10 +19,6 @@
                     "destinationField": {
                         "description": "Physical field name that is stored in the search engine for this field.",
                         "type": "string"
-                    }, 
-                    "sourceField": {
-                        "description": "Field name in the source document to source the value for this field from.",
-                        "type": "string"
                     }
                 },
                 "allOf": [

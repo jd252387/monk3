@@ -11,7 +11,6 @@ import com.monk3.model.SearchQueryRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.RequiredArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @ApplicationScoped
@@ -22,24 +21,30 @@ public class QueryTranslationService {
     private final SearchMappingConfig config;
 
     public ObjectNode translate(SearchEngine searchEngine, SearchQueryRequest request) {
-        List<JsonNode> materialQueries = new ArrayList<>();
-        for (String materialType : request.materialTypes()) {
-            SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
-            QueryParseContext context = QueryParseContext.root(objectMapper, mapping, config);
-            JsonNode query = switch (searchEngine) {
-                case ELASTICSEARCH -> context.elasticsearchMaterialTypeScope(
-                        materialType,
-                        request.query().toElasticsearch(context));
-                case SOLR -> context.solrMaterialTypeScope(
-                        materialType,
-                        request.query().toSolr(context));
-            };
-            materialQueries.add(query);
-        }
+        List<JsonNode> materialQueries = request.materialTypes().stream()
+                .map(materialType -> translateMaterialType(searchEngine, request, materialType))
+                .toList();
 
         ObjectNode response = objectMapper.createObjectNode();
         response.set("query", combineMaterialQueries(searchEngine, materialQueries));
         return response;
+    }
+
+    private JsonNode translateMaterialType(
+            SearchEngine searchEngine,
+            SearchQueryRequest request,
+            String materialType
+    ) {
+        SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
+        QueryParseContext context = QueryParseContext.root(objectMapper, mapping, config);
+        return switch (searchEngine) {
+            case ELASTICSEARCH -> context.elasticsearchMaterialTypeScope(
+                    materialType,
+                    request.query().toElasticsearch(context));
+            case SOLR -> context.solrMaterialTypeScope(
+                    materialType,
+                    request.query().toSolr(context));
+        };
     }
 
     private JsonNode combineMaterialQueries(SearchEngine searchEngine, List<JsonNode> materialQueries) {
@@ -51,10 +56,7 @@ public class QueryTranslationService {
         ObjectNode bool = root.putObject("bool");
         ArrayNode should = bool.putArray("should");
         materialQueries.forEach(should::add);
-        switch (searchEngine) {
-            case ELASTICSEARCH -> bool.put("minimum_should_match", 1);
-            case SOLR -> bool.put("mm", 1);
-        }
+        bool.put(searchEngine.minimumShouldMatchProperty(), 1);
         return root;
     }
 }

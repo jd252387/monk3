@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.not;
 
 @QuarkusTest
 @QuarkusTestResource(SearchBackendTestResource.class)
-class GreetingResourceTest {
+class QueryResourceTest {
     @Test
     void validTextQueryLeafReturnsEchoedJson() {
         given()

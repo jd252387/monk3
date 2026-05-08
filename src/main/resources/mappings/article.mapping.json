@@ -4,32 +4,26 @@
   "root": {
     "materialType": {
       "type": "string",
-      "sourceField": "materialType",
       "destinationField": "material_type"
     },
     "title": {
       "type": "freetext",
-      "sourceField": "headline",
       "destinationField": "article_headline"
     },
     "body": {
       "type": "freetext",
-      "sourceField": "body",
       "destinationField": "article_body"
     },
     "year": {
       "type": "number",
-      "sourceField": "year",
       "destinationField": "article_year"
     },
     "publishedAt": {
       "type": "datetime",
-      "sourceField": "publishedAt",
       "destinationField": "article_published_at"
     },
     "citationCount": {
       "type": "number",
-      "sourceField": "citationCount",
       "destinationField": "article_citation_count"
     }
   }

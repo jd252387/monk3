@@ -9,10 +9,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MappingRepository {
@@ -21,11 +21,10 @@ public class MappingRepository {
     private final Map<String, SearchMapping> mappingsByMaterialType;
 
     public MappingRepository(ObjectMapper objectMapper, SearchMappingConfig config) {
-        Map<String, SearchMapping> loadedMappings = new LinkedHashMap<>();
-        config.materialTypeMappings()
-                .forEach((materialType, resourcePath) ->
-                        loadedMappings.put(materialType, loadMapping(objectMapper, materialType, resourcePath)));
-        this.mappingsByMaterialType = Map.copyOf(loadedMappings);
+        this.mappingsByMaterialType = config.materialTypeMappings().entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        Map.Entry::getKey,
+                        entry -> loadMapping(objectMapper, entry.getKey(), entry.getValue())));
     }
 
     public SearchMapping mappingForMaterialType(String materialType) {
@@ -37,7 +36,7 @@ public class MappingRepository {
     }
 
     private SearchMapping loadMapping(ObjectMapper objectMapper, String materialType, String resourcePath) {
-        try (InputStream inputStream = contextClassLoader().getResourceAsStream(resourcePath)) {
+        try (InputStream inputStream = MappingRepository.class.getClassLoader().getResourceAsStream(resourcePath)) {
             if (inputStream == null) {
                 throw new QueryTranslationException(
                         "Mapping resource '" + resourcePath + "' configured for material type '" + materialType + "' was not found");
@@ -47,15 +46,11 @@ public class MappingRepository {
             Map<String, DocumentMapping> documents = new LinkedHashMap<>();
             documents.put("root", parseDocument("root", requireObject(root.get("root"), resourcePath + "#/root")));
 
-            Iterator<Map.Entry<String, JsonNode>> fields = root.properties().iterator();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> entry = fields.next();
-                if (!RESERVED_PROPERTIES.contains(entry.getKey())) {
-                    documents.put(entry.getKey(), parseDocument(
+            root.properties().stream()
+                    .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
+                    .forEach(entry -> documents.put(entry.getKey(), parseDocument(
                             entry.getKey(),
-                            requireObject(entry.getValue(), resourcePath + "#/" + entry.getKey())));
-                }
-            }
+                            requireObject(entry.getValue(), resourcePath + "#/" + entry.getKey()))));
 
             return new SearchMapping(materialType, primaryKey, Map.copyOf(documents));
         } catch (IOException exception) {
@@ -80,13 +75,7 @@ public class MappingRepository {
                 logicalName,
                 type,
                 subdocumentType,
-                optionalText(fieldObject, "destinationField"),
-                optionalText(fieldObject, "sourceField"));
-    }
-
-    private static ClassLoader contextClassLoader() {
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        return classLoader == null ? MappingRepository.class.getClassLoader() : classLoader;
+                optionalText(fieldObject, "destinationField"));
     }
 
     private static ObjectNode requireObject(JsonNode node, String location) {

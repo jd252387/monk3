@@ -1,15 +1,15 @@
 package com.monk3.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.FieldType;
 import com.monk3.search.QueryParseContext;
+import com.monk3.search.SearchEngine;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
+import java.util.function.Function;
 
 public record TextQuery(
         @NotBlank String type,
@@ -23,40 +23,27 @@ public record TextQuery(
     @Override
     public JsonNode toElasticsearch(QueryParseContext context) {
         String field = context.requireSearchField("text", FieldType.STRING, FieldType.FREETEXT);
-        if (phrases.size() == 1) {
-            return elasticsearchMatchPhrase(context, field, phrases.get(0));
-        }
-
-        ObjectNode root = context.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode should = bool.putArray("should");
-        for (String phrase : phrases) {
-            should.add(elasticsearchMatchPhrase(context, field, phrase));
-        }
-        bool.put("minimum_should_match", 1);
-        return root;
+        return toPhraseQuery(context, SearchEngine.ELASTICSEARCH,
+                phrase -> context.elasticsearchMatchPhrase(field, phrase));
     }
 
     @Override
     public JsonNode toSolr(QueryParseContext context) {
         String field = context.requireSearchField("text", FieldType.STRING, FieldType.FREETEXT);
-        if (phrases.size() == 1) {
-            return context.solrFieldQuery(field, phrases.get(0));
-        }
-
-        ObjectNode root = context.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode should = bool.putArray("should");
-        for (String phrase : phrases) {
-            should.add(context.solrFieldQuery(field, phrase));
-        }
-        bool.put("mm", 1);
-        return root;
+        return toPhraseQuery(context, SearchEngine.SOLR, phrase -> context.solrFieldQuery(field, phrase));
     }
 
-    private JsonNode elasticsearchMatchPhrase(QueryParseContext context, String field, String phrase) {
-        ObjectNode root = context.objectNode();
-        root.putObject("match_phrase").put(field, phrase);
-        return root;
+    private JsonNode toPhraseQuery(
+            QueryParseContext context,
+            SearchEngine searchEngine,
+            Function<String, JsonNode> phraseQuery
+    ) {
+        if (phrases.size() == 1) {
+            return phraseQuery.apply(phrases.getFirst());
+        }
+
+        return context.boolShould(searchEngine, 1, phrases.stream()
+                .map(phraseQuery)
+                .toList());
     }
 }

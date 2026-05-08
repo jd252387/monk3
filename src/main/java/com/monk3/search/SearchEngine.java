@@ -11,10 +11,11 @@ import java.util.Arrays;
 @Accessors(fluent = true)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum SearchEngine {
-    ELASTICSEARCH("elasticsearch"),
-    SOLR("solr");
+    ELASTICSEARCH("elasticsearch", "minimum_should_match"),
+    SOLR("solr", "mm");
 
     private final String pathName;
+    private final String minimumShouldMatchProperty;
 
     public static SearchEngine fromPath(String pathName) {
         return Arrays.stream(values())

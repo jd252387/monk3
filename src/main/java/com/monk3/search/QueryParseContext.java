@@ -9,22 +9,19 @@ import com.monk3.mapping.FieldType;
 import com.monk3.mapping.MappedField;
 import com.monk3.mapping.SearchMapping;
 import com.monk3.mapping.SearchMappingConfig;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 
-import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public final class QueryParseContext {
-    private final ObjectMapper objectMapper;
-    private final SearchMapping mapping;
-    private final DocumentMapping document;
-    private final MappedField currentField;
-    private final Integer minimumMatch;
-    private final String materialTypeField;
-    private final String solrParentBlockMask;
-
+public record QueryParseContext(
+        ObjectMapper objectMapper,
+        SearchMapping mapping,
+        DocumentMapping document,
+        MappedField currentField,
+        Integer minimumMatch,
+        SearchMappingConfig config
+) {
     public static QueryParseContext root(ObjectMapper objectMapper, SearchMapping mapping, SearchMappingConfig config) {
         return new QueryParseContext(
                 objectMapper,
@@ -32,16 +29,11 @@ public final class QueryParseContext {
                 mapping.root(),
                 null,
                 null,
-                config.materialTypeField(),
-                config.solr().parentBlockMask());
+                config);
     }
 
     public ObjectNode objectNode() {
         return objectMapper.createObjectNode();
-    }
-
-    public ArrayNode arrayNode() {
-        return objectMapper.createArrayNode();
     }
 
     public JsonNode valueNode(Object value) {
@@ -55,8 +47,7 @@ public final class QueryParseContext {
                 document,
                 currentField,
                 minimumMatch,
-                materialTypeField,
-                solrParentBlockMask);
+                config);
     }
 
     public QueryParseContext withField(MappedField mappedField) {
@@ -66,8 +57,7 @@ public final class QueryParseContext {
                 document,
                 mappedField,
                 minimumMatch,
-                materialTypeField,
-                solrParentBlockMask);
+                config);
     }
 
     public QueryParseContext withDocument(DocumentMapping documentMapping) {
@@ -77,12 +67,33 @@ public final class QueryParseContext {
                 documentMapping,
                 null,
                 minimumMatch,
-                materialTypeField,
-                solrParentBlockMask);
+                config);
     }
 
     public int minimumMatchOrDefault(int defaultValue) {
         return minimumMatch == null ? defaultValue : minimumMatch;
+    }
+
+    public JsonNode boolShould(SearchEngine searchEngine, int minimumMatch, List<JsonNode> clauses) {
+        ObjectNode root = objectNode();
+        ObjectNode bool = root.putObject("bool");
+        ArrayNode should = bool.putArray("should");
+        clauses.forEach(should::add);
+        bool.put(searchEngine.minimumShouldMatchProperty(), minimumMatch);
+        return root;
+    }
+
+    public JsonNode boolMust(List<JsonNode> clauses) {
+        ObjectNode root = objectNode();
+        ArrayNode must = root.putObject("bool").putArray("must");
+        clauses.forEach(must::add);
+        return root;
+    }
+
+    public JsonNode elasticsearchMatchPhrase(String field, String phrase) {
+        ObjectNode root = objectNode();
+        root.putObject("match_phrase").put(field, phrase);
+        return root;
     }
 
     public MappedField requireMappedField(String logicalName) {
@@ -106,11 +117,11 @@ public final class QueryParseContext {
         if (currentField == null) {
             throw new QueryTranslationException("No mapped field is available for " + queryType + " query conversion");
         }
-        boolean supported = Arrays.asList(supportedTypes).contains(currentField.type());
+        boolean supported = List.of(supportedTypes).contains(currentField.type());
         if (!supported) {
             throw new QueryTranslationException(
                     "Query type '" + queryType + "' is not supported for field '" + currentField.logicalName()
-                            + "' with mapping type '" + currentField.type().name().toLowerCase() + "'");
+                            + "' with mapping type '" + currentField.type().name().toLowerCase(Locale.ROOT) + "'");
         }
         return currentField.searchField();
     }
@@ -146,7 +157,7 @@ public final class QueryParseContext {
     public JsonNode solrParentQuery(JsonNode childQuery) {
         ObjectNode root = objectNode();
         ObjectNode parent = root.putObject("parent");
-        parent.put("which", solrParentBlockMask);
+        parent.put("which", config.solr().parentBlockMask());
         parent.set("query", childQuery);
         return root;
     }
@@ -156,7 +167,7 @@ public final class QueryParseContext {
         ObjectNode bool = root.putObject("bool");
         ArrayNode filter = bool.putArray("filter");
         ObjectNode materialTypeFilter = objectNode();
-        materialTypeFilter.putObject("term").put(materialTypeField, materialType);
+        materialTypeFilter.putObject("term").put(config.materialTypeField(), materialType);
         filter.add(materialTypeFilter);
         ArrayNode must = bool.putArray("must");
         must.add(query);
@@ -167,7 +178,7 @@ public final class QueryParseContext {
         ObjectNode root = objectNode();
         ObjectNode bool = root.putObject("bool");
         ArrayNode filter = bool.putArray("filter");
-        filter.add(solrFieldQuery(materialTypeField, materialType));
+        filter.add(solrFieldQuery(config.materialTypeField(), materialType));
         ArrayNode must = bool.putArray("must");
         must.add(query);
         return root;

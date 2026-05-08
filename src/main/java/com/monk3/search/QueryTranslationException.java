@@ -1,11 +1,7 @@
 package com.monk3.search;
 
-public class QueryTranslationException extends RuntimeException {
-    public QueryTranslationException(String message) {
-        super(message);
-    }
+import lombok.experimental.StandardException;
 
-    public QueryTranslationException(String message, Throwable cause) {
-        super(message, cause);
-    }
+@StandardException
+public class QueryTranslationException extends RuntimeException {
 }
