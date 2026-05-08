@@ -1,0 +1,48 @@
+{
+  "$schema": "../../../../mappings.schema.json",
+  "primaryKey": "id",
+  "root": {
+    "materialType": {
+      "type": "string",
+      "sourceField": "materialType",
+      "destinationField": "material_type"
+    },
+    "title": {
+      "type": "freetext",
+      "sourceField": "title",
+      "destinationField": "book_title"
+    },
+    "author": {
+      "type": "string",
+      "sourceField": "author",
+      "destinationField": "book_author"
+    },
+    "year": {
+      "type": "number",
+      "sourceField": "year",
+      "destinationField": "book_year"
+    },
+    "publishedAt": {
+      "type": "datetime",
+      "sourceField": "publishedAt",
+      "destinationField": "book_published_at"
+    },
+    "chapters": {
+      "type": "subdocument",
+      "subdocumentType": "chapter",
+      "destinationField": "chapters"
+    }
+  },
+  "chapter": {
+    "title": {
+      "type": "freetext",
+      "sourceField": "title",
+      "destinationField": "chapters.title"
+    },
+    "pageCount": {
+      "type": "number",
+      "sourceField": "pageCount",
+      "destinationField": "chapters.page_count"
+    }
+  }
+}

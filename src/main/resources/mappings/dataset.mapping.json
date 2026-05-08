@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../../mappings.schema.json",
+  "primaryKey": "id",
+  "root": {
+    "materialType": {
+      "type": "string",
+      "sourceField": "materialType",
+      "destinationField": "material_type"
+    },
+    "ds": {
+      "type": "freetext",
+      "sourceField": "name",
+      "destinationField": "dataset_name"
+    },
+    "createdAt": {
+      "type": "datetime",
+      "sourceField": "createdAt",
+      "destinationField": "dataset_created_at"
+    },
+    "recordCount": {
+      "type": "number",
+      "sourceField": "recordCount",
+      "destinationField": "dataset_record_count"
+    }
+  }
+}

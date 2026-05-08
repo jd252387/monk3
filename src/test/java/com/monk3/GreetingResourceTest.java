@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -111,6 +112,145 @@ class GreetingResourceTest {
                 .body("query.data[0][0].data.type", equalTo("text"))
                 .body("query.data[0][1].isNot", equalTo(true))
                 .body("query.data[0][1].data.gt", equalTo(1800));
+    }
+
+    @Test
+    void parsesTextQueryToElasticsearchDslUsingConfiguredMapping() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Elasticsearch text query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": ["java records"]
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("query.bool.must[0].match_phrase.book_title", equalTo("java records"));
+    }
+
+    @Test
+    void parsesRangeQueryToSolrJsonDslUsingConfiguredMapping() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Solr range query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "year",
+                            "data": {
+                              "type": "range",
+                              "gte": 1995,
+                              "lt": 2020
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/solr")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.filter[0].field.f", equalTo("material_type"))
+                .body("query.bool.filter[0].field.query", equalTo("article"))
+                .body("query.bool.must[0].frange.query", equalTo("article_year"))
+                .body("query.bool.must[0].frange.l", equalTo(1995))
+                .body("query.bool.must[0].frange.u", equalTo(2020))
+                .body("query.bool.must[0].frange.incl", equalTo(true))
+                .body("query.bool.must[0].frange.incu", equalTo(false));
+    }
+
+    @Test
+    void combinesMultipleMaterialTypesWithEachConfiguredMapping() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Cross material query",
+                          "materialTypes": ["book", "article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": ["history"]
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.minimum_should_match", equalTo(1))
+                .body("query.bool.should[0].bool.filter[0].term.material_type", equalTo("book"))
+                .body("query.bool.should[0].bool.must[0].match_phrase.book_title", equalTo("history"))
+                .body("query.bool.should[1].bool.filter[0].term.material_type", equalTo("article"))
+                .body("query.bool.should[1].bool.must[0].match_phrase.article_headline", equalTo("history"));
+    }
+
+    @Test
+    void parsesSubdocumentQueryToElasticsearchNestedDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Nested chapter query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "chapters",
+                            "data": [
+                              [
+                                {
+                                  "field": "title",
+                                  "data": {
+                                    "type": "text",
+                                    "phrases": ["introduction"]
+                                  }
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.must[0].nested.path", equalTo("chapters"))
+                .body(containsString("\"chapters.title\""))
+                .body(containsString("\"introduction\""));
+    }
+
+    @Test
+    void invalidTranslationRequestsReturnStructuredBadRequest() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Unknown mapped field",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "missing",
+                            "data": {"type": "text", "phrases": ["x"]}
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Field 'missing' is not defined"));
     }
 
     @Test

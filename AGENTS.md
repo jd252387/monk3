@@ -2,18 +2,14 @@
 
 ## Java Style
 
-- Target Java 17 and follow the existing Quarkus project structure.
+- Target Java 25 and follow the existing Quarkus project structure.
 - Prefer clear, immutable models and small methods with explicit names.
 - Keep business logic out of REST resource classes when it grows beyond simple request handling.
 
 ## Lombok
 
-- Do not introduce Lombok annotations unless the project has Lombok configured in `build.gradle.kts` with both `compileOnly` and `annotationProcessor` dependencies.
 - Use Lombok to remove low-value boilerplate, not to hide behavior.
-- Prefer focused annotations such as `@Getter`, `@Setter`, `@RequiredArgsConstructor`, `@Builder`, `@EqualsAndHashCode`, and `@ToString`.
-- Avoid `@Data` on domain or API types unless all generated methods are intentionally desired.
 - Prefer constructor injection with `final` fields and `@RequiredArgsConstructor` when dependencies or required collaborators are present.
-- Exclude sensitive fields from `@ToString` and avoid generated equality on mutable identifiers unless that is the intended model contract.
 
 ## Java Streams
 

@@ -1,6 +1,6 @@
 plugins {
     java
-    id("io.quarkus") version "3.35.2"
+    alias(libs.plugins.quarkus)
 }
 
 group = "com.monk3"
@@ -12,21 +12,29 @@ java {
     }
 }
 
-dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.35.2"))
-    implementation("io.quarkus:quarkus-config-yaml")
-    implementation("io.quarkus:quarkus-rest")
-    implementation("io.quarkus:quarkus-rest-jackson")
-    implementation("io.quarkus:quarkus-hibernate-validator")
-    implementation("io.quarkus:quarkus-smallrye-openapi")
-    implementation("com.github.victools:jsonschema-generator:4.38.0")
-    implementation("com.github.victools:jsonschema-module-jackson:4.38.0")
-    implementation("com.github.victools:jsonschema-module-jakarta-validation:4.38.0")
+tasks.withType<JavaCompile> {
+    options.release.set(17)
+}
 
-    testImplementation("io.quarkus:quarkus-junit5")
-    testImplementation("io.rest-assured:rest-assured")
+dependencies {
+    implementation(enforcedPlatform(libs.quarkus.bom))
+    implementation(libs.quarkus.config.yaml)
+    implementation(libs.quarkus.rest)
+    implementation(libs.quarkus.rest.jackson)
+    implementation(libs.quarkus.hibernate.validator)
+    implementation(libs.quarkus.smallrye.openapi)
+    implementation(libs.jsonschema.generator)
+    implementation(libs.jsonschema.module.jackson)
+    implementation(libs.jsonschema.module.jakarta.validation)
+
+    testImplementation(libs.quarkus.junit5)
+    testImplementation(libs.rest.assured)
 }
 
 tasks.withType<Test> {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+}
+
+tasks.processResources {
+    from(layout.projectDirectory.file("search-query-dsl.schema.json"))
 }

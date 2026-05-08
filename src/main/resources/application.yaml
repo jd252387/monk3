@@ -3,3 +3,13 @@ quarkus:
     port: 8080
   swagger-ui:
     always-include: true
+
+monk3:
+  search:
+    material-type-field: material_type
+    material-type-mappings:
+      book: mappings/book.mapping.json
+      article: mappings/article.mapping.json
+      ds: mappings/dataset.mapping.json
+    solr:
+      parent-block-mask: "*:* -_nest_path_:*"
