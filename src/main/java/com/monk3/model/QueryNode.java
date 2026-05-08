@@ -1,12 +1,9 @@
 package com.monk3.model;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.monk3.json.QueryNodeDeserializer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 
-@JsonDeserialize(using = QueryNodeDeserializer.class)
 public record QueryNode(
         @NotNull String field,
         Integer minimumMatch,
