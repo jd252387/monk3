@@ -13,7 +13,7 @@ java {
 }
 
 tasks.withType<JavaCompile> {
-    options.release.set(17)
+    options.release.set(25)
 }
 
 dependencies {
