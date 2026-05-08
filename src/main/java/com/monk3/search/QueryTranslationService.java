@@ -36,12 +36,12 @@ public class QueryTranslationService {
             String materialType
     ) {
         SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
-        QueryParseContext context = QueryParseContext.root(objectMapper, mapping, config);
+        QueryParseContext context = QueryParseContext.root(mapping, config);
         return switch (searchEngine) {
-            case ELASTICSEARCH -> context.elasticsearchMaterialTypeScope(
+            case ELASTICSEARCH -> elasticsearchMaterialTypeScope(
                     materialType,
                     request.query().toElasticsearch(context));
-            case SOLR -> context.solrMaterialTypeScope(
+            case SOLR -> solrMaterialTypeScope(
                     materialType,
                     request.query().toSolr(context));
         };
@@ -57,6 +57,36 @@ public class QueryTranslationService {
         ArrayNode should = bool.putArray("should");
         materialQueries.forEach(should::add);
         bool.put(searchEngine.minimumShouldMatchProperty(), 1);
+        return root;
+    }
+
+    private JsonNode elasticsearchMaterialTypeScope(String materialType, JsonNode query) {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode bool = root.putObject("bool");
+        ArrayNode filter = bool.putArray("filter");
+        ObjectNode materialTypeFilter = objectMapper.createObjectNode();
+        materialTypeFilter.putObject("term").put(config.materialTypeField(), materialType);
+        filter.add(materialTypeFilter);
+        ArrayNode must = bool.putArray("must");
+        must.add(query);
+        return root;
+    }
+
+    private JsonNode solrMaterialTypeScope(String materialType, JsonNode query) {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode bool = root.putObject("bool");
+        ArrayNode filter = bool.putArray("filter");
+        filter.add(solrFieldQuery(config.materialTypeField(), materialType));
+        ArrayNode must = bool.putArray("must");
+        must.add(query);
+        return root;
+    }
+
+    private ObjectNode solrFieldQuery(String field, String value) {
+        ObjectNode root = objectMapper.createObjectNode();
+        ObjectNode fieldQuery = root.putObject("field");
+        fieldQuery.put("f", field);
+        fieldQuery.put("query", value);
         return root;
     }
 }
