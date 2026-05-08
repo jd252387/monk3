@@ -26,9 +26,13 @@ dependencies {
     implementation(libs.jsonschema.generator)
     implementation(libs.jsonschema.module.jackson)
     implementation(libs.jsonschema.module.jakarta.validation)
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
 
     testImplementation(libs.quarkus.junit5)
     testImplementation(libs.rest.assured)
+    testCompileOnly(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 }
 
 tasks.withType<Test> {

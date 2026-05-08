@@ -9,25 +9,17 @@ import com.monk3.mapping.SearchMapping;
 import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.model.SearchQueryRequest;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @ApplicationScoped
+@RequiredArgsConstructor
 public class QueryTranslationService {
     private final ObjectMapper objectMapper;
     private final MappingRepository mappingRepository;
     private final SearchMappingConfig config;
-
-    public QueryTranslationService(
-            ObjectMapper objectMapper,
-            MappingRepository mappingRepository,
-            SearchMappingConfig config
-    ) {
-        this.objectMapper = objectMapper;
-        this.mappingRepository = mappingRepository;
-        this.config = config;
-    }
 
     public ObjectNode translate(SearchEngine searchEngine, SearchQueryRequest request) {
         List<JsonNode> materialQueries = new ArrayList<>();

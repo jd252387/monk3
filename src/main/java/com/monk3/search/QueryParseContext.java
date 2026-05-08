@@ -9,10 +9,13 @@ import com.monk3.mapping.FieldType;
 import com.monk3.mapping.MappedField;
 import com.monk3.mapping.SearchMapping;
 import com.monk3.mapping.SearchMappingConfig;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 import java.util.Arrays;
 import java.util.Optional;
 
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class QueryParseContext {
     private final ObjectMapper objectMapper;
     private final SearchMapping mapping;
@@ -21,24 +24,6 @@ public final class QueryParseContext {
     private final Integer minimumMatch;
     private final String materialTypeField;
     private final String solrParentBlockMask;
-
-    private QueryParseContext(
-            ObjectMapper objectMapper,
-            SearchMapping mapping,
-            DocumentMapping document,
-            MappedField currentField,
-            Integer minimumMatch,
-            String materialTypeField,
-            String solrParentBlockMask
-    ) {
-        this.objectMapper = objectMapper;
-        this.mapping = mapping;
-        this.document = document;
-        this.currentField = currentField;
-        this.minimumMatch = minimumMatch;
-        this.materialTypeField = materialTypeField;
-        this.solrParentBlockMask = solrParentBlockMask;
-    }
 
     public static QueryParseContext root(ObjectMapper objectMapper, SearchMapping mapping, SearchMappingConfig config) {
         return new QueryParseContext(

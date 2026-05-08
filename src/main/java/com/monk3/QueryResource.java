@@ -13,20 +13,18 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 @Path("/queries")
+@RequiredArgsConstructor
 public class QueryResource {
     private static final String SCHEMA_MEDIA_TYPE = "application/schema+json";
 
     private final QueryTranslationService queryTranslationService;
-
-    public QueryResource(QueryTranslationService queryTranslationService) {
-        this.queryTranslationService = queryTranslationService;
-    }
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)

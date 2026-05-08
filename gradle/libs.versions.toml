@@ -1,6 +1,7 @@
 [versions]
 quarkus = "3.35.2"
 jsonschema-generator = "4.38.0"
+lombok = "1.18.46"
 
 [libraries]
 quarkus-bom = { module = "io.quarkus.platform:quarkus-bom", version.ref = "quarkus" }
@@ -12,6 +13,7 @@ quarkus-smallrye-openapi = { module = "io.quarkus:quarkus-smallrye-openapi" }
 jsonschema-generator = { module = "com.github.victools:jsonschema-generator", version.ref = "jsonschema-generator" }
 jsonschema-module-jackson = { module = "com.github.victools:jsonschema-module-jackson", version.ref = "jsonschema-generator" }
 jsonschema-module-jakarta-validation = { module = "com.github.victools:jsonschema-module-jakarta-validation", version.ref = "jsonschema-generator" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 quarkus-junit5 = { module = "io.quarkus:quarkus-junit5" }
 rest-assured = { module = "io.rest-assured:rest-assured" }
 
