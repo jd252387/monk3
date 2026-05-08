@@ -1,7 +1,10 @@
 package com.monk3;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.monk3.model.SearchExecutionRequest;
+import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchQueryRequest;
+import com.monk3.search.SearchExecutionService;
 import com.monk3.search.QueryTranslationService;
 import com.monk3.search.SearchEngine;
 import jakarta.validation.Valid;
@@ -25,6 +28,7 @@ public class QueryResource {
     private static final String SCHEMA_MEDIA_TYPE = "application/schema+json";
 
     private final QueryTranslationService queryTranslationService;
+    private final SearchExecutionService searchExecutionService;
 
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
@@ -39,6 +43,14 @@ public class QueryResource {
     @Produces(MediaType.APPLICATION_JSON)
     public JsonNode parseQuery(@PathParam("engine") String engine, @Valid SearchQueryRequest request) {
         return queryTranslationService.translate(SearchEngine.fromPath(engine), request);
+    }
+
+    @POST
+    @Path("/search")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public SearchExecutionResponse search(@Valid SearchExecutionRequest request) {
+        return searchExecutionService.search(request);
     }
 
     @GET

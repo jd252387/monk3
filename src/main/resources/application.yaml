@@ -11,5 +11,6 @@ monk3:
       book: mappings/book.mapping.json
       article: mappings/article.mapping.json
       ds: mappings/dataset.mapping.json
+    backends: {}
     solr:
       parent-block-mask: "*:* -_nest_path_:*"

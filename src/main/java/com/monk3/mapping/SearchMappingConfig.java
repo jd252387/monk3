@@ -1,8 +1,12 @@
 package com.monk3.mapping;
 
 import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithDefault;
 
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @ConfigMapping(prefix = "monk3.search")
 public interface SearchMappingConfig {
@@ -10,9 +14,31 @@ public interface SearchMappingConfig {
 
     Map<String, String> materialTypeMappings();
 
+    Map<String, Backend> backends();
+
     Solr solr();
+
+    interface Backend {
+        SearchBackendEngine engine();
+
+        URI url();
+
+        Optional<String> index();
+
+        Optional<String> collection();
+
+        List<String> materialTypes();
+
+        @WithDefault("10")
+        int defaultSize();
+    }
 
     interface Solr {
         String parentBlockMask();
+    }
+
+    enum SearchBackendEngine {
+        ELASTICSEARCH,
+        SOLR
     }
 }

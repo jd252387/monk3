@@ -1,10 +1,14 @@
 package com.monk3;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -13,6 +17,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 @QuarkusTest
+@QuarkusTestResource(SearchBackendTestResource.class)
 class GreetingResourceTest {
     @Test
     void validTextQueryLeafReturnsEchoedJson() {
@@ -229,6 +234,59 @@ class GreetingResourceTest {
                 .body("query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.title\""))
                 .body(containsString("\"introduction\""));
+    }
+
+    @Test
+    void executesQueryAcrossMultipleBackendsAndMergesNormalizedResults() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Merged search",
+                            "materialTypes": ["book", "article"],
+                            "query": {
+                              "field": "title",
+                              "data": {
+                                "type": "text",
+                                "phrases": ["java"]
+                              }
+                            }
+                          },
+                          "fields": ["title", "year"],
+                          "size": 10
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results.size()", equalTo(2))
+                .body("results[0].backend", equalTo("solr-articles"))
+                .body("results[0].materialType", equalTo("article"))
+                .body("results[0].id", equalTo("article-1"))
+                .body("results[0].score", equalTo(5.0f))
+                .body("results[0].normalizedScore", equalTo(1.0f))
+                .body("results[0].fields.title", equalTo("Solr Article"))
+                .body("results[0].fields.year", equalTo(2024))
+                .body("results[1].backend", equalTo("elastic-books"))
+                .body("results[1].materialType", equalTo("book"))
+                .body("results[1].id", equalTo("book-1"))
+                .body("results[1].score", equalTo(10.0f))
+                .body("results[1].normalizedScore", equalTo(0.5f))
+                .body("results[1].fields.title", equalTo("Java Records"))
+                .body("results[1].fields.year", equalTo(2025));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(2));
+        assertThat(requests.get(0).path(), equalTo("/es/books/_search"));
+        assertThat(requests.get(0).body(), containsString("\"_source\":[\"material_type\",\"id\",\"book_title\",\"book_year\"]"));
+        assertThat(requests.get(0).body(), containsString("\"match_phrase\":{\"book_title\":\"java\"}"));
+        assertThat(requests.get(1).path(), equalTo("/solr/articles/select"));
+        assertThat(requests.get(1).body(), containsString("\"fields\":[\"score\",\"material_type\",\"id\",\"article_headline\",\"article_year\"]"));
+        assertThat(requests.get(1).body(), containsString("\"field\":{\"f\":\"article_headline\",\"query\":\"java\"}"));
     }
 
     @Test
