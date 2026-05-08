@@ -1,5 +1,6 @@
 package com.monk3.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.search.QueryParseContext;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ public record QueryNode(
         return data.toSolr(context, this);
     }
 
+    @JsonIgnore
     boolean isNegated() {
         return Boolean.TRUE.equals(isNot);
     }

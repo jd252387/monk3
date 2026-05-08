@@ -1,5 +1,6 @@
 package com.monk3.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -18,6 +19,7 @@ public record TextQuery(
         @NotBlank String type,
         @NotEmpty List<@NotBlank String> phrases
 ) implements QueryPayload {
+    @JsonIgnore
     @AssertTrue(message = "type must be text")
     public boolean isTextType() {
         return "text".equals(type);

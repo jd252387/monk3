@@ -1,5 +1,6 @@
 package com.monk3.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -18,6 +19,7 @@ public record RangeQuery(
         RangeBound lte,
         RangeBound lt
 ) implements QueryPayload {
+    @JsonIgnore
     @AssertTrue(message = "type must be range")
     public boolean isRangeType() {
         return "range".equals(type);

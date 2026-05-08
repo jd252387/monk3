@@ -47,7 +47,8 @@ class QueryResourceTest {
                 .body("name", equalTo("Text query"))
                 .body("query.field", equalTo("title"))
                 .body("query.data.type", equalTo("text"))
-                .body("query.data.phrases[0]", equalTo("java records"));
+                .body("query.data.phrases[0]", equalTo("java records"))
+                .body("query.data", not(hasKey("textType")));
     }
 
     @Test
@@ -407,6 +408,59 @@ class QueryResourceTest {
                   }
                 }
                 """);
+    }
+
+    @Test
+    void invalidQuerySerializationFieldsReturnStructuredExplanation() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Serialized validation helper",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": ["java records"],
+                              "textType": true
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("query.data.textType"))
+                .body("error.message", containsString("property 'textType' is not part of the query DSL"));
+    }
+
+    @Test
+    void invalidQueryDataTypeReturnsStructuredExplanation() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Invalid payload type",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "geo",
+                              "phrases": ["java records"]
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("Unsupported query data type 'geo'"))
+                .body("error.message", containsString("Supported query data types are 'text' and 'range'"));
     }
 
     @Test
