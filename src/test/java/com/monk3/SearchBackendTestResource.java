@@ -11,11 +11,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class SearchBackendTestResource implements QuarkusTestResourceLifecycleManager {
+    private static final long PARALLEL_REQUEST_TIMEOUT_SECONDS = 2L;
     private static final List<RecordedRequest> REQUESTS = new CopyOnWriteArrayList<>();
+    private static final AtomicReference<CountDownLatch> PARALLEL_REQUESTS = new AtomicReference<>();
 
     private HttpServer server;
+    private ExecutorService executor;
 
     @Override
     public Map<String, String> start() {
@@ -55,6 +63,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       }
                     }
                     """));
+            executor = Executors.newVirtualThreadPerTaskExecutor();
+            server.setExecutor(executor);
             server.start();
             String baseUrl = "http://localhost:" + server.getAddress().getPort();
             return Map.ofEntries(
@@ -76,10 +86,21 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
         if (server != null) {
             server.stop(0);
         }
+        if (executor != null) {
+            executor.close();
+        }
     }
 
     public static void reset() {
         REQUESTS.clear();
+    }
+
+    public static void requireParallelRequests(int requestCount) {
+        PARALLEL_REQUESTS.set(new CountDownLatch(requestCount));
+    }
+
+    public static void clearParallelRequestRequirement() {
+        PARALLEL_REQUESTS.set(null);
     }
 
     public static List<RecordedRequest> requests() {
@@ -91,12 +112,29 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
         REQUESTS.add(new RecordedRequest(
                 exchange.getRequestURI().getPath(),
                 new String(requestBody, StandardCharsets.UTF_8)));
+        awaitParallelRequests();
 
         byte[] responseBody = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, responseBody.length);
         exchange.getResponseBody().write(responseBody);
         exchange.close();
+    }
+
+    private static void awaitParallelRequests() throws IOException {
+        CountDownLatch requests = PARALLEL_REQUESTS.get();
+        if (requests == null) {
+            return;
+        }
+        requests.countDown();
+        try {
+            if (!requests.await(PARALLEL_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IOException("Timed out waiting for parallel backend requests");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while waiting for parallel backend requests", exception);
+        }
     }
 
     public record RecordedRequest(String path, String body) {

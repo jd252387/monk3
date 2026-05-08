@@ -29,6 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @ApplicationScoped
 @RequiredArgsConstructor
@@ -43,14 +47,7 @@ public class SearchExecutionService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
-        List<SearchResult> results = new ArrayList<>();
-        for (Map.Entry<String, SearchMappingConfig.Backend> entry : config.backends().entrySet()) {
-            List<String> materialTypes = matchingMaterialTypes(entry.getValue(), request.query().materialTypes());
-            if (!materialTypes.isEmpty()) {
-                SearchEngine engine = searchEngine(entry.getValue());
-                results.addAll(searchBackend(entry.getKey(), entry.getValue(), engine, request, materialTypes));
-            }
-        }
+        List<SearchResult> results = executeBackendSearches(request);
 
         if (results.isEmpty()) {
             throw new QueryTranslationException("No configured search backend supports the requested material types");
@@ -62,6 +59,50 @@ public class SearchExecutionService {
                         .reversed())
                 .limit(size(request, null))
                 .toList());
+    }
+
+    private List<SearchResult> executeBackendSearches(SearchExecutionRequest request) {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<List<SearchResult>>> searches = new ArrayList<>();
+            for (Map.Entry<String, SearchMappingConfig.Backend> entry : config.backends().entrySet()) {
+                List<String> materialTypes = matchingMaterialTypes(entry.getValue(), request.query().materialTypes());
+                if (!materialTypes.isEmpty()) {
+                    SearchEngine engine = searchEngine(entry.getValue());
+                    searches.add(executor.submit(() -> searchBackend(
+                            entry.getKey(),
+                            entry.getValue(),
+                            engine,
+                            request,
+                            materialTypes)));
+                }
+            }
+            return completedResults(searches);
+        }
+    }
+
+    private static List<SearchResult> completedResults(List<Future<List<SearchResult>>> searches) {
+        List<SearchResult> results = new ArrayList<>();
+        for (Future<List<SearchResult>> search : searches) {
+            try {
+                results.addAll(search.get());
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new SearchExecutionException("Search request was interrupted", exception);
+            } catch (ExecutionException exception) {
+                throw searchFailure(exception.getCause());
+            }
+        }
+        return results;
+    }
+
+    private static RuntimeException searchFailure(Throwable cause) {
+        if (cause instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        }
+        if (cause instanceof Error error) {
+            throw error;
+        }
+        return new SearchExecutionException("Search backend request failed", cause);
     }
 
     private List<SearchResult> searchBackend(

@@ -7,6 +7,7 @@ import com.monk3.model.SearchQueryRequest;
 import com.monk3.search.SearchEngine;
 import com.monk3.search.QueryTranslationService;
 import com.monk3.search.SearchExecutionService;
+import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -23,6 +24,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 @Path("/queries")
+@RunOnVirtualThread
 @RequiredArgsConstructor
 public class QueryResource {
     private static final String SCHEMA_MEDIA_TYPE = "application/schema+json";
