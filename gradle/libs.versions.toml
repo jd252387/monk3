@@ -1,5 +1,5 @@
 [versions]
-quarkus = "3.35.2"
+quarkus = "3.33.1.1"
 jsonschema-generator = "4.38.0"
 lombok = "1.18.46"
 
