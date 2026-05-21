@@ -1,6 +1,5 @@
 package com.monk3.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -8,7 +7,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.FieldType;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.SearchEngine;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 
@@ -19,12 +17,6 @@ public record TextQuery(
         @NotBlank String type,
         @NotEmpty List<@NotBlank String> phrases
 ) implements QueryPayload {
-    @JsonIgnore
-    @AssertTrue(message = "type must be text")
-    public boolean isTextType() {
-        return "text".equals(type);
-    }
-
     @Override
     public JsonNode toElasticsearch(QueryParseContext context) {
         String field = context.requireSearchField("text", FieldType.STRING, FieldType.FREETEXT);
