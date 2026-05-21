@@ -14,13 +14,9 @@ import com.monk3.model.QueryPayload;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
-    private static final Set<String> ALLOWED_FIELDS = Set.of("field", "minimumMatch", "isNot", "data");
-
     @Override
     public QueryNode deserialize(JsonParser parser, DeserializationContext context) throws IOException {
         ObjectMapper mapper = (ObjectMapper) parser.getCodec();
@@ -28,15 +24,20 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         if (!(node instanceof ObjectNode objectNode)) {
             throw JsonMappingException.from(parser, "Query node must be an object");
         }
-        rejectUnknownFields(parser, objectNode);
 
-        JsonNode fieldNode = objectNode.get("field");
+        JsonNode fieldNode = objectNode.remove("field");
+        JsonNode minimumMatchNode = objectNode.remove("minimumMatch");
+        JsonNode isNotNode = objectNode.remove("isNot");
+        JsonNode dataNode = objectNode.remove("data");
+        if (!objectNode.isEmpty()) {
+            throw JsonMappingException.from(parser, "Unknown query node property: " + objectNode.fieldNames().next());
+        }
+
         if (fieldNode == null || fieldNode.isNull() || !fieldNode.isTextual()) {
             throw JsonMappingException.from(parser, "Query node field must be a string");
         }
 
         String field = fieldNode.textValue();
-        JsonNode minimumMatchNode = objectNode.get("minimumMatch");
         Integer minimumMatch = null;
         if (minimumMatchNode != null && !minimumMatchNode.isNull()) {
             if (!minimumMatchNode.canConvertToInt()) {
@@ -45,7 +46,6 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             minimumMatch = minimumMatchNode.intValue();
         }
 
-        JsonNode isNotNode = objectNode.get("isNot");
         Boolean isNot = null;
         if (isNotNode != null && !isNotNode.isNull()) {
             if (!isNotNode.isBoolean()) {
@@ -54,25 +54,25 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             isNot = isNotNode.booleanValue();
         }
 
-        JsonNode dataNode = objectNode.get("data");
         if (dataNode == null || dataNode.isNull()) {
             throw JsonMappingException.from(parser, "Query node data is required");
         }
 
         QueryData data = field.isEmpty()
                 ? readBooleanData(parser, mapper, dataNode)
-                : mapper.treeToValue(dataNode, QueryPayload.class);
+                : readPayloadData(parser, context, mapper, dataNode);
         return new QueryNode(field, minimumMatch, isNot, data);
     }
 
-    private static void rejectUnknownFields(JsonParser parser, ObjectNode objectNode) throws JsonMappingException {
-        Iterator<String> fieldNames = objectNode.fieldNames();
-        while (fieldNames.hasNext()) {
-            String fieldName = fieldNames.next();
-            if (!ALLOWED_FIELDS.contains(fieldName)) {
-                throw JsonMappingException.from(parser, "Unknown query node property: " + fieldName);
-            }
-        }
+    private static QueryPayload readPayloadData(
+            JsonParser parser,
+            DeserializationContext context,
+            ObjectMapper mapper,
+            JsonNode dataNode
+    ) throws IOException {
+        JsonParser payloadParser = dataNode.traverse(mapper);
+        payloadParser.nextToken();
+        return new QueryPayloadDeserializer().deserialize(payloadParser, context);
     }
 
     private static BooleanQueryData readBooleanData(JsonParser parser, ObjectMapper mapper, JsonNode dataNode)

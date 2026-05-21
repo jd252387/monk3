@@ -36,7 +36,7 @@
   "$defs": {
     "QueryNode": {
       "type": "object",
-      "description": "A recursive query node. A node with an empty field is a boolean/group node; if the field is equal to the name of a document type in the mapping, then the sub-queries in 'data' query the fields in the specified document type; if 'field' is not empty and does not identify a document type, then the node is a leaf field query.",
+      "description": "A recursive query node. A node with an empty field is a boolean/group node; if the field is equal to the name of a document type in the mapping, then the sub-queries in 'data' query the fields in the specified document type; if 'field' is empty, then the node is a leaf field query.",
       "$comment": "The field value determines the shape of data and whether occur/mm are allowed.",
       "additionalProperties": false,
       "required": [
@@ -73,41 +73,29 @@
             "$comment": "Boolean query - contains an array of arrays representing a boolean sub-query. Each direct array under 'data' represents a 'should' clause, and within each sub-array, there are sub-query nodes which are treated with a 'must' relationship, i.e. every query node within a single sub-array should match.",
             "properties": {
               "data": {
-                "$ref": "#/$defs/BooleanQueryData"
+                "type": "array",
+                "description": "Child 'should' clauses for this boolean query.",
+                "items": {
+                  "type": "array",
+                  "description": "Child 'must' clauses, under this 'should' clause.",
+                  "items": {
+                    "$ref": "#/$defs/QueryNode"
+                  }
+                }
               }
             }
           },
           "else": {
-            "$comment": "Leaf or nested query - contains a field query payload or a boolean sub-query for a mapped subdocument field.",
+            "$comment": "Leaf query - contains an object representing the query to match on the specified field.",
             "properties": {
               "data": {
-                "oneOf": [
-                  {
-                    "$ref": "#/$defs/QueryPayload"
-                  },
-                  {
-                    "$ref": "#/$defs/BooleanQueryData"
-                  }
-                ],
-                "description": "Payload for the field query, or child clauses for a nested subdocument query."
+                "$ref": "#/$defs/QueryPayload",
+                "description": "Payload for the field query."
               }
             }
           }
         }
       ]
-    },
-    "BooleanQueryData": {
-      "type": "array",
-      "description": "Child 'should' clauses for a boolean query.",
-      "minItems": 1,
-      "items": {
-        "type": "array",
-        "description": "Child 'must' clauses under this 'should' clause.",
-        "minItems": 1,
-        "items": {
-          "$ref": "#/$defs/QueryNode"
-        }
-      }
     },
     "QueryPayload": {
       "description": "Payload for a leaf field query.",
@@ -117,6 +105,9 @@
         },
         {
           "$ref": "#/$defs/RangeQuery"
+        },
+        {
+          "$ref": "#/$defs/ExactQuery"
         }
       ]
     },
@@ -139,64 +130,202 @@
       }
     },
     "RangeQuery": {
+      "description": "Range query payload for matching either numeric values or datetime/timestamp values within bounds.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NumericRangeQuery"
+        },
+        {
+          "$ref": "#/$defs/DatetimeRangeQuery"
+        }
+      ]
+    },
+    "ExactQuery": {
+      "description": "Exact query payload for matching numeric, datetime/timestamp, or boolean values.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NumericExactQuery"
+        },
+        {
+          "$ref": "#/$defs/DatetimeExactQuery"
+        },
+        {
+          "$ref": "#/$defs/BooleanExactQuery"
+        }
+      ]
+    },
+    "NumericExactQuery": {
+      "type": "object",
+      "description": "Exact query payload for matching one or more numeric values.",
+      "additionalProperties": false,
+      "required": [
+        "values"
+      ],
+      "properties": {
+        "values": {
+          "type": "array",
+          "description": "Numeric values to match exactly.",
+          "minItems": 1,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "DatetimeExactQuery": {
+      "type": "object",
+      "description": "Exact query payload for matching one or more datetime or timestamp values.",
+      "additionalProperties": false,
+      "required": [
+        "values"
+      ],
+      "properties": {
+        "values": {
+          "type": "array",
+          "description": "Datetime or timestamp values to match exactly.",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BooleanExactQuery": {
+      "type": "object",
+      "description": "Exact query payload for matching one or more boolean values.",
+      "additionalProperties": false,
+      "required": [
+        "values"
+      ],
+      "properties": {
+        "values": {
+          "type": "array",
+          "description": "Boolean values to match exactly.",
+          "minItems": 1,
+          "items": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "NumericRangeQuery": {
       "type": "object",
       "description": "Range query payload for matching numeric values within bounds.",
       "additionalProperties": false,
-      "required": [
-        "type"
-      ],
       "properties": {
-        "type": {
-          "const": "range"
-        },
         "gte": {
-          "type": [
-            "number",
-            "string"
-          ],
+          "type": "number",
           "description": "Inclusive lower bound."
         },
         "gt": {
-          "type": [
-            "number",
-            "string"
-          ],
+          "type": "number",
           "description": "Exclusive lower bound."
         },
         "lte": {
-          "type": [
-            "number",
-            "string"
-          ],
+          "type": "number",
           "description": "Inclusive upper bound."
         },
         "lt": {
-          "type": [
-            "number",
-            "string"
-          ],
+          "type": "number",
           "description": "Exclusive upper bound."
         }
       },
-      "anyOf": [
+      "allOf": [
         {
-          "required": [
-            "gte"
+          "anyOf": [
+            {
+              "required": [
+                "gte"
+              ]
+            },
+            {
+              "required": [
+                "gt"
+              ]
+            }
           ]
         },
         {
-          "required": [
-            "gt"
+          "anyOf": [
+            {
+              "required": [
+                "lte"
+              ]
+            },
+            {
+              "required": [
+                "lt"
+              ]
+            }
+          ]
+        }
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "gte",
+              "gt"
+            ]
+          },
+          {
+            "required": [
+              "lte",
+              "lt"
+            ]
+          }
+        ]
+      }
+    },
+    "DatetimeRangeQuery": {
+      "type": "object",
+      "description": "Range query payload for matching datetime or timestamp values within bounds.",
+      "additionalProperties": false,
+      "properties": {
+        "gte": {
+          "type": "string",
+          "description": "Inclusive lower timestamp bound."
+        },
+        "gt": {
+          "type": "string",
+          "description": "Exclusive lower timestamp bound."
+        },
+        "lte": {
+          "type": "string",
+          "description": "Inclusive upper timestamp bound."
+        },
+        "lt": {
+          "type": "string",
+          "description": "Exclusive upper timestamp bound."
+        }
+      },
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "gte"
+              ]
+            },
+            {
+              "required": [
+                "gt"
+              ]
+            }
           ]
         },
         {
-          "required": [
-            "lte"
-          ]
-        },
-        {
-          "required": [
-            "lt"
+          "anyOf": [
+            {
+              "required": [
+                "lte"
+              ]
+            },
+            {
+              "required": [
+                "lt"
+              ]
+            }
           ]
         }
       ],

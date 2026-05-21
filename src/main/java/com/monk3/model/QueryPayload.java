@@ -1,21 +1,17 @@
 package com.monk3.model;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk3.json.QueryPayloadDeserializer;
 import com.monk3.mapping.MappedField;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true)
-@JsonSubTypes({
-        @JsonSubTypes.Type(value = TextQuery.class, name = "text"),
-        @JsonSubTypes.Type(value = RangeQuery.class, name = "range")
-})
-public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQuery {
+@JsonDeserialize(using = QueryPayloadDeserializer.class)
+public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQuery, ExactQuery {
     JsonNode toElasticsearch(QueryParseContext context);
 
     JsonNode toSolr(QueryParseContext context);

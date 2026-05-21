@@ -9,7 +9,8 @@ import com.monk3.search.QueryParseContext;
 @JsonSubTypes({
         @JsonSubTypes.Type(BooleanQueryData.class),
         @JsonSubTypes.Type(TextQuery.class),
-        @JsonSubTypes.Type(RangeQuery.class)
+        @JsonSubTypes.Type(RangeQuery.class),
+        @JsonSubTypes.Type(ExactQuery.class)
 })
 public sealed interface QueryData permits BooleanQueryData, QueryPayload {
     JsonNode toElasticsearch(QueryParseContext context, QueryNode node);

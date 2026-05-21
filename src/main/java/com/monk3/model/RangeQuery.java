@@ -1,78 +1,80 @@
 package com.monk3.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk3.json.RangeQueryDeserializer;
 import com.monk3.mapping.FieldType;
 import com.monk3.search.QueryParseContext;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-public record RangeQuery(
-        @NotBlank String type,
-        RangeBound gte,
-        RangeBound gt,
-        RangeBound lte,
-        RangeBound lt
-) implements QueryPayload {
-    @JsonIgnore
-    @AssertTrue(message = "type must be range")
-    public boolean isRangeType() {
-        return "range".equals(type);
+@JsonDeserialize(using = RangeQueryDeserializer.class)
+public sealed interface RangeQuery<T> extends QueryPayload permits NumericRangeQuery, DatetimeRangeQuery {
+    T gte();
+
+    T gt();
+
+    T lte();
+
+    T lt();
+
+    @AssertTrue(message = "one lower range bound is required")
+    default boolean hasLowerBound() {
+        return gte() != null || gt() != null;
     }
 
-    @AssertTrue(message = "at least one range bound is required")
-    public boolean hasAtLeastOneBound() {
-        return gte != null || gt != null || lte != null || lt != null;
+    @AssertTrue(message = "one upper range bound is required")
+    default boolean hasUpperBound() {
+        return lte() != null || lt() != null;
     }
 
     @AssertTrue(message = "gte and gt cannot both be provided")
-    public boolean hasSingleLowerBound() {
-        return gte == null || gt == null;
+    default boolean hasSingleLowerBound() {
+        return gte() == null || gt() == null;
     }
 
     @AssertTrue(message = "lte and lt cannot both be provided")
-    public boolean hasSingleUpperBound() {
-        return lte == null || lt == null;
+    default boolean hasSingleUpperBound() {
+        return lte() == null || lt() == null;
     }
 
     @Override
-    public JsonNode toElasticsearch(QueryParseContext context) {
+    default JsonNode toElasticsearch(QueryParseContext context) {
         String field = context.requireSearchField("range", FieldType.NUMBER, FieldType.DATETIME);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode range = root.putObject("range");
         ObjectNode fieldRange = range.putObject(field);
-        putElasticsearchBound(fieldRange, "gte", gte);
-        putElasticsearchBound(fieldRange, "gt", gt);
-        putElasticsearchBound(fieldRange, "lte", lte);
-        putElasticsearchBound(fieldRange, "lt", lt);
+        putElasticsearchBound(fieldRange, "gte", gte());
+        putElasticsearchBound(fieldRange, "gt", gt());
+        putElasticsearchBound(fieldRange, "lte", lte());
+        putElasticsearchBound(fieldRange, "lt", lt());
         return root;
     }
 
     @Override
-    public JsonNode toSolr(QueryParseContext context) {
+    default JsonNode toSolr(QueryParseContext context) {
         String field = context.requireSearchField("range", FieldType.NUMBER, FieldType.DATETIME);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode range = root.putObject("frange");
         range.put("query", field);
-        if (gte != null) {
-            range.set("l", valueNode(gte.value()));
+        if (gte() != null) {
+            range.set("l", valueNode(gte()));
             range.put("incl", true);
         }
-        if (gt != null) {
-            range.set("l", valueNode(gt.value()));
+        if (gt() != null) {
+            range.set("l", valueNode(gt()));
             range.put("incl", false);
         }
-        if (lte != null) {
-            range.set("u", valueNode(lte.value()));
+        if (lte() != null) {
+            range.set("u", valueNode(lte()));
             range.put("incu", true);
         }
-        if (lt != null) {
-            range.set("u", valueNode(lt.value()));
+        if (lt() != null) {
+            range.set("u", valueNode(lt()));
             range.put("incu", false);
         }
         return root;
@@ -81,10 +83,10 @@ public record RangeQuery(
     private static void putElasticsearchBound(
             ObjectNode fieldRange,
             String boundName,
-            RangeBound bound
+            Object bound
     ) {
         if (bound != null) {
-            fieldRange.set(boundName, valueNode(bound.value()));
+            fieldRange.set(boundName, valueNode(bound));
         }
     }
 

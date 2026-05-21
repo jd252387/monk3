@@ -62,9 +62,8 @@ class QueryResourceTest {
                           "query": {
                             "field": "year",
                             "data": {
-                              "type": "range",
                               "gte": 1995,
-                              "lte": "2020"
+                              "lte": 2020
                             }
                           }
                         }
@@ -73,9 +72,109 @@ class QueryResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.data.type", equalTo("range"))
+                .body("query.data", not(hasKey("type")))
                 .body("query.data.gte", equalTo(1995))
-                .body("query.data.lte", equalTo("2020"));
+                .body("query.data.lte", equalTo(2020));
+    }
+
+    @Test
+    void validDatetimeRangeQueryReturnsEchoedJson() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Datetime range query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "publishedAt",
+                            "data": {
+                              "gte": "2024-01-01T00:00:00Z",
+                              "lt": "2025-01-01T00:00:00Z"
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.data", not(hasKey("type")))
+                .body("query.data.gte", equalTo("2024-01-01T00:00:00Z"))
+                .body("query.data.lt", equalTo("2025-01-01T00:00:00Z"));
+    }
+
+    @Test
+    void validNumericExactQueryReturnsEchoedJson() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Numeric exact query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "year",
+                            "data": {
+                              "values": [1995, 2020]
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.data", not(hasKey("type")))
+                .body("query.data.values[0]", equalTo(1995))
+                .body("query.data.values[1]", equalTo(2020));
+    }
+
+    @Test
+    void validDatetimeExactQueryReturnsEchoedJson() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Datetime exact query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "publishedAt",
+                            "data": {
+                              "values": ["2024-01-01T00:00:00Z"]
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.data", not(hasKey("type")))
+                .body("query.data.values[0]", equalTo("2024-01-01T00:00:00Z"));
+    }
+
+    @Test
+    void validBooleanExactQueryReturnsEchoedJson() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Boolean exact query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "isPublished",
+                            "data": {
+                              "values": [true, false]
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.data", not(hasKey("type")))
+                .body("query.data.values[0]", equalTo(true))
+                .body("query.data.values[1]", equalTo(false));
     }
 
     @Test
@@ -102,8 +201,8 @@ class QueryResourceTest {
                                   "field": "year",
                                   "isNot": true,
                                   "data": {
-                                    "type": "range",
-                                    "gt": 1800
+                                    "gt": 1800,
+                                    "lte": 1900
                                   }
                                 }
                               ]
@@ -158,7 +257,6 @@ class QueryResourceTest {
                           "query": {
                             "field": "year",
                             "data": {
-                              "type": "range",
                               "gte": 1995,
                               "lt": 2020
                             }
@@ -389,11 +487,22 @@ class QueryResourceTest {
 
         assertBadRequest("""
                 {
+                  "name": "Missing upper bound",
+                  "materialTypes": ["book"],
+                  "query": {
+                    "field": "year",
+                    "data": {"type": "range", "gte": 1}
+                  }
+                }
+                """);
+
+        assertBadRequest("""
+                {
                   "name": "Conflicting lower bounds",
                   "materialTypes": ["book"],
                   "query": {
                     "field": "year",
-                    "data": {"type": "range", "gte": 1, "gt": 2}
+                    "data": {"type": "range", "gte": 1, "gt": 2, "lte": 10}
                   }
                 }
                 """);
@@ -404,7 +513,40 @@ class QueryResourceTest {
                   "materialTypes": ["book"],
                   "query": {
                     "field": "year",
-                    "data": {"type": "range", "lte": 10, "lt": 9}
+                    "data": {"type": "range", "gte": 1, "lte": 10, "lt": 9}
+                  }
+                }
+                """);
+
+        assertBadRequest("""
+                {
+                  "name": "Mixed range bound types",
+                  "materialTypes": ["book"],
+                  "query": {
+                    "field": "year",
+                    "data": {"type": "range", "gte": 1, "lte": "2020-01-01T00:00:00Z"}
+                  }
+                }
+                """);
+
+        assertBadRequest("""
+                {
+                  "name": "Empty exact values",
+                  "materialTypes": ["book"],
+                  "query": {
+                    "field": "year",
+                    "data": {"values": []}
+                  }
+                }
+                """);
+
+        assertBadRequest("""
+                {
+                  "name": "Mixed exact value types",
+                  "materialTypes": ["book"],
+                  "query": {
+                    "field": "year",
+                    "data": {"values": [1, "2020-01-01T00:00:00Z"]}
                   }
                 }
                 """);
@@ -473,16 +615,33 @@ class QueryResourceTest {
                 .contentType("application/schema+json")
                 .body("$schema", equalTo("https://json-schema.org/draft/2020-12/schema"))
                 .body("required", containsInAnyOrder("name", "materialTypes", "query"))
-                .body("$defs.QueryPayload.oneOf.$ref", containsInAnyOrder("#/$defs/TextQuery", "#/$defs/RangeQuery"))
+                .body("$defs.QueryPayload.oneOf.$ref", containsInAnyOrder(
+                        "#/$defs/TextQuery",
+                        "#/$defs/RangeQuery",
+                        "#/$defs/ExactQuery"
+                ))
                 .body("$defs.TextQuery.properties.type.const", equalTo("text"))
-                .body("$defs.RangeQuery.properties.type.const", equalTo("range"))
-                .body("$defs.RangeQuery.properties.lte.type", containsInAnyOrder("number", "string"))
-                .body("$defs.RangeQuery", hasKey("anyOf"))
-                .body("$defs.RangeQuery", hasKey("not"))
-                .body("$defs.RangeQuery.anyOf.required[0]", hasItem("gte"))
-                .body("$defs.RangeQuery.not.anyOf.required[0]", hasItem("gte"))
-                .body("$defs.RangeQuery.not.anyOf.required[0]", hasItem("gt"))
-                .body("$defs.RangeQuery.properties", not(hasKey("lte.type")));
+                .body("$defs.RangeQuery.oneOf.$ref", containsInAnyOrder(
+                        "#/$defs/NumericRangeQuery",
+                        "#/$defs/DatetimeRangeQuery"
+                ))
+                .body("$defs.ExactQuery.oneOf.$ref", containsInAnyOrder(
+                        "#/$defs/NumericExactQuery",
+                        "#/$defs/DatetimeExactQuery",
+                        "#/$defs/BooleanExactQuery"
+                ))
+                .body("$defs.NumericExactQuery.properties.values.items.type", equalTo("number"))
+                .body("$defs.DatetimeExactQuery.properties.values.items.type", equalTo("string"))
+                .body("$defs.BooleanExactQuery.properties.values.items.type", equalTo("boolean"))
+                .body("$defs.NumericRangeQuery.properties", not(hasKey("type")))
+                .body("$defs.NumericRangeQuery.properties.lte.type", equalTo("number"))
+                .body("$defs.DatetimeRangeQuery.properties.lte.type", equalTo("string"))
+                .body("$defs.NumericRangeQuery", hasKey("allOf"))
+                .body("$defs.NumericRangeQuery", hasKey("not"))
+                .body("$defs.NumericRangeQuery.allOf[0].anyOf.required[0]", hasItem("gte"))
+                .body("$defs.NumericRangeQuery.allOf[1].anyOf.required[0]", hasItem("lte"))
+                .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gte"))
+                .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gt"));
     }
 
     private static void assertBadRequest(String body) {

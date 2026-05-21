@@ -10,7 +10,7 @@
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["string", "freetext", "datetime", "number", "subdocument"]
+                        "enum": ["string", "freetext", "boolean", "datetime", "number", "subdocument"]
                     },
                     "subdocumentType": {
                         "description": "Equal to the name of another document type (a property under the root of this schema with the documentSchema definition).",
