@@ -6,6 +6,12 @@
 - Prefer clear, immutable models and small methods with explicit names.
 - Keep business logic out of REST resource classes when it grows beyond simple request handling.
 
+## Gradle
+
+- Use the Gradle wrapper (`./gradlew`) for all build, test, and verification commands.
+- Prefer adding dependencies and plugin configuration in Gradle files instead of relying on IDE-only setup.
+- Keep Gradle changes focused and consistent with the existing project conventions.
+
 ## Lombok
 
 - Use Lombok to remove low-value boilerplate, not to hide behavior.
