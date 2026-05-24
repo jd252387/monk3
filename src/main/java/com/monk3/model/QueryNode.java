@@ -22,7 +22,7 @@ public record QueryNode(
         if (field == null || data == null) {
             return true;
         }
-        return field.isEmpty() ? data instanceof BooleanQueryData : data instanceof QueryPayload;
+        return field.isEmpty() ? data instanceof BooleanQueryData : data instanceof QueryPayload || data instanceof BooleanQueryData;
     }
 
     public JsonNode toElasticsearch(QueryParseContext context) {

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -22,7 +23,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         ObjectMapper mapper = (ObjectMapper) parser.getCodec();
         JsonNode node = mapper.readTree(parser);
         if (!(node instanceof ObjectNode objectNode)) {
-            throw JsonMappingException.from(parser, "Query node must be an object");
+            throw MismatchedInputException.from(parser, Object.class, "Query node must be an object");
         }
 
         JsonNode fieldNode = objectNode.remove("field");
@@ -30,18 +31,18 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         JsonNode isNotNode = objectNode.remove("isNot");
         JsonNode dataNode = objectNode.remove("data");
         if (!objectNode.isEmpty()) {
-            throw JsonMappingException.from(parser, "Unknown query node property: " + objectNode.fieldNames().next());
+            throw MismatchedInputException.from(parser, Object.class, "Unknown query node property: " + objectNode.fieldNames().next());
         }
 
         if (fieldNode == null || fieldNode.isNull() || !fieldNode.isTextual()) {
-            throw JsonMappingException.from(parser, "Query node field must be a string");
+            throw MismatchedInputException.from(parser, Object.class, "Query node field must be a string");
         }
 
         String field = fieldNode.textValue();
         Integer minimumMatch = null;
         if (minimumMatchNode != null && !minimumMatchNode.isNull()) {
             if (!minimumMatchNode.canConvertToInt()) {
-                throw JsonMappingException.from(parser, "minimumMatch must be an integer");
+                throw MismatchedInputException.from(parser, Object.class, "minimumMatch must be an integer");
             }
             minimumMatch = minimumMatchNode.intValue();
         }
@@ -49,19 +50,34 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         Boolean isNot = null;
         if (isNotNode != null && !isNotNode.isNull()) {
             if (!isNotNode.isBoolean()) {
-                throw JsonMappingException.from(parser, "isNot must be a boolean");
+                throw MismatchedInputException.from(parser, Object.class, "isNot must be a boolean");
             }
             isNot = isNotNode.booleanValue();
         }
 
         if (dataNode == null || dataNode.isNull()) {
-            throw JsonMappingException.from(parser, "Query node data is required");
+            throw MismatchedInputException.from(parser, Object.class, "Query node data is required");
         }
 
-        QueryData data = field.isEmpty()
-                ? readBooleanData(parser, mapper, dataNode)
-                : readPayloadData(parser, context, mapper, dataNode);
+        QueryData data = readData(parser, context, mapper, field, dataNode);
         return new QueryNode(field, minimumMatch, isNot, data);
+    }
+
+    private static QueryData readData(
+            JsonParser parser,
+            DeserializationContext context,
+            ObjectMapper mapper,
+            String field,
+            JsonNode dataNode
+    ) throws IOException {
+        try {
+            return field.isEmpty() || dataNode.isArray()
+                    ? readBooleanData(parser, mapper, dataNode)
+                    : readPayloadData(parser, context, mapper, dataNode);
+        } catch (JsonMappingException exception) {
+            exception.prependPath(QueryNode.class, "data");
+            throw exception;
+        }
     }
 
     private static QueryPayload readPayloadData(
@@ -78,13 +94,13 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
     private static BooleanQueryData readBooleanData(JsonParser parser, ObjectMapper mapper, JsonNode dataNode)
             throws IOException {
         if (!dataNode.isArray()) {
-            throw JsonMappingException.from(parser, "Boolean query node data must be an array");
+            throw MismatchedInputException.from(parser, Object.class, "Boolean query node data must be an array");
         }
 
         List<List<QueryNode>> shouldClauses = new ArrayList<>();
         for (JsonNode shouldClauseNode : dataNode) {
             if (!shouldClauseNode.isArray()) {
-                throw JsonMappingException.from(parser, "Boolean query should clauses must be arrays");
+                throw MismatchedInputException.from(parser, Object.class, "Boolean query should clauses must be arrays");
             }
             List<QueryNode> mustClauses = new ArrayList<>();
             for (JsonNode mustClauseNode : shouldClauseNode) {

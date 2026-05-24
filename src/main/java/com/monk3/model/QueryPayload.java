@@ -1,16 +1,13 @@
 package com.monk3.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk3.json.QueryPayloadDeserializer;
 import com.monk3.mapping.MappedField;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;
 
-@JsonDeserialize(using = QueryPayloadDeserializer.class)
 public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQuery, ExactQuery {
     JsonNode toElasticsearch(QueryParseContext context);
 

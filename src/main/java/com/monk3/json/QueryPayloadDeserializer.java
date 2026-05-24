@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monk3.model.ExactQuery;
@@ -22,18 +23,18 @@ public class QueryPayloadDeserializer extends JsonDeserializer<QueryPayload> {
         ObjectMapper mapper = (ObjectMapper) parser.getCodec();
         JsonNode node = mapper.readTree(parser);
         if (!node.isObject()) {
-            throw JsonMappingException.from(parser, "Query payload must be an object");
+            throw MismatchedInputException.from(parser, Object.class, "Query payload must be an object");
         }
 
         JsonNode typeNode = node.get("type");
         if (typeNode != null && !typeNode.isNull()) {
             if (!typeNode.isTextual()) {
-                throw JsonMappingException.from(parser, "Query payload type must be a string");
+                throw MismatchedInputException.from(parser, Object.class, "Query payload type must be a string");
             }
             return switch (typeNode.textValue()) {
                 case "text" -> mapper.treeToValue(node, TextQuery.class);
                 case "range" -> readRange(context, mapper, node);
-                default -> throw JsonMappingException.from(parser, "Unknown query payload type: " + typeNode.textValue());
+                default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(typeNode.textValue()));
             };
         }
 
@@ -43,7 +44,7 @@ public class QueryPayloadDeserializer extends JsonDeserializer<QueryPayload> {
         if (hasValues(node)) {
             return readExact(context, mapper, node);
         }
-        throw JsonMappingException.from(parser, "Query payload type is required unless range bounds or exact values are provided");
+        throw MismatchedInputException.from(parser, Object.class, "Query payload type is required unless range bounds or exact values are provided");
     }
 
     private static RangeQuery<?> readRange(DeserializationContext context, ObjectMapper mapper, JsonNode node)
@@ -73,5 +74,9 @@ public class QueryPayloadDeserializer extends JsonDeserializer<QueryPayload> {
     private static boolean hasValues(JsonNode node) {
         JsonNode valuesNode = node.get("values");
         return valuesNode != null && !valuesNode.isNull();
+    }
+
+    private static String unsupportedTypeMessage(String type) {
+        return "Unsupported query data type '" + type + "'. Supported query data types are 'text' and 'range'.";
     }
 }

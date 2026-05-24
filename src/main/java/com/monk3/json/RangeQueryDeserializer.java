@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.model.DatetimeRangeQuery;
 import com.monk3.model.NumericRangeQuery;
@@ -22,7 +23,7 @@ public class RangeQueryDeserializer extends JsonDeserializer<RangeQuery> {
     public RangeQuery deserialize(JsonParser parser, DeserializationContext context) throws IOException {
         JsonNode node = parser.getCodec().readTree(parser);
         if (!node.isObject()) {
-            throw JsonMappingException.from(parser, "Range query must be an object");
+            throw MismatchedInputException.from(parser, Object.class, "Range query must be an object");
         }
         rejectUnknownFields(parser, node);
 
@@ -30,7 +31,7 @@ public class RangeQueryDeserializer extends JsonDeserializer<RangeQuery> {
 
         BoundType boundType = detectBoundType(parser, node);
         if (boundType == null) {
-            throw JsonMappingException.from(parser, "Range query requires at least one bound");
+            throw MismatchedInputException.from(parser, Object.class, "Range query requires at least one bound");
         }
 
         return boundType == BoundType.NUMERIC
@@ -53,7 +54,7 @@ public class RangeQueryDeserializer extends JsonDeserializer<RangeQuery> {
         while (fieldNames.hasNext()) {
             String fieldName = fieldNames.next();
             if (!ALLOWED_FIELDS.contains(fieldName)) {
-                throw JsonMappingException.from(parser, "Unknown range query property: " + fieldName);
+                throw MismatchedInputException.from(parser, Object.class, "Unknown range query property: " + fieldName);
             }
         }
     }
@@ -63,7 +64,7 @@ public class RangeQueryDeserializer extends JsonDeserializer<RangeQuery> {
             return;
         }
         if (!typeNode.isTextual() || !"range".equals(typeNode.textValue())) {
-            throw JsonMappingException.from(parser, "Range query type must be range");
+            throw MismatchedInputException.from(parser, Object.class, "Range query type must be range");
         }
     }
 
@@ -79,7 +80,7 @@ public class RangeQueryDeserializer extends JsonDeserializer<RangeQuery> {
 
             BoundType currentType = boundType(parser, fieldName, boundNode);
             if (detectedType != null && detectedType != currentType) {
-                throw JsonMappingException.from(parser, "Range bounds must all be numbers or all be timestamps");
+                throw MismatchedInputException.from(parser, Object.class, "Range bounds must all be numbers or all be timestamps");
             }
             detectedType = currentType;
         }
@@ -94,7 +95,7 @@ public class RangeQueryDeserializer extends JsonDeserializer<RangeQuery> {
         if (boundNode.isTextual()) {
             return BoundType.DATETIME;
         }
-        throw JsonMappingException.from(parser, "Range bound " + fieldName + " must be a number or timestamp");
+        throw MismatchedInputException.from(parser, Object.class, "Range bound " + fieldName + " must be a number or timestamp");
     }
 
     private static BigDecimal numericBound(JsonNode boundNode) {

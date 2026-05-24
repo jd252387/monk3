@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.model.BooleanExactQuery;
 import com.monk3.model.DatetimeExactQuery;
@@ -24,19 +25,19 @@ public class ExactQueryDeserializer extends JsonDeserializer<ExactQuery> {
     public ExactQuery deserialize(JsonParser parser, DeserializationContext context) throws IOException {
         JsonNode node = parser.getCodec().readTree(parser);
         if (!node.isObject()) {
-            throw JsonMappingException.from(parser, "Exact query must be an object");
+            throw MismatchedInputException.from(parser, Object.class, "Exact query must be an object");
         }
         rejectUnknownFields(parser, node);
 
         JsonNode valuesNode = node.get("values");
         if (valuesNode == null || valuesNode.isNull()) {
-            throw JsonMappingException.from(parser, "Exact query values are required");
+            throw MismatchedInputException.from(parser, Object.class, "Exact query values are required");
         }
         if (!valuesNode.isArray()) {
-            throw JsonMappingException.from(parser, "Exact query values must be an array");
+            throw MismatchedInputException.from(parser, Object.class, "Exact query values must be an array");
         }
         if (valuesNode.isEmpty()) {
-            throw JsonMappingException.from(parser, "Exact query values must not be empty");
+            throw MismatchedInputException.from(parser, Object.class, "Exact query values must not be empty");
         }
 
         ValueType valueType = detectValueType(parser, valuesNode);
@@ -52,7 +53,7 @@ public class ExactQueryDeserializer extends JsonDeserializer<ExactQuery> {
         while (fieldNames.hasNext()) {
             String fieldName = fieldNames.next();
             if (!ALLOWED_FIELDS.contains(fieldName)) {
-                throw JsonMappingException.from(parser, "Unknown exact query property: " + fieldName);
+                throw MismatchedInputException.from(parser, Object.class, "Unknown exact query property: " + fieldName);
             }
         }
     }
@@ -61,12 +62,12 @@ public class ExactQueryDeserializer extends JsonDeserializer<ExactQuery> {
         ValueType detectedType = null;
         for (JsonNode valueNode : valuesNode) {
             if (valueNode == null || valueNode.isNull()) {
-                throw JsonMappingException.from(parser, "Exact query values must not contain null");
+                throw MismatchedInputException.from(parser, Object.class, "Exact query values must not contain null");
             }
 
             ValueType currentType = valueType(parser, valueNode);
             if (detectedType != null && detectedType != currentType) {
-                throw JsonMappingException.from(parser, "Exact query values must all have the same type");
+                throw MismatchedInputException.from(parser, Object.class, "Exact query values must all have the same type");
             }
             detectedType = currentType;
         }
@@ -83,7 +84,7 @@ public class ExactQueryDeserializer extends JsonDeserializer<ExactQuery> {
         if (valueNode.isBoolean()) {
             return ValueType.BOOLEAN;
         }
-        throw JsonMappingException.from(parser, "Exact query values must be numbers, timestamps, or booleans");
+        throw MismatchedInputException.from(parser, Object.class, "Exact query values must be numbers, timestamps, or booleans");
     }
 
     private static List<BigDecimal> numericValues(JsonNode valuesNode) {

@@ -606,6 +606,31 @@ class QueryResourceTest {
     }
 
     @Test
+    void customJsonMappingExceptionsReturnStructuredExplanation() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Missing range bounds",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "year",
+                            "data": {
+                              "type": "range"
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("query.data"))
+                .body("error.message", containsString("Range query requires at least one bound"));
+    }
+
+    @Test
     void generatedSchemaContainsDslContract() {
         given()
                 .accept("application/schema+json")

@@ -22,13 +22,17 @@ public class InvalidJsonRequestExceptionMapper implements ExceptionMapper<Mismat
 
     @Override
     public Response toResponse(MismatchedInputException exception) {
+        return responseFor(exception);
+    }
+
+    static Response responseFor(JsonMappingException exception) {
         return Response.status(Response.Status.BAD_REQUEST)
                 .type(MediaType.APPLICATION_JSON_TYPE)
                 .entity(ErrorResponse.of(CODE, explanation(exception)))
                 .build();
     }
 
-    private static String explanation(MismatchedInputException exception) {
+    private static String explanation(JsonMappingException exception) {
         String location = formatPath(exception);
         String message = switch (exception) {
             case UnrecognizedPropertyException unrecognized -> unrecognizedPropertyMessage(unrecognized);
