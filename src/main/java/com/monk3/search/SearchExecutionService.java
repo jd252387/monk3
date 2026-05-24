@@ -21,7 +21,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -29,10 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.stream.StreamSupport;
 
 @ApplicationScoped
 @RequiredArgsConstructor
@@ -62,90 +61,58 @@ public class SearchExecutionService {
     }
 
     private List<SearchResult> executeBackendSearches(SearchExecutionRequest request) {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<Future<List<SearchResult>>> searches = new ArrayList<>();
-            for (Map.Entry<String, SearchMappingConfig.Backend> entry : config.backends().entrySet()) {
-                List<String> materialTypes = matchingMaterialTypes(entry.getValue(), request.query().materialTypes());
-                if (!materialTypes.isEmpty()) {
-                    SearchEngine engine = searchEngine(entry.getValue());
-                    searches.add(executor.submit(() -> searchBackend(
-                            entry.getKey(),
-                            entry.getValue(),
-                            engine,
-                            request,
-                            materialTypes)));
-                }
+        List<Callable<List<SearchResult>>> searches = config.backends().entrySet().stream()
+                .map(entry -> backendTarget(entry, request.query().materialTypes()))
+                .flatMap(Optional::stream)
+                .map(target -> (Callable<List<SearchResult>>) () -> searchBackend(target, request))
+                .toList();
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            return executor.invokeAll(searches).stream()
+                    .flatMap(search -> completed(search).stream())
+                    .toList();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new SearchExecutionException("Search request was interrupted", exception);
+        }
+    }
+
+    private static List<SearchResult> completed(java.util.concurrent.Future<List<SearchResult>> search) {
+        try {
+            return search.get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new SearchExecutionException("Search request was interrupted", exception);
+        } catch (ExecutionException exception) {
+            if (exception.getCause() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
             }
-            return completedResults(searches);
+            throw new SearchExecutionException("Search backend request failed", exception.getCause());
         }
     }
 
-    private static List<SearchResult> completedResults(List<Future<List<SearchResult>>> searches) {
-        List<SearchResult> results = new ArrayList<>();
-        for (Future<List<SearchResult>> search : searches) {
-            try {
-                results.addAll(search.get());
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new SearchExecutionException("Search request was interrupted", exception);
-            } catch (ExecutionException exception) {
-                throw searchFailure(exception.getCause());
-            }
-        }
-        return results;
-    }
-
-    private static RuntimeException searchFailure(Throwable cause) {
-        if (cause instanceof RuntimeException runtimeException) {
-            return runtimeException;
-        }
-        if (cause instanceof Error error) {
-            throw error;
-        }
-        return new SearchExecutionException("Search backend request failed", cause);
-    }
-
-    private List<SearchResult> searchBackend(
-            String backendName,
-            SearchMappingConfig.Backend backend,
-            SearchEngine engine,
-            SearchExecutionRequest request,
-            List<String> materialTypes) {
+    private List<SearchResult> searchBackend(BackendTarget target, SearchExecutionRequest request) {
         SearchQueryRequest backendQuery = new SearchQueryRequest(
                 request.query().id(),
                 request.query().name(),
-                materialTypes,
+                target.materialTypes(),
                 request.query().query());
-        List<FieldProjection> projections = projections(materialTypes, request.fields());
-        ObjectNode body = queryTranslationService.translate(engine, backendQuery);
-        applyResultOptions(engine, body, projections, materialTypes, request, backend);
+        List<FieldProjection> projections = projections(target.materialTypes(), request.fields());
+        ObjectNode body = queryTranslationService.translate(target.engine(), backendQuery);
+        applyResultOptions(target, body, projections, request);
 
-        JsonNode response = postJson(backendName, targetUri(backend, engine), body);
-        return switch (engine) {
-            case ELASTICSEARCH -> parseElasticsearchResponse(backendName, engine, materialTypes, projections, response);
-            case SOLR -> parseSolrResponse(backendName, engine, materialTypes, projections, response);
-        };
+        JsonNode response = postJson(target.name(), targetUri(target.backend(), target.engine()), body);
+        return parseResponse(target, projections, response);
     }
 
-    private void applyResultOptions(
-            SearchEngine engine,
-            ObjectNode body,
-            List<FieldProjection> projections,
-            List<String> materialTypes,
-            SearchExecutionRequest request,
-            SearchMappingConfig.Backend backend) {
-        int size = size(request, backend);
-        switch (engine) {
-            case ELASTICSEARCH -> {
-                body.put("size", size);
-                ArrayNode source = body.putArray("_source");
-                storedFields(materialTypes, projections).forEach(source::add);
-            }
+    private void applyResultOptions(BackendTarget target, ObjectNode body, List<FieldProjection> projections, SearchExecutionRequest request) {
+        Set<String> storedFields = storedFields(target.materialTypes(), projections);
+        body.put(target.engine() == SearchEngine.ELASTICSEARCH ? "size" : "limit", size(request, target.backend()));
+        switch (target.engine()) {
+            case ELASTICSEARCH -> storedFields.forEach(body.putArray("_source")::add);
             case SOLR -> {
-                body.put("limit", size);
                 ArrayNode fields = body.putArray("fields");
                 fields.add("score");
-                storedFields(materialTypes, projections).forEach(fields::add);
+                storedFields.forEach(fields::add);
             }
         }
     }
@@ -170,73 +137,50 @@ public class SearchExecutionService {
         }
     }
 
-    private List<SearchResult> parseElasticsearchResponse(
-            String backendName,
-            SearchEngine engine,
-            List<String> materialTypes,
-            List<FieldProjection> projections,
-            JsonNode response) {
-        ArrayNode hits = arrayAt(response.at("/hits/hits"));
-        double maxScore = Optional.ofNullable(response.at("/hits/max_score"))
-                .filter(JsonNode::isNumber)
-                .map(JsonNode::asDouble)
-                .orElseGet(() -> observedMaxScore(hits));
-        List<SearchResult> results = new ArrayList<>();
-        for (JsonNode hit : hits) {
-            JsonNode source = hit.path("_source");
-            double score = hit.path("_score").asDouble(0.0);
-            results.add(new SearchResult(
-                    backendName,
-                    engine,
-                    materialType(source, materialTypes),
-                    id(source, hit.path("_id").asText(null), materialTypes),
-                    score,
-                    normalizedScore(score, maxScore),
-                    logicalFields(source, projections)));
-        }
-        return results;
+    private List<SearchResult> parseResponse(BackendTarget target, List<FieldProjection> projections, JsonNode response) {
+        ArrayNode hits = arrayAt(response.at(target.engine().resultsPath()));
+        double maxScore = maxScore(target.engine(), response, hits);
+        return StreamSupport.stream(hits.spliterator(), false)
+                .map(hit -> searchResult(target, projections, hit, maxScore))
+                .toList();
     }
 
-    private List<SearchResult> parseSolrResponse(
-            String backendName,
-            SearchEngine engine,
-            List<String> materialTypes,
-            List<FieldProjection> projections,
-            JsonNode response) {
-        ArrayNode docs = arrayAt(response.at("/response/docs"));
-        double maxScore = observedMaxScore(docs);
-        List<SearchResult> results = new ArrayList<>();
-        for (JsonNode doc : docs) {
-            double score = doc.path("score").asDouble(0.0);
-            results.add(new SearchResult(
-                    backendName,
-                    engine,
-                    materialType(doc, materialTypes),
-                    id(doc, null, materialTypes),
-                    score,
-                    normalizedScore(score, maxScore),
-                    logicalFields(doc, projections)));
-        }
-        return results;
+    private SearchResult searchResult(BackendTarget target, List<FieldProjection> projections, JsonNode hit, double maxScore) {
+        JsonNode document = target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_source") : hit;
+        double score = hit.path(target.engine().scoreField()).asDouble(0.0);
+        return new SearchResult(
+                target.name(),
+                target.engine(),
+                materialType(document, target.materialTypes()),
+                id(document, target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_id").asText(null) : null, target.materialTypes()),
+                score,
+                normalizedScore(score, maxScore),
+                logicalFields(document, projections));
     }
 
     private List<FieldProjection> projections(List<String> materialTypes, List<String> logicalFields) {
-        List<FieldProjection> projections = new ArrayList<>();
-        for (String materialType : materialTypes) {
-            SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
-            for (String logicalField : logicalFields) {
-                MappedField mappedField = mapping.root()
-                        .field(logicalField)
-                        .orElseThrow(() -> new QueryTranslationException(
-                                "Field '" + logicalField + "' is not defined for material type '" + materialType + "'"));
-                if (mappedField.isSubdocument()) {
-                    throw new QueryTranslationException(
-                            "Subdocument field '" + logicalField + "' cannot be returned as a root result field");
-                }
-                projections.add(new FieldProjection(logicalField, mappedField.searchField()));
-            }
+        return materialTypes.stream()
+                .flatMap(materialType -> projections(materialType, logicalFields).stream())
+                .toList();
+    }
+
+    private List<FieldProjection> projections(String materialType, List<String> logicalFields) {
+        SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
+        return logicalFields.stream()
+                .map(logicalField -> projection(mapping, materialType, logicalField))
+                .toList();
+    }
+
+    private static FieldProjection projection(SearchMapping mapping, String materialType, String logicalField) {
+        MappedField mappedField = mapping.root()
+                .field(logicalField)
+                .orElseThrow(() -> new QueryTranslationException(
+                        "Field '" + logicalField + "' is not defined for material type '" + materialType + "'"));
+        if (mappedField.isSubdocument()) {
+            throw new QueryTranslationException(
+                    "Subdocument field '" + logicalField + "' cannot be returned as a root result field");
         }
-        return projections;
+        return new FieldProjection(logicalField, mappedField.searchField());
     }
 
     private Set<String> storedFields(List<String> materialTypes, List<FieldProjection> projections) {
@@ -264,14 +208,14 @@ public class SearchExecutionService {
     }
 
     private String id(JsonNode document, String fallback, List<String> materialTypes) {
-        for (String materialType : materialTypes) {
-            String primaryKey = mappingRepository.mappingForMaterialType(materialType).primaryKey();
-            JsonNode value = document.get(primaryKey);
-            if (value != null && !value.isNull()) {
-                return value.asText();
-            }
-        }
-        return fallback;
+        return materialTypes.stream()
+                .map(mappingRepository::mappingForMaterialType)
+                .map(SearchMapping::primaryKey)
+                .map(document::get)
+                .filter(SearchExecutionService::present)
+                .findFirst()
+                .map(JsonNode::asText)
+                .orElse(fallback);
     }
 
     private String materialType(JsonNode document, List<String> materialTypes) {
@@ -295,6 +239,16 @@ public class SearchExecutionService {
             maxScore = Math.max(maxScore, doc.path("score").asDouble(doc.path("_score").asDouble(0.0)));
         }
         return maxScore;
+    }
+
+    private static double maxScore(SearchEngine engine, JsonNode response, ArrayNode hits) {
+        return engine == SearchEngine.ELASTICSEARCH && response.at("/hits/max_score").isNumber()
+                ? response.at("/hits/max_score").asDouble()
+                : observedMaxScore(hits);
+    }
+
+    private static boolean present(JsonNode value) {
+        return value != null && !value.isNull();
     }
 
     private static double normalizedScore(double score, double maxScore) {
@@ -340,6 +294,21 @@ public class SearchExecutionService {
         return requestedMaterialTypes.stream()
                 .filter(backend.materialTypes()::contains)
                 .toList();
+    }
+
+    private static Optional<BackendTarget> backendTarget(Map.Entry<String, SearchMappingConfig.Backend> entry, List<String> requestedMaterialTypes) {
+        List<String> materialTypes = matchingMaterialTypes(entry.getValue(), requestedMaterialTypes);
+        return materialTypes.isEmpty()
+                ? Optional.empty()
+                : Optional.of(new BackendTarget(entry.getKey(), entry.getValue(), searchEngine(entry.getValue()), materialTypes));
+    }
+
+    private record BackendTarget(
+            String name,
+            SearchMappingConfig.Backend backend,
+            SearchEngine engine,
+            List<String> materialTypes
+    ) {
     }
 
     private record FieldProjection(String logicalName, String storedField) {

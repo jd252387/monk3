@@ -3,11 +3,9 @@ package com.monk3.model;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.DocumentMapping;
 import com.monk3.mapping.MappedField;
+import com.monk3.search.QueryJson;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;
 import com.monk3.search.SearchEngine;
@@ -38,11 +36,11 @@ public record BooleanQueryData(
             query = toElasticsearch(booleanContext);
         } else {
             NestedDocument nestedDocument = nestedDocument(context, node.field());
-            query = elasticsearchNestedQuery(
+            query = QueryJson.elasticsearchNested(
                     nestedDocument.path(),
                     toElasticsearch(booleanContext.withDocument(nestedDocument.mapping())));
         }
-        return node.isNegated() ? elasticsearchMustNot(query) : query;
+        return node.isNegated() ? QueryJson.mustNot(SearchEngine.ELASTICSEARCH, query) : query;
     }
 
     @Override
@@ -53,9 +51,11 @@ public record BooleanQueryData(
             query = toSolr(booleanContext);
         } else {
             NestedDocument nestedDocument = nestedDocument(context, node.field());
-            query = solrParentQuery(context, toSolr(booleanContext.withDocument(nestedDocument.mapping())));
+            query = QueryJson.solrParentQuery(
+                    context.config().solr().parentBlockMask(),
+                    toSolr(booleanContext.withDocument(nestedDocument.mapping())));
         }
-        return node.isNegated() ? solrMustNot(query) : query;
+        return node.isNegated() ? QueryJson.mustNot(SearchEngine.SOLR, query) : query;
     }
 
     private JsonNode toElasticsearch(QueryParseContext context) {
@@ -71,7 +71,7 @@ public record BooleanQueryData(
             SearchEngine searchEngine,
             Function<QueryNode, JsonNode> query
     ) {
-        return boolShould(searchEngine, context.minimumMatchOrDefault(1), clauses.stream()
+        return QueryJson.boolShould(searchEngine, context.minimumMatchOrDefault(1), clauses.stream()
                 .map(clause -> toMustClause(clause, query))
                 .toList());
     }
@@ -82,59 +82,7 @@ public record BooleanQueryData(
     ) {
         return clause.size() == 1
                 ? query.apply(clause.getFirst())
-                : boolMust(clause.stream().map(query).toList());
-    }
-
-    private static JsonNode boolShould(SearchEngine searchEngine, int minimumMatch, List<JsonNode> clauses) {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode should = bool.putArray("should");
-        clauses.forEach(should::add);
-        bool.put(searchEngine.minimumShouldMatchProperty(), minimumMatch);
-        return root;
-    }
-
-    private static JsonNode boolMust(List<JsonNode> clauses) {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ArrayNode must = root.putObject("bool").putArray("must");
-        clauses.forEach(must::add);
-        return root;
-    }
-
-    private static JsonNode elasticsearchMustNot(JsonNode query) {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode must = bool.putArray("must");
-        must.add(JsonNodeFactory.instance.objectNode().set("match_all", JsonNodeFactory.instance.objectNode()));
-        ArrayNode mustNot = bool.putArray("must_not");
-        mustNot.add(query);
-        return root;
-    }
-
-    private static JsonNode solrMustNot(JsonNode query) {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode must = bool.putArray("must");
-        must.add("*:*");
-        ArrayNode mustNot = bool.putArray("must_not");
-        mustNot.add(query);
-        return root;
-    }
-
-    private static JsonNode elasticsearchNestedQuery(String path, JsonNode query) {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode nested = root.putObject("nested");
-        nested.put("path", path);
-        nested.set("query", query);
-        return root;
-    }
-
-    private static JsonNode solrParentQuery(QueryParseContext context, JsonNode childQuery) {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode parent = root.putObject("parent");
-        parent.put("which", context.config().solr().parentBlockMask());
-        parent.set("query", childQuery);
-        return root;
+                : QueryJson.boolMust(clause.stream().map(query).toList());
     }
 
     private static NestedDocument nestedDocument(QueryParseContext context, String field) {

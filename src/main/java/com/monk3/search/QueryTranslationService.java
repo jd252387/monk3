@@ -1,8 +1,7 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.MappingRepository;
 import com.monk3.mapping.SearchMapping;
@@ -16,7 +15,6 @@ import java.util.List;
 @ApplicationScoped
 @RequiredArgsConstructor
 public class QueryTranslationService {
-    private final ObjectMapper objectMapper;
     private final MappingRepository mappingRepository;
     private final SearchMappingConfig config;
 
@@ -25,7 +23,7 @@ public class QueryTranslationService {
                 .map(materialType -> translateMaterialType(searchEngine, request, materialType))
                 .toList();
 
-        ObjectNode response = objectMapper.createObjectNode();
+        ObjectNode response = JsonNodeFactory.instance.objectNode();
         response.set("query", combineMaterialQueries(searchEngine, materialQueries));
         return response;
     }
@@ -37,14 +35,10 @@ public class QueryTranslationService {
     ) {
         SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
         QueryParseContext context = QueryParseContext.root(mapping, config);
-        return switch (searchEngine) {
-            case ELASTICSEARCH -> elasticsearchMaterialTypeScope(
-                    materialType,
-                    request.query().toElasticsearch(context));
-            case SOLR -> solrMaterialTypeScope(
-                    materialType,
-                    request.query().toSolr(context));
-        };
+        JsonNode query = searchEngine == SearchEngine.ELASTICSEARCH
+                ? request.query().toElasticsearch(context)
+                : request.query().toSolr(context);
+        return QueryJson.scopedMaterialType(searchEngine, config.materialTypeField(), materialType, query);
     }
 
     private JsonNode combineMaterialQueries(SearchEngine searchEngine, List<JsonNode> materialQueries) {
@@ -52,41 +46,6 @@ public class QueryTranslationService {
             return materialQueries.get(0);
         }
 
-        ObjectNode root = objectMapper.createObjectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode should = bool.putArray("should");
-        materialQueries.forEach(should::add);
-        bool.put(searchEngine.minimumShouldMatchProperty(), 1);
-        return root;
-    }
-
-    private JsonNode elasticsearchMaterialTypeScope(String materialType, JsonNode query) {
-        ObjectNode root = objectMapper.createObjectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode filter = bool.putArray("filter");
-        ObjectNode materialTypeFilter = objectMapper.createObjectNode();
-        materialTypeFilter.putObject("term").put(config.materialTypeField(), materialType);
-        filter.add(materialTypeFilter);
-        ArrayNode must = bool.putArray("must");
-        must.add(query);
-        return root;
-    }
-
-    private JsonNode solrMaterialTypeScope(String materialType, JsonNode query) {
-        ObjectNode root = objectMapper.createObjectNode();
-        ObjectNode bool = root.putObject("bool");
-        ArrayNode filter = bool.putArray("filter");
-        filter.add(solrFieldQuery(config.materialTypeField(), materialType));
-        ArrayNode must = bool.putArray("must");
-        must.add(query);
-        return root;
-    }
-
-    private ObjectNode solrFieldQuery(String field, String value) {
-        ObjectNode root = objectMapper.createObjectNode();
-        ObjectNode fieldQuery = root.putObject("field");
-        fieldQuery.put("f", field);
-        fieldQuery.put("query", value);
-        return root;
+        return QueryJson.boolShould(searchEngine, 1, materialQueries);
     }
 }

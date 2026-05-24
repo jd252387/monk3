@@ -19,9 +19,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 @Path("/queries")
 @RunOnVirtualThread
@@ -58,11 +56,8 @@ public class QueryResource {
     @GET
     @Path("/schema")
     @Produces(SCHEMA_MEDIA_TYPE)
-    public Response querySchema() throws IOException {
-        try (InputStream inputStream = schemaStream()) {
-            String schema = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-            return Response.ok(schema, SCHEMA_MEDIA_TYPE).build();
-        }
+    public Response querySchema() {
+        return Response.ok(schemaStream(), SCHEMA_MEDIA_TYPE).build();
     }
 
     private InputStream schemaStream() {

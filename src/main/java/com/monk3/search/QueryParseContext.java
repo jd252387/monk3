@@ -18,39 +18,23 @@ public record QueryParseContext(
         SearchMappingConfig config
 ) {
     public static QueryParseContext root(SearchMapping mapping, SearchMappingConfig config) {
-        return new QueryParseContext(
-                mapping,
-                mapping.root(),
-                null,
-                null,
-                config);
+        return new QueryParseContext(mapping, mapping.root(), null, null, config);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
-        return new QueryParseContext(
-                mapping,
-                document,
-                currentField,
-                minimumMatch,
-                config);
+        return copy(document, currentField, minimumMatch);
     }
 
     public QueryParseContext withField(MappedField mappedField) {
-        return new QueryParseContext(
-                mapping,
-                document,
-                mappedField,
-                minimumMatch,
-                config);
+        return copy(document, mappedField, minimumMatch);
     }
 
     public QueryParseContext withDocument(DocumentMapping documentMapping) {
-        return new QueryParseContext(
-                mapping,
-                documentMapping,
-                null,
-                minimumMatch,
-                config);
+        return copy(documentMapping, null, minimumMatch);
+    }
+
+    private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, config);
     }
 
     public int minimumMatchOrDefault(int defaultValue) {
