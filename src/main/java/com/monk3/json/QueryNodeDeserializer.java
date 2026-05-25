@@ -18,6 +18,8 @@ import com.monk3.model.TextQuery;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -126,13 +128,33 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
 
     private static RangeQuery<?> readRange(JsonParser parser, JsonNode node) throws JsonMappingException {
         rejectUnknownFields(parser, node, RANGE_FIELDS, "range");
-        BoundType type = detectBoundType(parser, node);
-        if (type == null) {
+        Boolean isNumeric = null;
+        for (String field : RANGE_BOUND_FIELDS) {
+            JsonNode bound = node.get(field);
+            if (bound != null && !bound.isNull()) {
+                if (!bound.isNumber() && !bound.isTextual()) {
+                    throw MismatchedInputException.from(parser, Object.class, "Range bound " + field + " must be a number or timestamp");
+                }
+                if (isNumeric != null && isNumeric != bound.isNumber()) {
+                    throw MismatchedInputException.from(parser, Object.class, "Range bounds must all be numbers or all be timestamps");
+                }
+                isNumeric = bound.isNumber();
+            }
+        }
+        if (isNumeric == null) {
             throw MismatchedInputException.from(parser, Object.class, "Range query requires at least one bound");
         }
-        return type == BoundType.NUMERIC
-                ? new RangeQuery.Numeric(number(node, "gte"), number(node, "gt"), number(node, "lte"), number(node, "lt"))
-                : new RangeQuery.Datetime(text(node, "gte"), text(node, "gt"), text(node, "lte"), text(node, "lt"));
+        return isNumeric
+                ? new RangeQuery.Numeric(
+                    Optional.ofNullable(node.get("gte")).filter(v -> !v.isNull()).map(v -> new BigDecimal(v.asText())).orElse(null),
+                    Optional.ofNullable(node.get("gt")).filter(v -> !v.isNull()).map(v -> new BigDecimal(v.asText())).orElse(null),
+                    Optional.ofNullable(node.get("lte")).filter(v -> !v.isNull()).map(v -> new BigDecimal(v.asText())).orElse(null),
+                    Optional.ofNullable(node.get("lt")).filter(v -> !v.isNull()).map(v -> new BigDecimal(v.asText())).orElse(null))
+                : new RangeQuery.Datetime(
+                    parseInstant(parser, node.get("gte")),
+                    parseInstant(parser, node.get("gt")),
+                    parseInstant(parser, node.get("lte")),
+                    parseInstant(parser, node.get("lt")));
     }
 
     private static ExactQuery<?> readExact(JsonParser parser, JsonNode node) throws JsonMappingException {
@@ -145,16 +167,33 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             throw MismatchedInputException.from(parser, Object.class, "Exact query values must not be empty");
         }
 
-        ValueType type = detectValueType(parser, values);
-        return switch (type) {
-            case NUMERIC -> new ExactQuery.Numeric(values(values, value -> new BigDecimal(value.asText())));
-            case DATETIME -> new ExactQuery.Datetime(values(values, JsonNode::textValue));
-            case BOOLEAN -> new ExactQuery.BooleanValues(values(values, JsonNode::booleanValue));
-        };
+        List<BigDecimal> numerics = new ArrayList<>();
+        List<String> datetimes = new ArrayList<>();
+        List<Boolean> booleans = new ArrayList<>();
+        for (JsonNode value : values) {
+            if (value == null || value.isNull()) {
+                throw MismatchedInputException.from(parser, Object.class, "Exact query values must not contain null");
+            }
+            if (value.isNumber()) numerics.add(new BigDecimal(value.asText()));
+            else if (value.isTextual()) datetimes.add(value.textValue());
+            else if (value.isBoolean()) booleans.add(value.booleanValue());
+            else throw MismatchedInputException.from(parser, Object.class, "Exact query values must be numbers, timestamps, or booleans");
+        }
+        if ((!numerics.isEmpty() ? 1 : 0) + (!datetimes.isEmpty() ? 1 : 0) + (!booleans.isEmpty() ? 1 : 0) > 1) {
+            throw MismatchedInputException.from(parser, Object.class, "Exact query values must all have the same type");
+        }
+        if (!numerics.isEmpty()) return new ExactQuery.Numeric(List.copyOf(numerics));
+        if (!datetimes.isEmpty()) return new ExactQuery.Datetime(List.copyOf(datetimes));
+        return new ExactQuery.BooleanValues(List.copyOf(booleans));
     }
 
-    private static boolean hasRangeBound(JsonNode node) {
-        return RANGE_BOUND_FIELDS.stream().map(node::get).anyMatch(QueryNodeDeserializer::present);
+    private static Instant parseInstant(JsonParser parser, JsonNode node) throws JsonMappingException {
+        if (node == null || node.isNull()) return null;
+        try {
+            return Instant.parse(node.textValue());
+        } catch (DateTimeParseException e) {
+            throw MismatchedInputException.from(parser, Object.class, "Range bound must be an ISO 8601 timestamp: " + node.textValue());
+        }
     }
 
     private static String unsupportedTypeMessage(String type) {
@@ -170,70 +209,5 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
                 throw MismatchedInputException.from(parser, Object.class, "Unknown " + queryType + " query property: " + fieldName);
             }
         }
-    }
-
-    private static BoundType detectBoundType(JsonParser parser, JsonNode node) throws JsonMappingException {
-        BoundType detected = null;
-        for (String field : RANGE_BOUND_FIELDS) {
-            JsonNode bound = node.get(field);
-            if (present(bound)) {
-                detected = sameType(parser, detected, bound.isNumber() ? BoundType.NUMERIC : bound.isTextual() ? BoundType.DATETIME : null,
-                        "Range bound " + field + " must be a number or timestamp",
-                        "Range bounds must all be numbers or all be timestamps");
-            }
-        }
-        return detected;
-    }
-
-    private static ValueType detectValueType(JsonParser parser, JsonNode values) throws JsonMappingException {
-        ValueType detected = null;
-        for (JsonNode value : values) {
-            if (!present(value)) {
-                throw MismatchedInputException.from(parser, Object.class, "Exact query values must not contain null");
-            }
-            detected = sameType(parser, detected, value.isNumber() ? ValueType.NUMERIC : value.isTextual() ? ValueType.DATETIME : value.isBoolean() ? ValueType.BOOLEAN : null,
-                    "Exact query values must be numbers, timestamps, or booleans",
-                    "Exact query values must all have the same type");
-        }
-        return detected;
-    }
-
-    private static <T> T sameType(JsonParser parser, T detected, T current, String invalidMessage, String mixedMessage)
-            throws JsonMappingException {
-        if (current == null) {
-            throw MismatchedInputException.from(parser, Object.class, invalidMessage);
-        }
-        if (detected != null && detected != current) {
-            throw MismatchedInputException.from(parser, Object.class, mixedMessage);
-        }
-        return current;
-    }
-
-    private static boolean present(JsonNode value) {
-        return value != null && !value.isNull();
-    }
-
-    private static BigDecimal number(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        return present(value) ? new BigDecimal(value.asText()) : null;
-    }
-
-    private static String text(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        return present(value) ? value.textValue() : null;
-    }
-
-    private static <T> List<T> values(JsonNode values, ValueReader<T> reader) {
-        List<T> result = new ArrayList<>();
-        values.forEach(value -> result.add(reader.read(value)));
-        return List.copyOf(result);
-    }
-
-    private enum BoundType { NUMERIC, DATETIME }
-
-    private enum ValueType { NUMERIC, DATETIME, BOOLEAN }
-
-    private interface ValueReader<T> {
-        T read(JsonNode value);
     }
 }

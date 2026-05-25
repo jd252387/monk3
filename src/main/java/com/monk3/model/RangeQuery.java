@@ -10,6 +10,7 @@ import com.monk3.search.QueryParseContext;
 import jakarta.validation.constraints.AssertTrue;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Numeric, RangeQuery.Datetime {
     @JsonProperty
@@ -81,6 +82,6 @@ public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Nu
     record Numeric(BigDecimal gte, BigDecimal gt, BigDecimal lte, BigDecimal lt) implements RangeQuery<BigDecimal> {
     }
 
-    record Datetime(String gte, String gt, String lte, String lt) implements RangeQuery<String> {
+    record Datetime(Instant gte, Instant gt, Instant lte, Instant lt) implements RangeQuery<Instant> {
     }
 }
