@@ -57,16 +57,13 @@ public class QueryResource {
     @Path("/schema")
     @Produces(SCHEMA_MEDIA_TYPE)
     public Response querySchema() {
-        return Response.ok(schemaStream(), SCHEMA_MEDIA_TYPE).build();
-    }
-
-    private InputStream schemaStream() {
         InputStream inputStream = QueryResource.class
                 .getClassLoader()
                 .getResourceAsStream("search-query-dsl.schema.json");
         if (inputStream == null) {
             throw new IllegalStateException("search-query-dsl.schema.json was not found on the classpath");
         }
-        return inputStream;
+        
+        return Response.ok(inputStream, SCHEMA_MEDIA_TYPE).build();
     }
 }
