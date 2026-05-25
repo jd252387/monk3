@@ -1,5 +1,6 @@
 package com.monk3.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.mapping.FieldType;
 import com.monk3.search.QueryJson;
@@ -13,6 +14,11 @@ import java.util.List;
 
 public sealed interface ExactQuery<T> extends QueryPayload
         permits ExactQuery.Numeric, ExactQuery.Datetime, ExactQuery.BooleanValues {
+    @JsonProperty
+    default String type() {
+        return "exact";
+    }
+
     @NotEmpty
     List<@NotNull T> values();
 

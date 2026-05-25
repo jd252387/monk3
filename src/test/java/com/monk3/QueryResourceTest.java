@@ -62,6 +62,7 @@ class QueryResourceTest {
                           "query": {
                             "field": "year",
                             "data": {
+                              "type": "range",
                               "gte": 1995,
                               "lte": 2020
                             }
@@ -72,7 +73,7 @@ class QueryResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.data", not(hasKey("type")))
+                .body("query.data.type", equalTo("range"))
                 .body("query.data.gte", equalTo(1995))
                 .body("query.data.lte", equalTo(2020));
     }
@@ -88,6 +89,7 @@ class QueryResourceTest {
                           "query": {
                             "field": "publishedAt",
                             "data": {
+                              "type": "range",
                               "gte": "2024-01-01T00:00:00Z",
                               "lt": "2025-01-01T00:00:00Z"
                             }
@@ -98,7 +100,7 @@ class QueryResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.data", not(hasKey("type")))
+                .body("query.data.type", equalTo("range"))
                 .body("query.data.gte", equalTo("2024-01-01T00:00:00Z"))
                 .body("query.data.lt", equalTo("2025-01-01T00:00:00Z"));
     }
@@ -114,6 +116,7 @@ class QueryResourceTest {
                           "query": {
                             "field": "year",
                             "data": {
+                              "type": "exact",
                               "values": [1995, 2020]
                             }
                           }
@@ -123,7 +126,7 @@ class QueryResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.data", not(hasKey("type")))
+                .body("query.data.type", equalTo("exact"))
                 .body("query.data.values[0]", equalTo(1995))
                 .body("query.data.values[1]", equalTo(2020));
     }
@@ -139,6 +142,7 @@ class QueryResourceTest {
                           "query": {
                             "field": "publishedAt",
                             "data": {
+                              "type": "exact",
                               "values": ["2024-01-01T00:00:00Z"]
                             }
                           }
@@ -148,7 +152,7 @@ class QueryResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.data", not(hasKey("type")))
+                .body("query.data.type", equalTo("exact"))
                 .body("query.data.values[0]", equalTo("2024-01-01T00:00:00Z"));
     }
 
@@ -163,6 +167,7 @@ class QueryResourceTest {
                           "query": {
                             "field": "isPublished",
                             "data": {
+                              "type": "exact",
                               "values": [true, false]
                             }
                           }
@@ -172,7 +177,7 @@ class QueryResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.data", not(hasKey("type")))
+                .body("query.data.type", equalTo("exact"))
                 .body("query.data.values[0]", equalTo(true))
                 .body("query.data.values[1]", equalTo(false));
     }
@@ -201,6 +206,7 @@ class QueryResourceTest {
                                   "field": "year",
                                   "isNot": true,
                                   "data": {
+                                    "type": "range",
                                     "gt": 1800,
                                     "lte": 1900
                                   }
@@ -257,6 +263,7 @@ class QueryResourceTest {
                           "query": {
                             "field": "year",
                             "data": {
+                              "type": "range",
                               "gte": 1995,
                               "lt": 2020
                             }
@@ -535,7 +542,7 @@ class QueryResourceTest {
                   "materialTypes": ["book"],
                   "query": {
                     "field": "year",
-                    "data": {"values": []}
+                    "data": {"type": "exact", "values": []}
                   }
                 }
                 """);
@@ -546,7 +553,7 @@ class QueryResourceTest {
                   "materialTypes": ["book"],
                   "query": {
                     "field": "year",
-                    "data": {"values": [1, "2020-01-01T00:00:00Z"]}
+                    "data": {"type": "exact", "values": [1, "2020-01-01T00:00:00Z"]}
                   }
                 }
                 """);
@@ -602,7 +609,33 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
                 .body("error.message", containsString("Unsupported query data type 'geo'"))
-                .body("error.message", containsString("Supported query data types are 'text' and 'range'"));
+                .body("error.message", containsString("Supported query data types are 'text', 'range', and 'exact'"));
+    }
+
+    @Test
+    void missingQueryDataTypeReturnsStructuredExplanation() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Missing payload type",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "year",
+                            "data": {
+                              "gte": 1995,
+                              "lte": 2020
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("query.data"))
+                .body("error.message", containsString("Query payload type is required"));
     }
 
     @Test
@@ -658,7 +691,8 @@ class QueryResourceTest {
                 .body("$defs.NumericExactQuery.properties.values.items.type", equalTo("number"))
                 .body("$defs.DatetimeExactQuery.properties.values.items.type", equalTo("string"))
                 .body("$defs.BooleanExactQuery.properties.values.items.type", equalTo("boolean"))
-                .body("$defs.NumericRangeQuery.properties", not(hasKey("type")))
+                .body("$defs.NumericExactQuery.properties.type.const", equalTo("exact"))
+                .body("$defs.NumericRangeQuery.properties.type.const", equalTo("range"))
                 .body("$defs.NumericRangeQuery.properties.lte.type", equalTo("number"))
                 .body("$defs.DatetimeRangeQuery.properties.lte.type", equalTo("string"))
                 .body("$defs.NumericRangeQuery", hasKey("allOf"))

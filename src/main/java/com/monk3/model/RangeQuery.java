@@ -1,5 +1,6 @@
 package com.monk3.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -11,6 +12,11 @@ import jakarta.validation.constraints.AssertTrue;
 import java.math.BigDecimal;
 
 public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Numeric, RangeQuery.Datetime {
+    @JsonProperty
+    default String type() {
+        return "range";
+    }
+
     T gte();
 
     T gt();

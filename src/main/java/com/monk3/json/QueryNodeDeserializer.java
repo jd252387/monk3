@@ -21,10 +21,11 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
-    private static final Set<String> EXACT_FIELDS = Set.of("values");
+    private static final Set<String> EXACT_FIELDS = Set.of("type", "values");
     private static final Set<String> RANGE_FIELDS = Set.of("type", "gte", "gt", "lte", "lt");
     private static final Set<String> RANGE_BOUND_FIELDS = Set.of("gte", "gt", "lte", "lt");
 
@@ -36,9 +37,24 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             throw MismatchedInputException.from(parser, Object.class, "Query node must be an object");
         }
 
-        String field = requireText(parser, objectNode.remove("field"), "Query node field must be a string");
-        Integer minimumMatch = optionalInt(parser, objectNode.remove("minimumMatch"), "minimumMatch must be an integer");
-        Boolean isNot = optionalBoolean(parser, objectNode.remove("isNot"), "isNot must be a boolean");
+        String field = Optional.ofNullable(objectNode.remove("field"))
+                .filter(JsonNode::isTextual)
+                .map(JsonNode::textValue)
+                .orElseThrow(() -> MismatchedInputException.from(parser, Object.class, "Query node field must be a string"));
+        Optional<JsonNode> minimumMatchNode = Optional.ofNullable(objectNode.remove("minimumMatch"))
+                .filter(value -> !value.isNull());
+        if (minimumMatchNode.isPresent() && !minimumMatchNode.get().canConvertToInt()) {
+            throw MismatchedInputException.from(parser, Object.class, "minimumMatch must be an integer");
+        }
+        Integer minimumMatch = minimumMatchNode.map(JsonNode::intValue).orElse(null);
+
+        Optional<JsonNode> isNotNode = Optional.ofNullable(objectNode.remove("isNot"))
+                .filter(value -> !value.isNull());
+        if (isNotNode.isPresent() && !isNotNode.get().isBoolean()) {
+            throw MismatchedInputException.from(parser, Object.class, "isNot must be a boolean");
+        }
+        Boolean isNot = isNotNode.map(JsonNode::booleanValue).orElse(null);
+
         JsonNode dataNode = objectNode.remove("data");
         if (!objectNode.isEmpty()) {
             throw MismatchedInputException.from(parser, Object.class, "Unknown query node property: " + objectNode.fieldNames().next());
@@ -49,33 +65,6 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
 
         QueryData data = readData(parser, mapper, field, dataNode);
         return new QueryNode(field, minimumMatch, isNot, data);
-    }
-
-    private static String requireText(JsonParser parser, JsonNode node, String message) throws JsonMappingException {
-        if (node == null || node.isNull() || !node.isTextual()) {
-            throw MismatchedInputException.from(parser, Object.class, message);
-        }
-        return node.textValue();
-    }
-
-    private static Integer optionalInt(JsonParser parser, JsonNode node, String message) throws JsonMappingException {
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (!node.canConvertToInt()) {
-            throw MismatchedInputException.from(parser, Object.class, message);
-        }
-        return node.intValue();
-    }
-
-    private static Boolean optionalBoolean(JsonParser parser, JsonNode node, String message) throws JsonMappingException {
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (!node.isBoolean()) {
-            throw MismatchedInputException.from(parser, Object.class, message);
-        }
-        return node.booleanValue();
     }
 
     private static QueryData readData(
@@ -101,24 +90,18 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         }
 
         JsonNode typeNode = node.get("type");
-        if (typeNode != null && !typeNode.isNull()) {
-            if (!typeNode.isTextual()) {
-                throw MismatchedInputException.from(parser, Object.class, "Query payload type must be a string");
-            }
-            return switch (typeNode.textValue()) {
-                case "text" -> mapper.treeToValue(node, TextQuery.class);
-                case "range" -> readRange(parser, node);
-                default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(typeNode.textValue()));
-            };
+        if (typeNode == null || typeNode.isNull()) {
+            throw MismatchedInputException.from(parser, Object.class, "Query payload type is required");
         }
-
-        if (hasRangeBound(node)) {
-            return readRange(parser, node);
+        if (!typeNode.isTextual()) {
+            throw MismatchedInputException.from(parser, Object.class, "Query payload type must be a string");
         }
-        if (node.hasNonNull("values")) {
-            return readExact(parser, node);
-        }
-        throw MismatchedInputException.from(parser, Object.class, "Query payload type is required unless range bounds or exact values are provided");
+        return switch (typeNode.textValue()) {
+            case "text" -> mapper.treeToValue(node, TextQuery.class);
+            case "range" -> readRange(parser, node);
+            case "exact" -> readExact(parser, node);
+            default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(typeNode.textValue()));
+        };
     }
 
     private static BooleanQueryData readBooleanData(JsonParser parser, ObjectMapper mapper, JsonNode dataNode)
@@ -175,7 +158,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
     }
 
     private static String unsupportedTypeMessage(String type) {
-        return "Unsupported query data type '" + type + "'. Supported query data types are 'text' and 'range'.";
+        return "Unsupported query data type '" + type + "'. Supported query data types are 'text', 'range', and 'exact'.";
     }
 
     private static void rejectUnknownFields(JsonParser parser, JsonNode node, Set<String> allowed, String queryType)

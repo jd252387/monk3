@@ -18,7 +18,7 @@ import jakarta.ws.rs.ext.Provider;
 @Provider
 @Priority(Priorities.USER)
 public class JsonMappingExceptionMapper implements ExceptionMapper<JsonMappingException> {
-    private static final String CODE = "invalid_query_structure";
+    static final String CODE = "invalid_query_structure";
 
     @Override
     public Response toResponse(JsonMappingException exception) {
@@ -28,15 +28,22 @@ public class JsonMappingExceptionMapper implements ExceptionMapper<JsonMappingEx
                 .build();
     }
 
-    private static String explanation(JsonMappingException exception) {
+    static String explanation(JsonMappingException exception) {
         String message = switch (exception) {
             case UnrecognizedPropertyException unrecognized -> unrecognizedPropertyMessage(unrecognized);
             case InvalidTypeIdException invalidType -> invalidTypeMessage(invalidType);
             default -> exception.getOriginalMessage();
         };
 
-    
-        return "Invalid query structure at '" + exception.getPathReference() + "': " + message;
+        return "Invalid query structure at '" + path(exception) + "': " + message;
+    }
+
+    private static String path(JsonMappingException exception) {
+        return exception.getPath().stream()
+                .map(reference -> reference.getFieldName() != null
+                        ? reference.getFieldName()
+                        : "[" + reference.getIndex() + "]")
+                .collect(Collectors.joining("."));
     }
 
     private static String unrecognizedPropertyMessage(UnrecognizedPropertyException exception) {
@@ -50,7 +57,7 @@ public class JsonMappingExceptionMapper implements ExceptionMapper<JsonMappingEx
 
     private static String invalidTypeMessage(InvalidTypeIdException exception) {
         return "unsupported query data type '" + exception.getTypeId()
-                + "'. Supported query data types are 'text' and 'range'.";
+                + "'. Supported query data types are 'text', 'range', and 'exact'.";
     }
 
     private static String allowedProperties(Collection<Object> knownPropertyIds) {

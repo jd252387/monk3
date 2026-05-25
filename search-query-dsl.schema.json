@@ -159,9 +159,13 @@
       "description": "Exact query payload for matching one or more numeric values.",
       "additionalProperties": false,
       "required": [
+        "type",
         "values"
       ],
       "properties": {
+        "type": {
+          "const": "exact"
+        },
         "values": {
           "type": "array",
           "description": "Numeric values to match exactly.",
@@ -177,9 +181,13 @@
       "description": "Exact query payload for matching one or more datetime or timestamp values.",
       "additionalProperties": false,
       "required": [
+        "type",
         "values"
       ],
       "properties": {
+        "type": {
+          "const": "exact"
+        },
         "values": {
           "type": "array",
           "description": "Datetime or timestamp values to match exactly.",
@@ -195,9 +203,13 @@
       "description": "Exact query payload for matching one or more boolean values.",
       "additionalProperties": false,
       "required": [
+        "type",
         "values"
       ],
       "properties": {
+        "type": {
+          "const": "exact"
+        },
         "values": {
           "type": "array",
           "description": "Boolean values to match exactly.",
@@ -212,7 +224,13 @@
       "type": "object",
       "description": "Range query payload for matching numeric values within bounds.",
       "additionalProperties": false,
+      "required": [
+        "type"
+      ],
       "properties": {
+        "type": {
+          "const": "range"
+        },
         "gte": {
           "type": "number",
           "description": "Inclusive lower bound."
@@ -281,7 +299,13 @@
       "type": "object",
       "description": "Range query payload for matching datetime or timestamp values within bounds.",
       "additionalProperties": false,
+      "required": [
+        "type"
+      ],
       "properties": {
+        "type": {
+          "const": "range"
+        },
         "gte": {
           "type": "string",
           "description": "Inclusive lower timestamp bound."
