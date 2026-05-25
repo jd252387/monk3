@@ -44,49 +44,6 @@ public final class QueryJson {
         return root;
     }
 
-    public static ObjectNode elasticsearchMatchPhrase(String field, String phrase) {
-        ObjectNode root = JSON.objectNode();
-        root.putObject("match_phrase").put(field, phrase);
-        return root;
-    }
-
-    public static ObjectNode elasticsearchTerms(String field, List<?> values) {
-        ObjectNode root = JSON.objectNode();
-        ArrayNode fieldValues = root.putObject("terms").putArray(field);
-        values.stream().map(QueryJson::valueNode).forEach(fieldValues::add);
-        return root;
-    }
-
-    public static ObjectNode elasticsearchNested(String path, JsonNode query) {
-        ObjectNode root = JSON.objectNode();
-        root.putObject("nested").put("path", path).set("query", query);
-        return root;
-    }
-
-    public static ObjectNode solrFieldQuery(String field, Object value) {
-        ObjectNode root = JSON.objectNode();
-        ObjectNode fieldQuery = root.putObject("field");
-        fieldQuery.put("f", field).set("query", valueNode(value));
-        return root;
-    }
-
-    public static ObjectNode solrParentQuery(String parentBlockMask, JsonNode childQuery) {
-        ObjectNode root = JSON.objectNode();
-        root.putObject("parent").put("which", parentBlockMask).set("query", childQuery);
-        return root;
-    }
-
-    public static ObjectNode scopedMaterialType(SearchEngine engine, String materialTypeField, String materialType, JsonNode query) {
-        ObjectNode root = JSON.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        JsonNode filter = engine == SearchEngine.ELASTICSEARCH
-                ? JSON.objectNode().set("term", JSON.objectNode().put(materialTypeField, materialType))
-                : solrFieldQuery(materialTypeField, materialType);
-        bool.putArray("filter").add(filter);
-        bool.putArray("must").add(query);
-        return root;
-    }
-
     public static JsonNode valueNode(Object value) {
         return switch (value) {
             case String string -> JSON.textNode(string);

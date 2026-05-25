@@ -38,7 +38,22 @@ public class QueryTranslationService {
         JsonNode query = searchEngine == SearchEngine.ELASTICSEARCH
                 ? request.query().toElasticsearch(context)
                 : request.query().toSolr(context);
-        return QueryJson.scopedMaterialType(searchEngine, config.materialTypeField(), materialType, query);
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ObjectNode bool = root.putObject("bool");
+        JsonNode filter;
+        if (searchEngine == SearchEngine.ELASTICSEARCH) {
+            filter = JsonNodeFactory.instance.objectNode()
+                    .set("term", JsonNodeFactory.instance.objectNode().put(config.materialTypeField(), materialType));
+        } else {
+            ObjectNode fieldQuery = JsonNodeFactory.instance.objectNode();
+            fieldQuery.putObject("field")
+                    .put("f", config.materialTypeField())
+                    .set("query", QueryJson.valueNode(materialType));
+            filter = fieldQuery;
+        }
+        bool.putArray("filter").add(filter);
+        bool.putArray("must").add(query);
+        return root;
     }
 
     private JsonNode combineMaterialQueries(SearchEngine searchEngine, List<JsonNode> materialQueries) {

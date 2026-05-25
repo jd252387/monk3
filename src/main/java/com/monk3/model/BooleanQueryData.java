@@ -3,6 +3,8 @@ package com.monk3.model;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.DocumentMapping;
 import com.monk3.mapping.MappedField;
 import com.monk3.search.QueryJson;
@@ -19,6 +21,8 @@ import java.util.function.Function;
 public record BooleanQueryData(
         @NotEmpty List<@NotEmpty List<@NotNull @Valid QueryNode>> clauses
 ) implements QueryData {
+    private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public BooleanQueryData {
     }
@@ -36,9 +40,11 @@ public record BooleanQueryData(
             query = toElasticsearch(booleanContext);
         } else {
             NestedDocument nestedDocument = nestedDocument(context, node.field());
-            query = QueryJson.elasticsearchNested(
-                    nestedDocument.path(),
-                    toElasticsearch(booleanContext.withDocument(nestedDocument.mapping())));
+            ObjectNode nested = JSON.objectNode();
+            nested.putObject("nested")
+                    .put("path", nestedDocument.path())
+                    .set("query", toElasticsearch(booleanContext.withDocument(nestedDocument.mapping())));
+            query = nested;
         }
         return node.isNegated() ? QueryJson.mustNot(SearchEngine.ELASTICSEARCH, query) : query;
     }
@@ -51,9 +57,11 @@ public record BooleanQueryData(
             query = toSolr(booleanContext);
         } else {
             NestedDocument nestedDocument = nestedDocument(context, node.field());
-            query = QueryJson.solrParentQuery(
-                    context.config().solr().parentBlockMask(),
-                    toSolr(booleanContext.withDocument(nestedDocument.mapping())));
+            ObjectNode parent = JSON.objectNode();
+            parent.putObject("parent")
+                    .put("which", context.config().solr().parentBlockMask())
+                    .set("query", toSolr(booleanContext.withDocument(nestedDocument.mapping())));
+            query = parent;
         }
         return node.isNegated() ? QueryJson.mustNot(SearchEngine.SOLR, query) : query;
     }
