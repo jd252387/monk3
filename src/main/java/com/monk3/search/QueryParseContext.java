@@ -1,10 +1,14 @@
 package com.monk3.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.mapping.SearchMappingConfig;
+import com.monk3.model.QueryPayload;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.SearchMapping;
+import jd.nomad.mapping.VirtualField;
+import jd.nomad.mapping.VirtualMapping;
 
 import java.util.List;
 import java.util.Locale;
@@ -15,10 +19,17 @@ public record QueryParseContext(
         DocumentMapping document,
         MappedField currentField,
         Integer minimumMatch,
-        SearchMappingConfig config
+        SearchMappingConfig config,
+        VirtualMapping virtualMapping,
+        VirtualFieldExpander expander
 ) {
-    public static QueryParseContext root(SearchMapping mapping, SearchMappingConfig config) {
-        return new QueryParseContext(mapping, mapping.root(), null, null, config);
+    public static QueryParseContext root(
+            SearchMapping mapping,
+            SearchMappingConfig config,
+            VirtualMapping virtualMapping,
+            VirtualFieldExpander expander
+    ) {
+        return new QueryParseContext(mapping, mapping.root(), null, null, config, virtualMapping, expander);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -34,7 +45,23 @@ public record QueryParseContext(
     }
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
-        return new QueryParseContext(mapping, document, currentField, minimumMatch, config);
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, config, virtualMapping, expander);
+    }
+
+    public Optional<VirtualField> findVirtualField(String logicalName) {
+        if (virtualMapping == null) {
+            return Optional.empty();
+        }
+        return virtualMapping.document(document.name()).flatMap(d -> d.field(logicalName));
+    }
+
+    public JsonNode expandVirtual(
+            VirtualField virtualField,
+            QueryPayload payload,
+            boolean isNegated,
+            SearchEngine engine
+    ) {
+        return expander.expandAndTranslate(virtualField, payload, isNegated, this, engine);
     }
 
     public int minimumMatchOrDefault(int defaultValue) {

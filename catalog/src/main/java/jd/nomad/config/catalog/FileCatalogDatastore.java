@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jd.nomad.config.IndexerConfig;
 import jd.nomad.mapping.SearchMapping;
+import jd.nomad.mapping.VirtualMapping;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
@@ -46,7 +47,17 @@ public class FileCatalogDatastore implements CatalogDatastore {
             JsonNode node = readJson(fileSystemManager, location);
             mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
         }
-        return new CatalogSnapshot(Map.copyOf(mappings));
+
+        Map<String, String> virtualPaths = indexerConfig.catalog().file().virtualMappings();
+        Map<String, VirtualMapping> virtualMappings = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : virtualPaths.entrySet()) {
+            String materialType = entry.getKey();
+            String location = entry.getValue();
+            JsonNode node = readJson(fileSystemManager, location);
+            virtualMappings.put(materialType, snapshotBuilder.parseVirtualMapping(materialType, node));
+        }
+
+        return new CatalogSnapshot(Map.copyOf(mappings), Map.copyOf(virtualMappings));
     }
 
     private JsonNode readJson(FileSystemManager fileSystemManager, String location) throws IOException {

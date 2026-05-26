@@ -24,6 +24,9 @@ public interface IndexerConfig {
     interface FileSource {
 
         Map<String, String> mappings();
+
+        @WithDefault("{}")
+        Map<String, String> virtualMappings();
     }
 
     interface EtcdSource {

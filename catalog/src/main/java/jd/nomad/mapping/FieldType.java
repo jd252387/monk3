@@ -9,6 +9,7 @@ public enum FieldType {
     FREETEXT,
     DATETIME,
     NUMBER,
+    BOOLEAN,
     SUBDOCUMENT;
 
     @JsonCreator

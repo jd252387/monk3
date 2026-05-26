@@ -48,7 +48,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
             registerWatcher(this.etcdClient, materialType, key);
         }
-        return new CatalogSnapshot(Map.copyOf(mappings));
+        return new CatalogSnapshot(Map.copyOf(mappings), Map.of());
     }
 
     public Client buildEtcd() {

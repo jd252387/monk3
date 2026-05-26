@@ -8,6 +8,7 @@ import com.monk3.model.SearchQueryRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.config.catalog.ConfigurationCatalogService;
 import jd.nomad.mapping.SearchMapping;
+import jd.nomad.mapping.VirtualMapping;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.List;
 public class QueryTranslationService {
     private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
+    private final VirtualFieldExpander virtualFieldExpander;
 
     public ObjectNode translate(SearchEngine searchEngine, SearchQueryRequest request) {
         List<JsonNode> materialQueries = request.materialTypes().stream()
@@ -34,7 +36,8 @@ public class QueryTranslationService {
             String materialType
     ) {
         SearchMapping mapping = catalogService.mappingForMaterialType(materialType);
-        QueryParseContext context = QueryParseContext.root(mapping, config);
+        VirtualMapping virtualMapping = catalogService.virtualMappingForMaterialType(materialType).orElse(null);
+        QueryParseContext context = QueryParseContext.root(mapping, config, virtualMapping, virtualFieldExpander);
         JsonNode query = searchEngine == SearchEngine.ELASTICSEARCH
                 ? request.query().toElasticsearch(context)
                 : request.query().toSolr(context);

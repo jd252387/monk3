@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../../virtual-mapping.schema.json",
+  "root": {
+    "recentBook": {
+      "type": "freetext",
+      "expansion": {
+        "field": "",
+        "data": [
+          [
+            {"field": "title", "data": "{{data}}"},
+            {"field": "year", "data": {"type": "range", "gte": 2010, "lte": 2025}}
+          ]
+        ]
+      }
+    }
+  },
+  "chapter": {
+    "shortChapter": {
+      "type": "number",
+      "expansion": {
+        "field": "pageCount",
+        "data": "{{data}}"
+      }
+    }
+  }
+}

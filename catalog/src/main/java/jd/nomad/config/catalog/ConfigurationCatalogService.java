@@ -7,6 +7,7 @@ import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jd.nomad.mapping.SearchMapping;
+import jd.nomad.mapping.VirtualMapping;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -45,12 +46,16 @@ public class ConfigurationCatalogService {
         return snapshot.get().mappings();
     }
 
+    public Optional<VirtualMapping> virtualMappingForMaterialType(String materialType) {
+        return Optional.ofNullable(snapshot.get().virtualMappings().get(materialType));
+    }
+
     private synchronized void updateMapping(String materialType, JsonNode updatedNode) {
         SearchMapping updated = snapshotBuilder.parseMapping(materialType, updatedNode);
         this.snapshot.getAndUpdate(currentSnapshot -> {
             Map<String, SearchMapping> next = new LinkedHashMap<>(currentSnapshot.mappings());
             next.put(materialType, updated);
-            return new CatalogSnapshot(Map.copyOf(next));
+            return new CatalogSnapshot(Map.copyOf(next), currentSnapshot.virtualMappings());
         });
 
         for (Runnable listener : List.copyOf(updateListeners)) {

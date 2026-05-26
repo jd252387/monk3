@@ -8,6 +8,9 @@ import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.MappingParseException;
 import jd.nomad.mapping.SearchMapping;
+import jd.nomad.mapping.VirtualDocumentMapping;
+import jd.nomad.mapping.VirtualField;
+import jd.nomad.mapping.VirtualMapping;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,6 +19,7 @@ import java.util.Set;
 @ApplicationScoped
 public class CatalogSnapshotBuilder {
     private static final Set<String> RESERVED_PROPERTIES = Set.of("$schema", "root", "primaryKey");
+    private static final Set<String> VIRTUAL_RESERVED_PROPERTIES = Set.of("$schema");
 
     public SearchMapping parseMapping(String materialType, JsonNode root) {
         ObjectNode mappingRoot = requireObject(root, "mapping for material type '" + materialType + "'");
@@ -33,6 +37,38 @@ public class CatalogSnapshotBuilder {
                         requireObject(entry.getValue(), "material type '" + materialType + "' #/" + entry.getKey()))));
 
         return new SearchMapping(materialType, primaryKey, Map.copyOf(documents));
+    }
+
+    public VirtualMapping parseVirtualMapping(String materialType, JsonNode root) {
+        ObjectNode mappingRoot = requireObject(root, "virtual mapping for material type '" + materialType + "'");
+
+        Map<String, VirtualDocumentMapping> documents = new LinkedHashMap<>();
+        mappingRoot.properties().stream()
+                .filter(entry -> !VIRTUAL_RESERVED_PROPERTIES.contains(entry.getKey()))
+                .forEach(entry -> documents.put(entry.getKey(), parseVirtualDocument(
+                        entry.getKey(),
+                        requireObject(entry.getValue(), "material type '" + materialType + "' #/" + entry.getKey()))));
+
+        return new VirtualMapping(materialType, Map.copyOf(documents));
+    }
+
+    private VirtualDocumentMapping parseVirtualDocument(String documentName, ObjectNode documentNode) {
+        Map<String, VirtualField> fields = new LinkedHashMap<>();
+        documentNode.properties().forEach(entry -> fields.put(entry.getKey(), parseVirtualField(entry.getKey(), entry.getValue())));
+        return new VirtualDocumentMapping(documentName, Map.copyOf(fields));
+    }
+
+    private VirtualField parseVirtualField(String logicalName, JsonNode fieldNode) {
+        ObjectNode fieldObject = requireObject(fieldNode, "virtual field '" + logicalName + "'");
+        FieldType type = FieldType.fromJson(requireText(fieldObject, "type", "virtual field '" + logicalName + "'"));
+        if (type == FieldType.SUBDOCUMENT) {
+            throw new MappingParseException("Virtual field '" + logicalName + "' may not use type 'subdocument'");
+        }
+        JsonNode expansion = fieldObject.get("expansion");
+        if (!(expansion instanceof ObjectNode)) {
+            throw new MappingParseException("Virtual field '" + logicalName + "' must declare an 'expansion' object");
+        }
+        return new VirtualField(logicalName, type, expansion);
     }
 
     private DocumentMapping parseDocument(String documentName, ObjectNode documentNode) {

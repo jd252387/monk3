@@ -703,6 +703,110 @@ class QueryResourceTest {
                 .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gt"));
     }
 
+    @Test
+    void expandsRootVirtualFieldToElasticsearchDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Virtual field expansion ES",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "recentBook",
+                            "data": {"type": "text", "phrases": ["java"]}
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
+                .body("query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
+    }
+
+    @Test
+    void expandsRootVirtualFieldToSolrDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Virtual field expansion Solr",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "recentBook",
+                            "data": {"type": "text", "phrases": ["java"]}
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/solr")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.filter[0].field.f", equalTo("material_type"))
+                .body("query.bool.must[0].bool.should[0].bool.must[0].field.f", equalTo("book_title"))
+                .body("query.bool.must[0].bool.should[0].bool.must[0].field.query", equalTo("java"))
+                .body("query.bool.must[0].bool.should[0].bool.must[1].frange.query", equalTo("book_year"))
+                .body("query.bool.must[0].bool.should[0].bool.must[1].frange.l", equalTo(2010))
+                .body("query.bool.must[0].bool.should[0].bool.must[1].frange.u", equalTo(2025));
+    }
+
+    @Test
+    void expandsSubdocumentVirtualFieldToElasticsearchNestedDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Subdocument virtual field expansion",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "chapters",
+                            "data": [
+                              [
+                                {
+                                  "field": "shortChapter",
+                                  "data": {"type": "range", "gte": 5, "lte": 20}
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("query.bool.must[0].nested.path", equalTo("chapters"))
+                .body(containsString("\"chapters.page_count\""))
+                .body(containsString("\"gte\""))
+                .body(containsString("\"lte\""));
+    }
+
+    @Test
+    void virtualFieldRejectsIncompatiblePayloadTypeWithError() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Wrong payload type for virtual field",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "recentBook",
+                            "data": {"type": "range", "gte": 2010, "lte": 2025}
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/elasticsearch")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("not compatible with virtual field 'recentBook'"));
+    }
+
     private static void assertBadRequest(String body) {
         given()
                 .contentType(ContentType.JSON)

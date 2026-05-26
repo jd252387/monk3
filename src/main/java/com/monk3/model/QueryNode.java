@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.monk3.json.QueryNodeDeserializer;
 import com.monk3.search.QueryParseContext;
+import com.monk3.search.SearchEngine;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
@@ -26,10 +27,22 @@ public record QueryNode(
     }
 
     public JsonNode toElasticsearch(QueryParseContext context) {
+        if (!field.isEmpty() && data instanceof QueryPayload payload) {
+            var vf = context.findVirtualField(field);
+            if (vf.isPresent()) {
+                return context.expandVirtual(vf.get(), payload, isNegated(), SearchEngine.ELASTICSEARCH);
+            }
+        }
         return data.toElasticsearch(context, this);
     }
 
     public JsonNode toSolr(QueryParseContext context) {
+        if (!field.isEmpty() && data instanceof QueryPayload payload) {
+            var vf = context.findVirtualField(field);
+            if (vf.isPresent()) {
+                return context.expandVirtual(vf.get(), payload, isNegated(), SearchEngine.SOLR);
+            }
+        }
         return data.toSolr(context, this);
     }
 
