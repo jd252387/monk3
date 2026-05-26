@@ -1,7 +1,7 @@
 package com.monk3.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.monk3.mapping.MappedField;
+import jd.nomad.mapping.MappedField;
 import com.monk3.search.QueryJson;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;

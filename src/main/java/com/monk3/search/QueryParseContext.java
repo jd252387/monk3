@@ -1,10 +1,10 @@
 package com.monk3.search;
 
-import com.monk3.mapping.DocumentMapping;
-import com.monk3.mapping.FieldType;
-import com.monk3.mapping.MappedField;
-import com.monk3.mapping.SearchMapping;
 import com.monk3.mapping.SearchMappingConfig;
+import jd.nomad.mapping.DocumentMapping;
+import jd.nomad.mapping.FieldType;
+import jd.nomad.mapping.MappedField;
+import jd.nomad.mapping.SearchMapping;
 
 import java.util.List;
 import java.util.Locale;

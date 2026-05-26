@@ -1,4 +1,4 @@
-package com.monk3.mapping;
+package jd.nomad.mapping;
 
 import java.util.Map;
 import java.util.Optional;

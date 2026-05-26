@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk3.mapping.FieldType;
+import jd.nomad.mapping.FieldType;
 import com.monk3.search.QueryJson;
 import com.monk3.search.QueryParseContext;
 import jakarta.validation.constraints.AssertTrue;

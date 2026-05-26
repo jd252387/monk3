@@ -5,15 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk3.mapping.MappedField;
-import com.monk3.mapping.MappingRepository;
-import com.monk3.mapping.SearchMapping;
 import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchQueryRequest;
 import com.monk3.model.SearchResult;
 import jakarta.enterprise.context.ApplicationScoped;
+import jd.nomad.config.catalog.ConfigurationCatalogService;
+import jd.nomad.mapping.MappedField;
+import jd.nomad.mapping.SearchMapping;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class SearchExecutionService {
 
     private final ObjectMapper objectMapper;
     private final QueryTranslationService queryTranslationService;
-    private final MappingRepository mappingRepository;
+    private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -165,7 +165,7 @@ public class SearchExecutionService {
     }
 
     private List<FieldProjection> projections(String materialType, List<String> logicalFields) {
-        SearchMapping mapping = mappingRepository.mappingForMaterialType(materialType);
+        SearchMapping mapping = catalogService.mappingForMaterialType(materialType);
         return logicalFields.stream()
                 .map(logicalField -> projection(mapping, materialType, logicalField))
                 .toList();
@@ -187,7 +187,7 @@ public class SearchExecutionService {
         Set<String> fields = new LinkedHashSet<>();
         fields.add(config.materialTypeField());
         materialTypes.stream()
-                .map(mappingRepository::mappingForMaterialType)
+                .map(catalogService::mappingForMaterialType)
                 .map(SearchMapping::primaryKey)
                 .forEach(fields::add);
         projections.stream()
@@ -209,7 +209,7 @@ public class SearchExecutionService {
 
     private String id(JsonNode document, String fallback, List<String> materialTypes) {
         return materialTypes.stream()
-                .map(mappingRepository::mappingForMaterialType)
+                .map(catalogService::mappingForMaterialType)
                 .map(SearchMapping::primaryKey)
                 .map(document::get)
                 .filter(SearchExecutionService::present)

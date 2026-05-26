@@ -18,6 +18,7 @@ tasks.withType<JavaCompile> {
 
 dependencies {
     implementation(enforcedPlatform(libs.quarkus.bom))
+    implementation(project(":catalog"))
     implementation(libs.quarkus.config.yaml)
     implementation(libs.quarkus.rest)
     implementation(libs.quarkus.rest.jackson)

@@ -1,4 +1,4 @@
-package com.monk3.mapping;
+package jd.nomad.mapping;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 

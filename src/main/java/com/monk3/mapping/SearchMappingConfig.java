@@ -12,8 +12,6 @@ import java.util.Optional;
 public interface SearchMappingConfig {
     String materialTypeField();
 
-    Map<String, String> materialTypeMappings();
-
     Map<String, Backend> backends();
 
     Solr solr();

@@ -4,13 +4,18 @@ quarkus:
   swagger-ui:
     always-include: true
 
+indexer:
+  catalog:
+    source: file
+    file:
+      mappings:
+        book: config/mappings/book.mapping.json
+        article: config/mappings/article.mapping.json
+        ds: config/mappings/dataset.mapping.json
+
 monk3:
   search:
     material-type-field: material_type
-    material-type-mappings:
-      book: mappings/book.mapping.json
-      article: mappings/article.mapping.json
-      ds: mappings/dataset.mapping.json
     backends: {}
     solr:
       parent-block-mask: "*:* -_nest_path_:*"
