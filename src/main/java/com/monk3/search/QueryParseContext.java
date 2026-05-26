@@ -21,7 +21,8 @@ public record QueryParseContext(
         Integer minimumMatch,
         SearchMappingConfig config,
         VirtualMapping virtualMapping,
-        VirtualFieldExpander expander
+        VirtualFieldExpander expander,
+        String nestedPath
 ) {
     public static QueryParseContext root(
             SearchMapping mapping,
@@ -29,7 +30,7 @@ public record QueryParseContext(
             VirtualMapping virtualMapping,
             VirtualFieldExpander expander
     ) {
-        return new QueryParseContext(mapping, mapping.root(), null, null, config, virtualMapping, expander);
+        return new QueryParseContext(mapping, mapping.root(), null, null, config, virtualMapping, expander, null);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -40,12 +41,12 @@ public record QueryParseContext(
         return copy(document, mappedField, minimumMatch);
     }
 
-    public QueryParseContext withDocument(DocumentMapping documentMapping) {
-        return copy(documentMapping, null, minimumMatch);
+    public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
+        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, config, virtualMapping, expander, path);
     }
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
-        return new QueryParseContext(mapping, document, currentField, minimumMatch, config, virtualMapping, expander);
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, config, virtualMapping, expander, nestedPath);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {
@@ -95,6 +96,7 @@ public record QueryParseContext(
                     "Query type '" + queryType + "' is not supported for field '" + currentField.logicalName()
                             + "' with mapping type '" + currentField.type().name().toLowerCase(Locale.ROOT) + "'");
         }
-        return currentField.searchField();
+        String fieldName = currentField.searchField();
+        return nestedPath != null ? nestedPath + "." + fieldName : fieldName;
     }
 }

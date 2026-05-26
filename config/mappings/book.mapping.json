@@ -30,12 +30,11 @@
   },
   "chapter": {
     "title": {
-      "type": "freetext",
-      "destinationField": "chapters.title"
+      "type": "freetext"
     },
     "pageCount": {
       "type": "number",
-      "destinationField": "chapters.page_count"
+      "destinationField": "page_count"
     }
   }
 }

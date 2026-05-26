@@ -43,7 +43,7 @@ public record BooleanQueryData(
             ObjectNode nested = JSON.objectNode();
             nested.putObject("nested")
                     .put("path", nestedDocument.path())
-                    .set("query", toElasticsearch(booleanContext.withDocument(nestedDocument.mapping())));
+                    .set("query", toElasticsearch(booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path())));
             query = nested;
         }
         return node.isNegated() ? QueryJson.mustNot(SearchEngine.ELASTICSEARCH, query) : query;
@@ -60,7 +60,7 @@ public record BooleanQueryData(
             ObjectNode parent = JSON.objectNode();
             parent.putObject("parent")
                     .put("which", context.config().solr().parentBlockMask())
-                    .set("query", toSolr(booleanContext.withDocument(nestedDocument.mapping())));
+                    .set("query", toSolr(booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path())));
             query = parent;
         }
         return node.isNegated() ? QueryJson.mustNot(SearchEngine.SOLR, query) : query;
