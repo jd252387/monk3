@@ -9,11 +9,13 @@ indexer:
     source: file
     file:
       mappings:
-        book: config/mappings/book.mapping.json
-        article: config/mappings/article.mapping.json
-        ds: config/mappings/dataset.mapping.json
-      virtual-mappings:
-        book: config/mappings/book.virtual.json
+        book:
+          physical: config/mappings/book.mapping.json
+          virtual: config/mappings/book.virtual.json
+        article:
+          physical: config/mappings/article.mapping.json
+        ds:
+          physical: config/mappings/dataset.mapping.json
 
 monk3:
   search:

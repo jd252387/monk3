@@ -39,22 +39,18 @@ public class FileCatalogDatastore implements CatalogDatastore {
             throw new IOException("Failed to acquire VFS file system manager", e);
         }
 
-        Map<String, String> paths = indexerConfig.catalog().file().mappings();
+        Map<String, IndexerConfig.FileSource.MappingEntry> paths = indexerConfig.catalog().file().mappings();
         Map<String, SearchMapping> mappings = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : paths.entrySet()) {
-            String materialType = entry.getKey();
-            String location = entry.getValue();
-            JsonNode node = readJson(fileSystemManager, location);
-            mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
-        }
-
-        Map<String, String> virtualPaths = indexerConfig.catalog().file().virtualMappings();
         Map<String, VirtualMapping> virtualMappings = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : virtualPaths.entrySet()) {
+        for (Map.Entry<String, IndexerConfig.FileSource.MappingEntry> entry : paths.entrySet()) {
             String materialType = entry.getKey();
-            String location = entry.getValue();
-            JsonNode node = readJson(fileSystemManager, location);
-            virtualMappings.put(materialType, snapshotBuilder.parseVirtualMapping(materialType, node));
+            IndexerConfig.FileSource.MappingEntry mappingEntry = entry.getValue();
+            JsonNode node = readJson(fileSystemManager, mappingEntry.physical());
+            mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
+            if (mappingEntry.virtual().isPresent()) {
+                JsonNode virtualNode = readJson(fileSystemManager, mappingEntry.virtual().get());
+                virtualMappings.put(materialType, snapshotBuilder.parseVirtualMapping(materialType, virtualNode));
+            }
         }
 
         return new CatalogSnapshot(Map.copyOf(mappings), Map.copyOf(virtualMappings));
