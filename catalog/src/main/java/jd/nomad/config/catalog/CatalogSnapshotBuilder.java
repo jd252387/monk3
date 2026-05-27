@@ -14,12 +14,14 @@ import jd.nomad.mapping.VirtualMapping;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @ApplicationScoped
 public class CatalogSnapshotBuilder {
     private static final Set<String> RESERVED_PROPERTIES = Set.of("$schema", "root", "primaryKey");
     private static final Set<String> VIRTUAL_RESERVED_PROPERTIES = Set.of("$schema");
+    private static final Set<String> DOCUMENT_RESERVED_PROPERTIES = Set.of("block_mask");
 
     public SearchMapping parseMapping(String materialType, JsonNode root) {
         ObjectNode mappingRoot = requireObject(root, "mapping for material type '" + materialType + "'");
@@ -73,8 +75,10 @@ public class CatalogSnapshotBuilder {
 
     private DocumentMapping parseDocument(String documentName, ObjectNode documentNode) {
         Map<String, MappedField> fields = new LinkedHashMap<>();
-        documentNode.properties().forEach(entry -> fields.put(entry.getKey(), parseField(entry.getKey(), entry.getValue())));
-        return new DocumentMapping(documentName, Map.copyOf(fields));
+        documentNode.properties().stream()
+                .filter(entry -> !DOCUMENT_RESERVED_PROPERTIES.contains(entry.getKey()))
+                .forEach(entry -> fields.put(entry.getKey(), parseField(entry.getKey(), entry.getValue())));
+        return new DocumentMapping(documentName, Map.copyOf(fields), Optional.ofNullable(optionalText(documentNode, "block_mask")));
     }
 
     private MappedField parseField(String logicalName, JsonNode fieldNode) {

@@ -14,8 +14,6 @@ public interface SearchMappingConfig {
 
     Map<String, Backend> backends();
 
-    Solr solr();
-
     interface Backend {
         SearchBackendEngine engine();
 
@@ -29,10 +27,6 @@ public interface SearchMappingConfig {
 
         @WithDefault("10")
         int defaultSize();
-    }
-
-    interface Solr {
-        String parentBlockMask();
     }
 
     enum SearchBackendEngine {

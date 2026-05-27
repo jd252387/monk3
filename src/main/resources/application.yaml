@@ -21,5 +21,3 @@ monk3:
   search:
     material-type-field: material_type
     backends: {}
-    solr:
-      parent-block-mask: "*:* -_nest_path_:*"

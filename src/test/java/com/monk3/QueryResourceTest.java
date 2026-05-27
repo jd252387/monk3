@@ -345,6 +345,39 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesSubdocumentQueryToSolrBlockJoinDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Nested chapter query Solr",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "chapters",
+                            "data": [
+                              [
+                                {
+                                  "field": "title",
+                                  "data": {
+                                    "type": "text",
+                                    "phrases": ["introduction"]
+                                  }
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse/solr")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("query.bool.must[0].parent.which", equalTo("*:* -_nest_path_:*"))
+                .body(containsString("\"chapters.title\""))
+                .body(containsString("\"introduction\""));
+    }
+
+    @Test
     void executesQueryAcrossMultipleBackendsAndMergesNormalizedResults() {
         SearchBackendTestResource.reset();
         SearchBackendTestResource.requireParallelRequests(2);

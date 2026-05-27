@@ -59,7 +59,9 @@ public record BooleanQueryData(
             NestedDocument nestedDocument = nestedDocument(context, node.field());
             ObjectNode parent = JSON.objectNode();
             parent.putObject("parent")
-                    .put("which", context.config().solr().parentBlockMask())
+                    .put("which", nestedDocument.mapping().blockMask().orElseThrow(() ->
+                            new QueryTranslationException("Subdocument '" + nestedDocument.mapping().name()
+                                    + "' does not declare a 'block_mask', which is required for Solr nested queries")))
                     .set("query", toSolr(booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path())));
             query = parent;
         }
