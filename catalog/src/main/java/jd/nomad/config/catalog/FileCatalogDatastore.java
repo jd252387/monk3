@@ -46,18 +46,24 @@ public class FileCatalogDatastore implements CatalogDatastore {
 
         Map<String, SearchMapping> mappings = new LinkedHashMap<>();
         Map<String, VirtualMapping> virtualMappings = new LinkedHashMap<>();
+        Map<String, String> backendsByMaterialType = new LinkedHashMap<>();
         for (Map.Entry<String, CatalogConfig.MappingEntry> entry : catalogConfig.mappings().entrySet()) {
             String materialType = entry.getKey();
             CatalogConfig.MappingEntry mappingEntry = entry.getValue();
+            if (mappingEntry.backend() == null || mappingEntry.backend().isBlank()) {
+                throw new IllegalStateException(
+                        "Catalog entry for material type '" + materialType + "' does not specify a backend");
+            }
             JsonNode node = readJson(fileSystemManager, mappingEntry.physical());
             mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
             if (mappingEntry.virtual() != null) {
                 JsonNode virtualNode = readJson(fileSystemManager, mappingEntry.virtual());
                 virtualMappings.put(materialType, snapshotBuilder.parseVirtualMapping(materialType, virtualNode));
             }
+            backendsByMaterialType.put(materialType, mappingEntry.backend());
         }
 
-        return new CatalogSnapshot(Map.copyOf(mappings), Map.copyOf(virtualMappings));
+        return new CatalogSnapshot(Map.copyOf(mappings), Map.copyOf(virtualMappings), Map.copyOf(backendsByMaterialType));
     }
 
     private JsonNode readJson(FileSystemManager fileSystemManager, String location) throws IOException {

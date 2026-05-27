@@ -50,12 +50,18 @@ public class ConfigurationCatalogService {
         return Optional.ofNullable(snapshot.get().virtualMappings().get(materialType));
     }
 
+    public String backendForMaterialType(String materialType) {
+        return Optional.ofNullable(snapshot.get().backendsByMaterialType().get(materialType))
+                .orElseThrow(() -> new IllegalStateException(
+                        "No backend is configured for material type '" + materialType + "'"));
+    }
+
     private synchronized void updateMapping(String materialType, JsonNode updatedNode) {
         SearchMapping updated = snapshotBuilder.parseMapping(materialType, updatedNode);
         this.snapshot.getAndUpdate(currentSnapshot -> {
             Map<String, SearchMapping> next = new LinkedHashMap<>(currentSnapshot.mappings());
             next.put(materialType, updated);
-            return new CatalogSnapshot(Map.copyOf(next), currentSnapshot.virtualMappings());
+            return new CatalogSnapshot(Map.copyOf(next), currentSnapshot.virtualMappings(), currentSnapshot.backendsByMaterialType());
         });
 
         for (Runnable listener : List.copyOf(updateListeners)) {

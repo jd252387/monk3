@@ -6,7 +6,8 @@ import jd.nomad.mapping.VirtualMapping;
 
 public record CatalogSnapshot(
         Map<String, SearchMapping> mappings,
-        Map<String, VirtualMapping> virtualMappings
+        Map<String, VirtualMapping> virtualMappings,
+        Map<String, String> backendsByMaterialType
 ) {
     public enum ConfigType {
         MAPPINGS

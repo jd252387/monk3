@@ -4,5 +4,5 @@ import java.util.Map;
 
 public record CatalogConfig(Map<String, MappingEntry> mappings) {
 
-    public record MappingEntry(String physical, String virtual) {}
+    public record MappingEntry(String physical, String virtual, String backend) {}
 }

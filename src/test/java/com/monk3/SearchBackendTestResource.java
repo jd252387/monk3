@@ -27,6 +27,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
     private HttpServer server;
     private ExecutorService executor;
     private Path backendsFile;
+    private Path catalogFile;
 
     @Override
     public Map<String, String> start() {
@@ -72,12 +73,24 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             String baseUrl = "http://localhost:" + server.getAddress().getPort();
             String backendsJson = """
                     {"backends":{
-                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","materialTypes":["book"]},
-                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles","materialTypes":["article"]}
+                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books"},
+                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles"}
                     }}""".formatted(baseUrl, baseUrl);
             backendsFile = Files.createTempFile("monk3-test-backends", ".json");
             Files.writeString(backendsFile, backendsJson);
-            return Map.of("monk3.search.backends-file", backendsFile.toAbsolutePath().toString());
+
+            String catalogJson = """
+                    {"mappings":{
+                      "book":    {"physical":"config/mappings/book.mapping.json","virtual":"config/mappings/book.virtual.json","backend":"elastic-books"},
+                      "article": {"physical":"config/mappings/article.mapping.json","backend":"solr-articles"},
+                      "ds":      {"physical":"config/mappings/dataset.mapping.json","backend":"elastic-books"}
+                    }}""";
+            catalogFile = Files.createTempFile("monk3-test-catalog", ".json");
+            Files.writeString(catalogFile, catalogJson);
+
+            return Map.of(
+                    "monk3.search.backends-file", backendsFile.toAbsolutePath().toString(),
+                    "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString());
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to start search backend test server", exception);
         }
@@ -94,6 +107,12 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
         if (backendsFile != null) {
             try {
                 Files.deleteIfExists(backendsFile);
+            } catch (IOException ignored) {
+            }
+        }
+        if (catalogFile != null) {
+            try {
+                Files.deleteIfExists(catalogFile);
             } catch (IOException ignored) {
             }
         }

@@ -21,6 +21,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -62,9 +63,14 @@ public class SearchExecutionService {
     }
 
     private List<SearchResult> executeBackendSearches(SearchExecutionRequest request) {
-        List<Callable<List<SearchResult>>> searches = backendsConfigLoader.backends().entrySet().stream()
-                .map(entry -> backendTarget(entry, request.query().materialTypes()))
-                .flatMap(Optional::stream)
+        Map<String, List<String>> materialTypesByBackend = new LinkedHashMap<>();
+        for (String materialType : request.query().materialTypes()) {
+            String backendName = catalogService.backendForMaterialType(materialType);
+            materialTypesByBackend.computeIfAbsent(backendName, k -> new ArrayList<>()).add(materialType);
+        }
+
+        List<Callable<List<SearchResult>>> searches = materialTypesByBackend.entrySet().stream()
+                .map(entry -> resolveTarget(entry.getKey(), entry.getValue()))
                 .map(target -> (Callable<List<SearchResult>>) () -> searchBackend(target, request))
                 .toList();
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -75,6 +81,15 @@ public class SearchExecutionService {
             Thread.currentThread().interrupt();
             throw new SearchExecutionException("Search request was interrupted", exception);
         }
+    }
+
+    private BackendTarget resolveTarget(String backendName, List<String> materialTypes) {
+        SearchMappingConfig.Backend backend = backendsConfigLoader.backends().get(backendName);
+        if (backend == null) {
+            throw new QueryTranslationException(
+                    "No configured search backend named '" + backendName + "'");
+        }
+        return new BackendTarget(backendName, backend, searchEngine(backend), materialTypes);
     }
 
     private static List<SearchResult> completed(java.util.concurrent.Future<List<SearchResult>> search) {
@@ -289,19 +304,6 @@ public class SearchExecutionService {
 
     private static SearchEngine searchEngine(SearchMappingConfig.Backend backend) {
         return SearchEngine.valueOf(backend.engine().name());
-    }
-
-    private static List<String> matchingMaterialTypes(SearchMappingConfig.Backend backend, List<String> requestedMaterialTypes) {
-        return requestedMaterialTypes.stream()
-                .filter(backend.materialTypes()::contains)
-                .toList();
-    }
-
-    private static Optional<BackendTarget> backendTarget(Map.Entry<String, SearchMappingConfig.Backend> entry, List<String> requestedMaterialTypes) {
-        List<String> materialTypes = matchingMaterialTypes(entry.getValue(), requestedMaterialTypes);
-        return materialTypes.isEmpty()
-                ? Optional.empty()
-                : Optional.of(new BackendTarget(entry.getKey(), entry.getValue(), searchEngine(entry.getValue()), materialTypes));
     }
 
     private record BackendTarget(

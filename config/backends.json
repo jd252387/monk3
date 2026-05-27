@@ -1,3 +1,18 @@
 {
-  "backends": {}
+  "backends": {
+    "es-books": {
+      "engine": "ELASTICSEARCH",
+      "url": "http://localhost:9200",
+      "index": "books",
+      "materialTypes": ["book", "ebook"],
+      "defaultSize": 10
+    },
+    "solr-articles": {
+      "engine": "SOLR",
+      "url": "http://localhost:8983/solr",
+      "collection": "articles",
+      "materialTypes": ["article", "journal", "preprint"],
+      "defaultSize": 20
+    }
+  }
 }
