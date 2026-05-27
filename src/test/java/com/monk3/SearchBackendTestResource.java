@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -24,6 +26,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
 
     private HttpServer server;
     private ExecutorService executor;
+    private Path backendsFile;
 
     @Override
     public Map<String, String> start() {
@@ -67,15 +70,14 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             server.setExecutor(executor);
             server.start();
             String baseUrl = "http://localhost:" + server.getAddress().getPort();
-            return Map.ofEntries(
-                    Map.entry("monk3.search.backends.elastic-books.engine", "elasticsearch"),
-                    Map.entry("monk3.search.backends.elastic-books.url", baseUrl + "/es"),
-                    Map.entry("monk3.search.backends.elastic-books.index", "books"),
-                    Map.entry("monk3.search.backends.elastic-books.material-types", "book"),
-                    Map.entry("monk3.search.backends.solr-articles.engine", "solr"),
-                    Map.entry("monk3.search.backends.solr-articles.url", baseUrl + "/solr"),
-                    Map.entry("monk3.search.backends.solr-articles.collection", "articles"),
-                    Map.entry("monk3.search.backends.solr-articles.material-types", "article"));
+            String backendsJson = """
+                    {"backends":{
+                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","materialTypes":["book"]},
+                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles","materialTypes":["article"]}
+                    }}""".formatted(baseUrl, baseUrl);
+            backendsFile = Files.createTempFile("monk3-test-backends", ".json");
+            Files.writeString(backendsFile, backendsJson);
+            return Map.of("monk3.search.backends-file", backendsFile.toAbsolutePath().toString());
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to start search backend test server", exception);
         }
@@ -88,6 +90,12 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
         }
         if (executor != null) {
             executor.close();
+        }
+        if (backendsFile != null) {
+            try {
+                Files.deleteIfExists(backendsFile);
+            } catch (IOException ignored) {
+            }
         }
     }
 

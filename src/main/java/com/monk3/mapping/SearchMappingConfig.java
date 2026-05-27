@@ -5,14 +5,13 @@ import io.smallrye.config.WithDefault;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @ConfigMapping(prefix = "monk3.search")
 public interface SearchMappingConfig {
     String materialTypeField();
 
-    Map<String, Backend> backends();
+    String backendsFile();
 
     interface Backend {
         SearchBackendEngine engine();

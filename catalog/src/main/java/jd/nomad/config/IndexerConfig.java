@@ -5,7 +5,6 @@ import io.smallrye.config.WithDefault;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @ConfigMapping(prefix = "indexer")
 public interface IndexerConfig {
@@ -24,12 +23,7 @@ public interface IndexerConfig {
 
     interface FileSource {
 
-        Map<String, MappingEntry> mappings();
-
-        interface MappingEntry {
-            String physical();
-            Optional<String> virtual();
-        }
+        String config();
     }
 
     interface EtcdSource {

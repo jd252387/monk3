@@ -8,16 +8,9 @@ indexer:
   catalog:
     source: file
     file:
-      mappings:
-        book:
-          physical: config/mappings/book.mapping.json
-          virtual: config/mappings/book.virtual.json
-        article:
-          physical: config/mappings/article.mapping.json
-        ds:
-          physical: config/mappings/dataset.mapping.json
+      config: config/catalog.json
 
 monk3:
   search:
     material-type-field: material_type
-    backends: {}
+    backends-file: config/backends.json

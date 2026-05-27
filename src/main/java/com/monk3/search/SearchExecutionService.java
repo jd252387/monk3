@@ -43,6 +43,7 @@ public class SearchExecutionService {
     private final QueryTranslationService queryTranslationService;
     private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
+    private final BackendsConfigLoader backendsConfigLoader;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
@@ -61,7 +62,7 @@ public class SearchExecutionService {
     }
 
     private List<SearchResult> executeBackendSearches(SearchExecutionRequest request) {
-        List<Callable<List<SearchResult>>> searches = config.backends().entrySet().stream()
+        List<Callable<List<SearchResult>>> searches = backendsConfigLoader.backends().entrySet().stream()
                 .map(entry -> backendTarget(entry, request.query().materialTypes()))
                 .flatMap(Optional::stream)
                 .map(target -> (Callable<List<SearchResult>>) () -> searchBackend(target, request))

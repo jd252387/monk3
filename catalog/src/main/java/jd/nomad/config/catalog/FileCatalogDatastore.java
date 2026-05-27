@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.arc.lookup.LookupIfProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jd.nomad.config.CatalogConfig;
 import jd.nomad.config.IndexerConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
@@ -39,16 +40,19 @@ public class FileCatalogDatastore implements CatalogDatastore {
             throw new IOException("Failed to acquire VFS file system manager", e);
         }
 
-        Map<String, IndexerConfig.FileSource.MappingEntry> paths = indexerConfig.catalog().file().mappings();
+        String configPath = indexerConfig.catalog().file().config();
+        JsonNode configNode = readJson(fileSystemManager, configPath);
+        CatalogConfig catalogConfig = objectMapper.treeToValue(configNode, CatalogConfig.class);
+
         Map<String, SearchMapping> mappings = new LinkedHashMap<>();
         Map<String, VirtualMapping> virtualMappings = new LinkedHashMap<>();
-        for (Map.Entry<String, IndexerConfig.FileSource.MappingEntry> entry : paths.entrySet()) {
+        for (Map.Entry<String, CatalogConfig.MappingEntry> entry : catalogConfig.mappings().entrySet()) {
             String materialType = entry.getKey();
-            IndexerConfig.FileSource.MappingEntry mappingEntry = entry.getValue();
+            CatalogConfig.MappingEntry mappingEntry = entry.getValue();
             JsonNode node = readJson(fileSystemManager, mappingEntry.physical());
             mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
-            if (mappingEntry.virtual().isPresent()) {
-                JsonNode virtualNode = readJson(fileSystemManager, mappingEntry.virtual().get());
+            if (mappingEntry.virtual() != null) {
+                JsonNode virtualNode = readJson(fileSystemManager, mappingEntry.virtual());
                 virtualMappings.put(materialType, snapshotBuilder.parseVirtualMapping(materialType, virtualNode));
             }
         }
