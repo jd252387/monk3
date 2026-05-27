@@ -11,6 +11,7 @@ import com.monk3.routing.QueryAnalyzer;
 import com.monk3.routing.RoutingEngine;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.config.catalog.ConfigurationCatalogService;
+import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,6 @@ public class QueryTranslationService {
     private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
     private final VirtualFieldExpander virtualFieldExpander;
-    private final BackendsConfigLoader backendsConfigLoader;
     private final RoutingEngine routingEngine;
 
     public List<BackendQuery> translateByBackend(SearchQueryRequest request) {
@@ -45,8 +45,10 @@ public class QueryTranslationService {
     }
 
     private BackendQuery buildBackendQuery(String backendName, List<String> materialTypes, SearchQueryRequest request) {
-        SearchMappingConfig.Backend backendConfig = backendsConfigLoader.backends().get(backendName);
-        if (backendConfig == null) {
+        BackendConfig backendConfig;
+        try {
+            backendConfig = catalogService.backendConfig(backendName);
+        } catch (IllegalStateException e) {
             throw new QueryTranslationException("No configured search backend named '" + backendName + "'");
         }
         SearchEngine engine = SearchEngine.valueOf(backendConfig.engine().name());

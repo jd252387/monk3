@@ -9,10 +9,17 @@ import com.monk3.search.QueryParseContext;
 import com.monk3.search.SearchEngine;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
 import java.util.function.Function;
 
+@Schema(description = "A free-text / phrase search query", example = """
+        {
+          "type": "text",
+          "phrases": ["machine learning"]
+        }
+        """)
 public record TextQuery(
         @NotBlank String type,
         @NotEmpty List<@NotBlank String> phrases

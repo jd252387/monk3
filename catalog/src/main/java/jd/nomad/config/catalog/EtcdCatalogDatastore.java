@@ -12,6 +12,7 @@ import io.quarkus.arc.lookup.LookupIfProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jd.nomad.config.IndexerConfig;
+import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.SearchMapping;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 @ApplicationScoped
 @LookupIfProperty(name = "indexer.catalog.source", stringValue = "etcd")
@@ -33,10 +35,14 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private Client etcdClient;
     private BiConsumer<String, JsonNode> mappingChangeListener = (materialType, node) -> {};
+    private Consumer<Map<String, BackendConfig>> backendsChangeListener = backends -> {};
 
     @Override
-    public CatalogSnapshot start(BiConsumer<String, JsonNode> mappingChangeListener) throws IOException {
+    public CatalogSnapshot start(
+            BiConsumer<String, JsonNode> mappingChangeListener,
+            Consumer<Map<String, BackendConfig>> backendsChangeListener) throws IOException {
         this.mappingChangeListener = mappingChangeListener;
+        this.backendsChangeListener = backendsChangeListener;
         this.etcdClient = buildEtcd();
 
         Map<String, String> keys = indexerConfig.catalog().etcd().mappings();
@@ -48,8 +54,20 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
             registerWatcher(this.etcdClient, materialType, key);
         }
-        // TODO: etcd source has no per-material-type backend config yet; backend routing not supported
-        return new CatalogSnapshot(Map.copyOf(mappings), Map.of(), Map.of(), Map.of());
+
+        Map<String, BackendConfig> backends = indexerConfig.catalog().etcd().backends()
+                .map(key -> {
+                    try {
+                        Map<String, BackendConfig> initial = readBackendsFromEtcd(key);
+                        registerBackendsWatcher(this.etcdClient, key);
+                        return initial;
+                    } catch (IOException e) {
+                        throw new IllegalStateException("Failed to load backends from etcd key: " + key, e);
+                    }
+                })
+                .orElse(Map.of());
+
+        return new CatalogSnapshot(Map.copyOf(mappings), Map.of(), Map.of(), Map.of(), backends);
     }
 
     public Client buildEtcd() {
@@ -68,6 +86,19 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
                         .addArgument(key)
                         .log("Watcher for key {} terminated. Retaining previous configuration"),
                 () -> log.atDebug().addArgument(key).log("Watcher for key {} closed"));
+
+        client.getWatchClient()
+                .watch(ByteSequence.from(key, StandardCharsets.UTF_8), WatchOption.DEFAULT, watchListener);
+    }
+
+    private void registerBackendsWatcher(Client client, String key) {
+        Watch.Listener watchListener = Watch.listener(
+                response -> response.getEvents().forEach(event -> handleBackendsEvent(event, key)),
+                throwable -> log.atError()
+                        .setCause(throwable)
+                        .addArgument(key)
+                        .log("Backends watcher for key {} terminated. Retaining previous configuration"),
+                () -> log.atDebug().addArgument(key).log("Backends watcher for key {} closed"));
 
         client.getWatchClient()
                 .watch(ByteSequence.from(key, StandardCharsets.UTF_8), WatchOption.DEFAULT, watchListener);
@@ -93,7 +124,40 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
         }
     }
 
+    private void handleBackendsEvent(WatchEvent event, String key) {
+        switch (event.getEventType()) {
+            case PUT -> {
+                try {
+                    Map<String, BackendConfig> updated = parseBackends(event.getKeyValue().getValue().getBytes());
+                    backendsChangeListener.accept(updated);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to parse updated backends for key " + key, e);
+                }
+            }
+            case DELETE -> log.atWarn()
+                    .addArgument(key)
+                    .log("Backends key {} removed from etcd; keeping previous configuration");
+            default -> log.atDebug()
+                    .addArgument(event.getEventType())
+                    .addArgument(key)
+                    .log("Ignoring etcd event {} for backends key {}");
+        }
+    }
+
+    private Map<String, BackendConfig> readBackendsFromEtcd(String key) throws IOException {
+        return parseBackends(readBytesFromEtcd(key));
+    }
+
+    private Map<String, BackendConfig> parseBackends(byte[] bytes) throws IOException {
+        BackendsFile file = objectMapper.readValue(bytes, BackendsFile.class);
+        return Map.copyOf(file.backends());
+    }
+
     private JsonNode readJsonFromEtcd(String key) throws IOException {
+        return objectMapper.readTree(readBytesFromEtcd(key));
+    }
+
+    private byte[] readBytesFromEtcd(String key) throws IOException {
         try {
             GetResponse response = this.etcdClient
                     .getKVClient()
@@ -102,8 +166,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             if (response.getKvs().isEmpty()) {
                 throw new IllegalStateException("Etcd key " + key + " does not exist");
             }
-            byte[] value = response.getKvs().get(0).getValue().getBytes();
-            return objectMapper.readTree(value);
+            return response.getKvs().get(0).getValue().getBytes();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while reading etcd key " + key, e);
@@ -111,4 +174,6 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             throw new IllegalStateException("Failed to read etcd key " + key, e.getCause());
         }
     }
+
+    private record BackendsFile(Map<String, BackendConfig> backends) {}
 }

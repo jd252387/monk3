@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
 import jd.nomad.routing.RoutingRule;
@@ -30,7 +31,7 @@ public class ConfigurationCatalogService {
     private final AtomicReference<CatalogSnapshot> snapshot = new AtomicReference<>();
 
     void onStartup(@Observes StartupEvent event) throws Exception {
-        snapshot.set(datastoreInstance.get().start(this::updateMapping));
+        snapshot.set(datastoreInstance.get().start(this::updateMapping, this::updateBackends));
     }
 
     public void registerListener(Runnable callback) {
@@ -62,6 +63,12 @@ public class ConfigurationCatalogService {
         return rules != null ? rules : List.of();
     }
 
+    public BackendConfig backendConfig(String name) {
+        return Optional.ofNullable(snapshot.get().backends().get(name))
+                .orElseThrow(() -> new IllegalStateException(
+                        "No backend configuration found for backend '" + name + "'"));
+    }
+
     private synchronized void updateMapping(String materialType, JsonNode updatedNode) {
         SearchMapping updated = snapshotBuilder.parseMapping(materialType, updatedNode);
         this.snapshot.getAndUpdate(currentSnapshot -> {
@@ -71,7 +78,8 @@ public class ConfigurationCatalogService {
                     Map.copyOf(next),
                     currentSnapshot.virtualMappings(),
                     currentSnapshot.backendsByMaterialType(),
-                    currentSnapshot.routingRulesByMaterialType());
+                    currentSnapshot.routingRulesByMaterialType(),
+                    currentSnapshot.backends());
         });
 
         for (Runnable listener : List.copyOf(updateListeners)) {
@@ -79,5 +87,20 @@ public class ConfigurationCatalogService {
         }
 
         log.atInfo().addArgument(materialType).log("Reloaded mapping for material type {}");
+    }
+
+    private synchronized void updateBackends(Map<String, BackendConfig> updatedBackends) {
+        snapshot.getAndUpdate(current -> new CatalogSnapshot(
+                current.mappings(),
+                current.virtualMappings(),
+                current.backendsByMaterialType(),
+                current.routingRulesByMaterialType(),
+                Map.copyOf(updatedBackends)));
+
+        for (Runnable listener : List.copyOf(updateListeners)) {
+            listener.run();
+        }
+
+        log.atInfo().log("Reloaded backends configuration");
     }
 }

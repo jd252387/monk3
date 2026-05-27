@@ -9,8 +9,8 @@ indexer:
     source: file
     file:
       config: config/catalog.json
+      backends: config/backends.json
 
 monk3:
   search:
     material-type-field: material_type
-    backends-file: config/backends.json

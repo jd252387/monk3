@@ -1,15 +1,16 @@
 package jd.nomad.config.catalog;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jd.nomad.mapping.BackendConfig;
 
+import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public interface CatalogDatastore {
 
-    /**
-     * @param mappingChangeListener callback invoked with (materialType, updated mapping JSON)
-     *                              when the underlying datastore reports a change
-     * @return the initial CatalogSnapshot
-     */
-    CatalogSnapshot start(BiConsumer<String, JsonNode> mappingChangeListener) throws Exception;
+    CatalogSnapshot start(
+            BiConsumer<String, JsonNode> mappingChangeListener,
+            Consumer<Map<String, BackendConfig>> backendsChangeListener
+    ) throws Exception;
 }

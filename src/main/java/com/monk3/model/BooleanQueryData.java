@@ -15,9 +15,35 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
 import java.util.List;
 import java.util.function.Function;
 
+@Schema(description = """
+        A boolean combination of clauses. The outer list is OR'd (should clauses);
+        each inner list is AND'd (must clauses).
+        """, example = """
+        [
+          [
+            {
+              "field": "title",
+              "data": { "type": "text", "phrases": ["history"] }
+            },
+            {
+              "field": "year",
+              "isNot": true,
+              "data": { "type": "range", "gt": 1800, "lte": 1900 }
+            }
+          ],
+          [
+            {
+              "field": "title",
+              "data": { "type": "text", "phrases": ["science"] }
+            }
+          ]
+        ]
+        """)
 public record BooleanQueryData(
         @NotEmpty List<@NotEmpty List<@NotNull @Valid QueryNode>> clauses
 ) implements QueryData {

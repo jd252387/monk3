@@ -9,9 +9,12 @@ import com.monk3.search.QueryJson;
 import com.monk3.search.QueryParseContext;
 import jakarta.validation.constraints.AssertTrue;
 
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
+@Schema(description = "A range query with lower and upper bounds", oneOf = {RangeQuery.Numeric.class, RangeQuery.Datetime.class})
 public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Numeric, RangeQuery.Datetime {
     @JsonProperty
     default String type() {
@@ -79,9 +82,23 @@ public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Nu
         }
     }
 
+    @Schema(description = "A numeric range query (years, counts, etc.)", example = """
+            {
+              "type": "range",
+              "gte": 2020,
+              "lte": 2025
+            }
+            """)
     record Numeric(BigDecimal gte, BigDecimal gt, BigDecimal lte, BigDecimal lt) implements RangeQuery<BigDecimal> {
     }
 
+    @Schema(description = "A datetime range query (ISO-8601 instants)", example = """
+            {
+              "type": "range",
+              "gte": "2024-01-01T00:00:00Z",
+              "lt": "2025-01-01T00:00:00Z"
+            }
+            """)
     record Datetime(Instant gte, Instant gt, Instant lte, Instant lt) implements RangeQuery<Instant> {
     }
 }

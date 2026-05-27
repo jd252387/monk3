@@ -1,5 +1,6 @@
 package jd.nomad.config.catalog;
 
+import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
 import jd.nomad.routing.RoutingRule;
@@ -11,7 +12,8 @@ public record CatalogSnapshot(
         Map<String, SearchMapping> mappings,
         Map<String, VirtualMapping> virtualMappings,
         Map<String, String> backendsByMaterialType,
-        Map<String, List<RoutingRule>> routingRulesByMaterialType
+        Map<String, List<RoutingRule>> routingRulesByMaterialType,
+        Map<String, BackendConfig> backends
 ) {
     public enum ConfigType {
         MAPPINGS

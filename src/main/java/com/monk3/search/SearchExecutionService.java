@@ -15,6 +15,7 @@ import com.monk3.routing.QueryAnalyzer;
 import com.monk3.routing.RoutingEngine;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.config.catalog.ConfigurationCatalogService;
+import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.SearchMapping;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,6 @@ public class SearchExecutionService {
     private final QueryTranslationService queryTranslationService;
     private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
-    private final BackendsConfigLoader backendsConfigLoader;
     private final RoutingEngine routingEngine;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -92,10 +92,11 @@ public class SearchExecutionService {
     }
 
     private BackendTarget resolveTarget(String backendName, List<String> materialTypes) {
-        SearchMappingConfig.Backend backend = backendsConfigLoader.backends().get(backendName);
-        if (backend == null) {
-            throw new QueryTranslationException(
-                    "No configured search backend named '" + backendName + "'");
+        BackendConfig backend;
+        try {
+            backend = catalogService.backendConfig(backendName);
+        } catch (IllegalStateException e) {
+            throw new QueryTranslationException("No configured search backend named '" + backendName + "'");
         }
         return new BackendTarget(backendName, backend, searchEngine(backend), materialTypes);
     }
@@ -282,11 +283,11 @@ public class SearchExecutionService {
         return Math.max(0.0, Math.min(1.0, score / maxScore));
     }
 
-    private static URI targetUri(SearchMappingConfig.Backend backend, SearchEngine engine) {
+    private static URI targetUri(BackendConfig backend, SearchEngine engine) {
         String base = trimTrailingSlash(backend.url().toString());
         return switch (engine) {
-            case ELASTICSEARCH -> URI.create(base + "/" + requiredPathSegment(backend.index(), "index") + "/_search");
-            case SOLR -> URI.create(base + "/" + requiredPathSegment(backend.collection(), "collection") + "/select");
+            case ELASTICSEARCH -> URI.create(base + "/" + requiredPathSegment(Optional.ofNullable(backend.index()), "index") + "/_search");
+            case SOLR -> URI.create(base + "/" + requiredPathSegment(Optional.ofNullable(backend.collection()), "collection") + "/select");
         };
     }
 
@@ -303,20 +304,20 @@ public class SearchExecutionService {
         return value.substring(0, end);
     }
 
-    private static int size(SearchExecutionRequest request, SearchMappingConfig.Backend backend) {
+    private static int size(SearchExecutionRequest request, BackendConfig backend) {
         if (request.size() != null) {
             return request.size();
         }
         return backend == null ? Integer.MAX_VALUE : backend.defaultSize();
     }
 
-    private static SearchEngine searchEngine(SearchMappingConfig.Backend backend) {
+    private static SearchEngine searchEngine(BackendConfig backend) {
         return SearchEngine.valueOf(backend.engine().name());
     }
 
     private record BackendTarget(
             String name,
-            SearchMappingConfig.Backend backend,
+            BackendConfig backend,
             SearchEngine engine,
             List<String> materialTypes
     ) {

@@ -25,6 +25,26 @@
                         "bool": "should"
                     }
                 ]
+            }, 
+            "writers_exists": {
+                "filterType": "exists", 
+                "path": "writers_ss"
+            }, 
+            "write_date": {
+                "filterType": "date", 
+                "path": "write_date_dt"
+            },
+            "number_of_writers": {
+                "filterType": "number", 
+                "path": "number_of_writers_i"
+            }, 
+            "duration_in_seconds": {
+                "filterType": "duration", 
+                "path": "write_date_dt"
+            }, 
+            "text_contents": {
+                "filterType": "contentNew", 
+                "path": "text_contents_t"
             }
         }
     }

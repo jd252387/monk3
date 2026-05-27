@@ -3,18 +3,23 @@ package jd.nomad.config.catalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.arc.lookup.LookupIfProperty;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jd.nomad.config.CatalogConfig;
 import jd.nomad.config.IndexerConfig;
+import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
 import jd.nomad.routing.RoutingRule;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.vfs2.FileChangeEvent;
+import org.apache.commons.vfs2.FileListener;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.VFS;
+import org.apache.commons.vfs2.impl.DefaultFileMonitor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 @ApplicationScoped
 @LookupIfProperty(name = "indexer.catalog.source", stringValue = "file")
@@ -33,8 +39,12 @@ public class FileCatalogDatastore implements CatalogDatastore {
     private final IndexerConfig indexerConfig;
     private final CatalogSnapshotBuilder snapshotBuilder;
 
+    private DefaultFileMonitor backendsMonitor;
+
     @Override
-    public CatalogSnapshot start(BiConsumer<String, JsonNode> mappingChangeListener) throws IOException {
+    public CatalogSnapshot start(
+            BiConsumer<String, JsonNode> mappingChangeListener,
+            Consumer<Map<String, BackendConfig>> backendsChangeListener) throws IOException {
         FileSystemManager fileSystemManager;
         try {
             fileSystemManager = VFS.getManager();
@@ -68,11 +78,72 @@ public class FileCatalogDatastore implements CatalogDatastore {
                     mappingEntry.routing() != null ? List.copyOf(mappingEntry.routing()) : List.of());
         }
 
+        Map<String, BackendConfig> backends = loadAndWatchBackends(
+                fileSystemManager, backendsChangeListener);
+
         return new CatalogSnapshot(
                 Map.copyOf(mappings),
                 Map.copyOf(virtualMappings),
                 Map.copyOf(backendsByMaterialType),
-                Map.copyOf(routingRulesByMaterialType));
+                Map.copyOf(routingRulesByMaterialType),
+                backends);
+    }
+
+    @PreDestroy
+    void stop() {
+        if (backendsMonitor != null) {
+            backendsMonitor.stop();
+        }
+    }
+
+    private Map<String, BackendConfig> loadAndWatchBackends(
+            FileSystemManager fileSystemManager,
+            Consumer<Map<String, BackendConfig>> backendsChangeListener) throws IOException {
+        return indexerConfig.catalog().file().backends()
+                .map(backendsPath -> {
+                    try {
+                        Map<String, BackendConfig> initial = readBackends(fileSystemManager, backendsPath);
+                        watchBackendsFile(fileSystemManager, backendsPath, backendsChangeListener);
+                        return initial;
+                    } catch (IOException e) {
+                        throw new IllegalStateException("Failed to load backends file: " + backendsPath, e);
+                    }
+                })
+                .orElse(Map.of());
+    }
+
+    private void watchBackendsFile(
+            FileSystemManager fileSystemManager,
+            String backendsPath,
+            Consumer<Map<String, BackendConfig>> backendsChangeListener) throws IOException {
+        FileObject backendsFile = fileSystemManager.resolveFile(resolveLocation(backendsPath));
+        backendsMonitor = new DefaultFileMonitor(new FileListener() {
+            @Override
+            public void fileChanged(FileChangeEvent event) throws Exception {
+                backendsChangeListener.accept(readBackends(fileSystemManager, backendsPath));
+            }
+
+            @Override
+            public void fileCreated(FileChangeEvent event) throws Exception {
+                fileChanged(event);
+            }
+
+            @Override
+            public void fileDeleted(FileChangeEvent event) {
+            }
+        });
+        backendsMonitor.setRecursive(false);
+        backendsMonitor.addFile(backendsFile);
+        backendsMonitor.start();
+    }
+
+    private Map<String, BackendConfig> readBackends(FileSystemManager fileSystemManager, String location)
+            throws IOException {
+        FileObject file = fileSystemManager.resolveFile(resolveLocation(location));
+        try (InputStream stream = file.getContent().getInputStream()) {
+            BackendsFile parsed = objectMapper.readValue(stream, BackendsFile.class);
+            return Map.copyOf(parsed.backends());
+        }
     }
 
     private JsonNode readJson(FileSystemManager fileSystemManager, String location) throws IOException {
@@ -103,4 +174,6 @@ public class FileCatalogDatastore implements CatalogDatastore {
         }
         return true;
     }
+
+    private record BackendsFile(Map<String, BackendConfig> backends) {}
 }

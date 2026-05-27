@@ -117,7 +117,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             Files.writeString(catalogFile, catalogJson);
 
             return Map.of(
-                    "monk3.search.backends-file", backendsFile.toAbsolutePath().toString(),
+                    "indexer.catalog.file.backends", backendsFile.toAbsolutePath().toString(),
                     "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString());
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to start search backend test server", exception);
