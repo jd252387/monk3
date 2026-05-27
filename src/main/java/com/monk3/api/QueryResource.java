@@ -1,10 +1,9 @@
 package com.monk3.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.monk3.model.BackendQuery;
 import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchQueryRequest;
-import com.monk3.search.SearchEngine;
 import com.monk3.search.QueryTranslationService;
 import com.monk3.search.SearchExecutionService;
 import io.smallrye.common.annotation.RunOnVirtualThread;
@@ -13,13 +12,13 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 
 import java.io.InputStream;
+import java.util.List;
 
 @Path("/queries")
 @RunOnVirtualThread
@@ -38,11 +37,11 @@ public class QueryResource {
     }
 
     @POST
-    @Path("/parse/{engine}")
+    @Path("/parse")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public JsonNode parseQuery(@PathParam("engine") String engine, @Valid SearchQueryRequest request) {
-        return queryTranslationService.translate(SearchEngine.fromPath(engine), request);
+    public List<BackendQuery> parseQuery(@Valid SearchQueryRequest request) {
+        return queryTranslationService.translateByBackend(request);
     }
 
     @POST

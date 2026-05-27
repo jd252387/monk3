@@ -244,12 +244,14 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("query.bool.must[0].match_phrase.book_title", equalTo("java records"));
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].query.bool.must[0].match_phrase.book_title", equalTo("java records"));
     }
 
     @Test
@@ -270,21 +272,23 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/solr")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.filter[0].field.f", equalTo("material_type"))
-                .body("query.bool.filter[0].field.query", equalTo("article"))
-                .body("query.bool.must[0].frange.query", equalTo("article_year"))
-                .body("query.bool.must[0].frange.l", equalTo(1995))
-                .body("query.bool.must[0].frange.u", equalTo(2020))
-                .body("query.bool.must[0].frange.incl", equalTo(true))
-                .body("query.bool.must[0].frange.incu", equalTo(false));
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].query.bool.filter[0].field.f", equalTo("material_type"))
+                .body("[0].query.bool.filter[0].field.query", equalTo("article"))
+                .body("[0].query.bool.must[0].frange.query", equalTo("article_year"))
+                .body("[0].query.bool.must[0].frange.l", equalTo(1995))
+                .body("[0].query.bool.must[0].frange.u", equalTo(2020))
+                .body("[0].query.bool.must[0].frange.incl", equalTo(true))
+                .body("[0].query.bool.must[0].frange.incu", equalTo(false));
     }
 
     @Test
-    void combinesMultipleMaterialTypesWithEachConfiguredMapping() {
+    void routesMultipleMaterialTypesToTheirRespectiveBackends() {
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -300,15 +304,23 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.minimum_should_match", equalTo(1))
-                .body("query.bool.should[0].bool.filter[0].term.material_type", equalTo("book"))
-                .body("query.bool.should[0].bool.must[0].match_phrase.book_title", equalTo("history"))
-                .body("query.bool.should[1].bool.filter[0].term.material_type", equalTo("article"))
-                .body("query.bool.should[1].bool.must[0].match_phrase.article_headline", equalTo("history"));
+                .body("size()", equalTo(2))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].materialTypes[0]", equalTo("book"))
+                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].query.bool.must[0].match_phrase.book_title", equalTo("history"))
+                .body("[1].backend", equalTo("solr-articles"))
+                .body("[1].engine", equalTo("SOLR"))
+                .body("[1].materialTypes[0]", equalTo("article"))
+                .body("[1].query.bool.filter[0].field.f", equalTo("material_type"))
+                .body("[1].query.bool.filter[0].field.query", equalTo("article"))
+                .body("[1].query.bool.must[0].field.f", equalTo("article_headline"))
+                .body("[1].query.bool.must[0].field.query", equalTo("history"));
     }
 
     @Test
@@ -335,17 +347,21 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.must[0].nested.path", equalTo("chapters"))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.title\""))
                 .body(containsString("\"introduction\""));
     }
 
     @Test
     void parsesSubdocumentQueryToSolrBlockJoinDsl() {
+        String recentLower = java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString();
+        String recentUpper = java.time.Instant.now().toString();
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -353,26 +369,39 @@ class QueryResourceTest {
                           "name": "Nested chapter query Solr",
                           "materialTypes": ["book"],
                           "query": {
-                            "field": "chapters",
+                            "field": "",
                             "data": [
                               [
                                 {
-                                  "field": "title",
-                                  "data": {
-                                    "type": "text",
-                                    "phrases": ["introduction"]
-                                  }
+                                  "field": "publishedAt",
+                                  "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                                },
+                                {
+                                  "field": "chapters",
+                                  "data": [
+                                    [
+                                      {
+                                        "field": "title",
+                                        "data": {
+                                          "type": "text",
+                                          "phrases": ["introduction"]
+                                        }
+                                      }
+                                    ]
+                                  ]
                                 }
                               ]
                             ]
                           }
                         }
-                        """)
-                .when().post("/queries/parse/solr")
+                        """.formatted(recentLower, recentUpper))
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.must[0].parent.which", equalTo("*:* -_nest_path_:*"))
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body(containsString("\"*:* -_nest_path_:*\""))
                 .body(containsString("\"chapters.title\""))
                 .body(containsString("\"introduction\""));
     }
@@ -460,7 +489,7 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
@@ -750,18 +779,22 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
-                .body("query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
-                .body("query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[0].query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
+                .body("[0].query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
     }
 
     @Test
     void expandsRootVirtualFieldToSolrDsl() {
+        String recentLower = java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString();
+        String recentUpper = java.time.Instant.now().toString();
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -769,21 +802,27 @@ class QueryResourceTest {
                           "name": "Virtual field expansion Solr",
                           "materialTypes": ["book"],
                           "query": {
-                            "field": "recentBook",
-                            "data": {"type": "text", "phrases": ["java"]}
+                            "field": "",
+                            "data": [
+                              [
+                                { "field": "recentBook", "data": {"type": "text", "phrases": ["java"]} },
+                                { "field": "publishedAt", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
+                              ]
+                            ]
                           }
                         }
-                        """)
-                .when().post("/queries/parse/solr")
+                        """.formatted(recentLower, recentUpper))
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.filter[0].field.f", equalTo("material_type"))
-                .body("query.bool.must[0].bool.should[0].bool.must[0].field.f", equalTo("book_title"))
-                .body("query.bool.must[0].bool.should[0].bool.must[0].field.query", equalTo("java"))
-                .body("query.bool.must[0].bool.should[0].bool.must[1].frange.query", equalTo("book_year"))
-                .body("query.bool.must[0].bool.should[0].bool.must[1].frange.l", equalTo(2010))
-                .body("query.bool.must[0].bool.should[0].bool.must[1].frange.u", equalTo(2025));
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body(containsString("\"book_title\""))
+                .body(containsString("\"java\""))
+                .body(containsString("\"book_year\""))
+                .body(containsString("2010"))
+                .body(containsString("2025"));
     }
 
     @Test
@@ -807,12 +846,14 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
-                .body("query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("query.bool.must[0].nested.path", equalTo("chapters"))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.page_count\""))
                 .body(containsString("\"gte\""))
                 .body(containsString("\"lte\""));
@@ -832,7 +873,7 @@ class QueryResourceTest {
                           }
                         }
                         """)
-                .when().post("/queries/parse/elasticsearch")
+                .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
