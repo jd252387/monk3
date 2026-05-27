@@ -840,6 +840,82 @@ class QueryResourceTest {
                 .body("error.message", containsString("not compatible with virtual field 'recentBook'"));
     }
 
+    @Test
+    void routesBookQueryToSolrBooksWhenPublishedAtRangeIsRecent() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Recent books search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": {
+                                "type": "range",
+                                "gte": "%s",
+                                "lte": "%s"
+                              }
+                            }
+                          },
+                          "fields": ["title"],
+                          "size": 5
+                        }
+                        """.formatted(
+                        java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString(),
+                        java.time.Instant.now().toString()))
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results[0].backend", equalTo("solr-books"));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
+                hasItem("/solr/books/select"));
+        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
+                not(hasItem("/es/books/_search")));
+    }
+
+    @Test
+    void routesBookQueryToElasticBooksWhenPublishedAtRangeIsOld() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Old books search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": {
+                                "type": "range",
+                                "gte": "2020-01-01T00:00:00Z",
+                                "lte": "2020-12-31T00:00:00Z"
+                              }
+                            }
+                          },
+                          "fields": ["title"],
+                          "size": 5
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results[0].backend", equalTo("elastic-books"));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
+                hasItem("/es/books/_search"));
+        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
+                not(hasItem("/solr/books/select")));
+    }
+
     private static void assertBadRequest(String body) {
         given()
                 .contentType(ContentType.JSON)

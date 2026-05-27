@@ -1,10 +1,12 @@
 package com.monk3.mapping;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.net.URI;
 import java.util.Optional;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class BackendConfigEntry implements SearchMappingConfig.Backend {
     @JsonProperty private SearchMappingConfig.SearchBackendEngine engine;
     @JsonProperty private URI url;

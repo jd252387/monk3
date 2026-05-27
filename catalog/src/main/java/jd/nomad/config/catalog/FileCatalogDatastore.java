@@ -9,6 +9,7 @@ import jd.nomad.config.CatalogConfig;
 import jd.nomad.config.IndexerConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
+import jd.nomad.routing.RoutingRule;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
@@ -20,6 +21,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -47,6 +49,7 @@ public class FileCatalogDatastore implements CatalogDatastore {
         Map<String, SearchMapping> mappings = new LinkedHashMap<>();
         Map<String, VirtualMapping> virtualMappings = new LinkedHashMap<>();
         Map<String, String> backendsByMaterialType = new LinkedHashMap<>();
+        Map<String, List<RoutingRule>> routingRulesByMaterialType = new LinkedHashMap<>();
         for (Map.Entry<String, CatalogConfig.MappingEntry> entry : catalogConfig.mappings().entrySet()) {
             String materialType = entry.getKey();
             CatalogConfig.MappingEntry mappingEntry = entry.getValue();
@@ -61,9 +64,15 @@ public class FileCatalogDatastore implements CatalogDatastore {
                 virtualMappings.put(materialType, snapshotBuilder.parseVirtualMapping(materialType, virtualNode));
             }
             backendsByMaterialType.put(materialType, mappingEntry.backend());
+            routingRulesByMaterialType.put(materialType,
+                    mappingEntry.routing() != null ? List.copyOf(mappingEntry.routing()) : List.of());
         }
 
-        return new CatalogSnapshot(Map.copyOf(mappings), Map.copyOf(virtualMappings), Map.copyOf(backendsByMaterialType));
+        return new CatalogSnapshot(
+                Map.copyOf(mappings),
+                Map.copyOf(virtualMappings),
+                Map.copyOf(backendsByMaterialType),
+                Map.copyOf(routingRulesByMaterialType));
     }
 
     private JsonNode readJson(FileSystemManager fileSystemManager, String location) throws IOException {

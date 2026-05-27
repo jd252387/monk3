@@ -49,7 +49,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             registerWatcher(this.etcdClient, materialType, key);
         }
         // TODO: etcd source has no per-material-type backend config yet; backend routing not supported
-        return new CatalogSnapshot(Map.copyOf(mappings), Map.of(), Map.of());
+        return new CatalogSnapshot(Map.copyOf(mappings), Map.of(), Map.of(), Map.of());
     }
 
     public Client buildEtcd() {

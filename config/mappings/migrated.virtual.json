@@ -1,0 +1,25 @@
+{
+  "$schema": "../../virtual-mapping.schema.json",
+  "root": {
+    "involved_people": {
+      "type": "string",
+      "expansion": {
+        "field": "",
+        "data": [
+          [
+            {
+              "field": "readers",
+              "data": "{{data}}"
+            }
+          ],
+          [
+            {
+              "field": "writers",
+              "data": "{{data}}"
+            }
+          ]
+        ]
+      }
+    }
+  }
+}

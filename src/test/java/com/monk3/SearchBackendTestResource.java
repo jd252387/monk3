@@ -67,6 +67,21 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       }
                     }
                     """));
+            server.createContext("/solr/books/select", exchange -> respond(exchange, """
+                    {
+                      "response": {
+                        "docs": [
+                          {
+                            "id": "book-2",
+                            "score": 8.0,
+                            "material_type": "book",
+                            "book_title": "Recent Book",
+                            "book_year": 2026
+                          }
+                        ]
+                      }
+                    }
+                    """));
             executor = Executors.newVirtualThreadPerTaskExecutor();
             server.setExecutor(executor);
             server.start();
@@ -74,14 +89,27 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             String backendsJson = """
                     {"backends":{
                       "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books"},
-                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles"}
-                    }}""".formatted(baseUrl, baseUrl);
+                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles"},
+                      "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books"}
+                    }}""".formatted(baseUrl, baseUrl, baseUrl);
             backendsFile = Files.createTempFile("monk3-test-backends", ".json");
             Files.writeString(backendsFile, backendsJson);
 
             String catalogJson = """
                     {"mappings":{
-                      "book":    {"physical":"config/mappings/book.mapping.json","virtual":"config/mappings/book.virtual.json","backend":"elastic-books"},
+                      "book": {
+                        "physical": "config/mappings/book.mapping.json",
+                        "virtual":  "config/mappings/book.virtual.json",
+                        "backend":  "elastic-books",
+                        "routing": [
+                          {
+                            "conditions": [
+                              {"type": "datetimeRangeWithin", "field": "publishedAt", "period": "P30D"}
+                            ],
+                            "backend": "solr-books"
+                          }
+                        ]
+                      },
                       "article": {"physical":"config/mappings/article.mapping.json","backend":"solr-articles"},
                       "ds":      {"physical":"config/mappings/dataset.mapping.json","backend":"elastic-books"}
                     }}""";

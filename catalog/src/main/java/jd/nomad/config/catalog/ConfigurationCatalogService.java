@@ -8,6 +8,7 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
+import jd.nomad.routing.RoutingRule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,12 +57,21 @@ public class ConfigurationCatalogService {
                         "No backend is configured for material type '" + materialType + "'"));
     }
 
+    public List<RoutingRule> routingRulesForMaterialType(String materialType) {
+        List<RoutingRule> rules = snapshot.get().routingRulesByMaterialType().get(materialType);
+        return rules != null ? rules : List.of();
+    }
+
     private synchronized void updateMapping(String materialType, JsonNode updatedNode) {
         SearchMapping updated = snapshotBuilder.parseMapping(materialType, updatedNode);
         this.snapshot.getAndUpdate(currentSnapshot -> {
             Map<String, SearchMapping> next = new LinkedHashMap<>(currentSnapshot.mappings());
             next.put(materialType, updated);
-            return new CatalogSnapshot(Map.copyOf(next), currentSnapshot.virtualMappings(), currentSnapshot.backendsByMaterialType());
+            return new CatalogSnapshot(
+                    Map.copyOf(next),
+                    currentSnapshot.virtualMappings(),
+                    currentSnapshot.backendsByMaterialType(),
+                    currentSnapshot.routingRulesByMaterialType());
         });
 
         for (Runnable listener : List.copyOf(updateListeners)) {

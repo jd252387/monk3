@@ -1,0 +1,31 @@
+{
+    "settings": {
+        "fields": {
+            "name": {
+                "filterType": "term", 
+                "path": "name_s"
+            }, 
+            "readers": {
+                "filterType": "term", 
+                "path": "readers_ss"
+            }, 
+            "writers": {
+                "filterType": "term", 
+                "path": "writers_ss"
+            },
+            "involved_people": {
+                "isMultipleLink": true,
+                "fields": [
+                    {
+                        "linkedField": "readers", 
+                        "bool": "should"
+                    }, 
+                    {
+                        "linkedField": "writers", 
+                        "bool": "should"
+                    }
+                ]
+            }
+        }
+    }
+}

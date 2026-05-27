@@ -10,6 +10,9 @@ import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchQueryRequest;
 import com.monk3.model.SearchResult;
+import com.monk3.routing.QueryAnalysis;
+import com.monk3.routing.QueryAnalyzer;
+import com.monk3.routing.RoutingEngine;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.config.catalog.ConfigurationCatalogService;
 import jd.nomad.mapping.MappedField;
@@ -45,6 +48,7 @@ public class SearchExecutionService {
     private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
     private final BackendsConfigLoader backendsConfigLoader;
+    private final RoutingEngine routingEngine;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
@@ -63,9 +67,13 @@ public class SearchExecutionService {
     }
 
     private List<SearchResult> executeBackendSearches(SearchExecutionRequest request) {
+        QueryAnalysis analysis = QueryAnalyzer.analyze(request.query().query());
         Map<String, List<String>> materialTypesByBackend = new LinkedHashMap<>();
         for (String materialType : request.query().materialTypes()) {
-            String backendName = catalogService.backendForMaterialType(materialType);
+            String backendName = routingEngine.resolve(
+                    catalogService.backendForMaterialType(materialType),
+                    catalogService.routingRulesForMaterialType(materialType),
+                    analysis);
             materialTypesByBackend.computeIfAbsent(backendName, k -> new ArrayList<>()).add(materialType);
         }
 
