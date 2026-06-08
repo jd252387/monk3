@@ -10,7 +10,8 @@ public enum FieldType {
     DATETIME,
     NUMBER,
     BOOLEAN,
-    SUBDOCUMENT;
+    SUBDOCUMENT,
+    PREDICATE;
 
     @JsonCreator
     public static FieldType fromJson(String value) {

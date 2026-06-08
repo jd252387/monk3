@@ -62,7 +62,12 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             throw MismatchedInputException.from(parser, Object.class, "Unknown query node property: " + objectNode.fieldNames().next());
         }
         if (dataNode == null || dataNode.isNull()) {
-            throw MismatchedInputException.from(parser, Object.class, "Query node data is required");
+            if (field.isEmpty()) {
+                throw MismatchedInputException.from(parser, Object.class, "Query node data is required");
+            }
+            // A leaf node without data is only valid for predicate virtual fields; whether
+            // the field actually resolves to a predicate is checked at translation time.
+            return new QueryNode(field, minimumMatch, isNot, null);
         }
 
         QueryData data = readData(parser, mapper, field, dataNode);

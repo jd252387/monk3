@@ -2,49 +2,67 @@
     "settings": {
         "fields": {
             "name": {
-                "filterType": "term", 
-                "path": "name_s"
-            }, 
+                "mapping_name": {
+                    "filterType": "term",
+                    "path": "name_s"
+                }
+            },
             "readers": {
-                "filterType": "term", 
-                "path": "readers_ss"
-            }, 
+                "mapping_name": {
+                    "filterType": "term",
+                    "path": "readers_ss"
+                }
+            },
             "writers": {
-                "filterType": "term", 
-                "path": "writers_ss"
+                "mapping_name": {
+                    "filterType": "term",
+                    "path": "writers_ss"
+                }
             },
             "involved_people": {
-                "isMultipleLink": true,
-                "fields": [
-                    {
-                        "linkedField": "readers", 
-                        "bool": "should"
-                    }, 
-                    {
-                        "linkedField": "writers", 
-                        "bool": "should"
-                    }
-                ]
-            }, 
+                "mapping_name": {
+                    "isMultipleLink": true,
+                    "fields": [
+                        {
+                            "linkedField": "readers",
+                            "bool": "should"
+                        },
+                        {
+                            "linkedField": "writers",
+                            "bool": "should"
+                        }
+                    ]
+                }
+            },
             "writers_exists": {
-                "filterType": "exists", 
-                "path": "writers_ss"
-            }, 
+                "mapping_name": {
+                    "filterType": "exists",
+                    "path": "writers_ss"
+                }
+            },
             "write_date": {
-                "filterType": "date", 
-                "path": "write_date_dt"
+                "mapping_name": {
+                    "filterType": "date",
+                    "path": "write_date_dt"
+                }
             },
             "number_of_writers": {
-                "filterType": "number", 
-                "path": "number_of_writers_i"
-            }, 
+                "mapping_name": {
+                    "filterType": "number",
+                    "path": "number_of_writers_i"
+                }
+            },
             "duration_in_seconds": {
-                "filterType": "duration", 
-                "path": "write_date_dt"
-            }, 
+                "mapping_name": {
+                    "filterType": "duration",
+                    "path": "write_date_dt"
+                }
+            },
             "text_contents": {
-                "filterType": "contentNew", 
-                "path": "text_contents_t"
+                "mapping_name": {
+                    "filterType": "contentNew",
+                    "path": "text_contents_t"
+                }
             }
         }
     }

@@ -2,7 +2,7 @@ package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk3.mapping.SearchMappingConfig;
-import com.monk3.model.QueryPayload;
+import com.monk3.model.QueryData;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
@@ -58,11 +58,11 @@ public record QueryParseContext(
 
     public JsonNode expandVirtual(
             VirtualField virtualField,
-            QueryPayload payload,
+            QueryData data,
             boolean isNegated,
             SearchEngine engine
     ) {
-        return expander.expandAndTranslate(virtualField, payload, isNegated, this, engine);
+        return expander.expandAndTranslate(virtualField, data, isNegated, this, engine);
     }
 
     public int minimumMatchOrDefault(int defaultValue) {

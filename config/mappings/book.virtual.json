@@ -12,6 +12,13 @@
           ]
         ]
       }
+    },
+    "twentyFirstCentury": {
+      "type": "predicate",
+      "expansion": {
+        "field": "year",
+        "data": {"type": "range", "gte": 2000}
+      }
     }
   },
   "chapter": {

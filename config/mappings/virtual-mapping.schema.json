@@ -24,17 +24,17 @@
     },
     "virtualField": {
       "type": "object",
-      "description": "A virtual field that does not exist in the search backend. When queried, its 'expansion' QueryNode template is substituted with values from the incoming QueryPayload and translated instead.",
+      "description": "A virtual field that does not exist in the search backend. When queried, its 'expansion' QueryNode template is substituted with values from the incoming QueryPayload (or, for 'predicate' fields, expanded statically) and translated instead.",
       "additionalProperties": false,
       "required": ["type", "expansion"],
       "properties": {
         "type": {
-          "description": "Accepted QueryPayload type for this virtual field. Determines which query payload types the API consumer may pass when querying this field.",
+          "description": "Accepted QueryPayload type for this virtual field, determining which query payload types the API consumer may pass when querying it. The special 'predicate' type accepts NO data — it is queried by field name alone and expands statically.",
           "type": "string",
-          "enum": ["string", "freetext", "number", "datetime", "boolean"]
+          "enum": ["string", "freetext", "number", "datetime", "boolean", "predicate"]
         },
         "expansion": {
-          "description": "A monk3 QueryNode template (same structure as the 'query' field in SearchQueryRequest). String values may contain '{{data}}' as a whole-string placeholder, replaced at query time with the entire incoming QueryPayload JSON object. Only whole-string placeholders are supported (e.g. \"{{data}}\", not \"prefix-{{data}}\"). Expansion templates may only reference real mapped fields — not other virtual fields.",
+          "description": "A monk3 QueryNode template (same structure as the 'query' field in SearchQueryRequest). String values may contain '{{data}}' as a whole-string placeholder, replaced at query time with the entire incoming QueryPayload JSON object. Only whole-string placeholders are supported (e.g. \"{{data}}\", not \"prefix-{{data}}\"). For 'predicate' fields the expansion is fully static and must NOT contain '{{data}}'. Expansion templates may only reference real mapped fields — not other virtual fields.",
           "type": "object"
         }
       }

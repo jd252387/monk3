@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.monk3.model.ExactQuery;
+import com.monk3.model.QueryData;
 import com.monk3.model.QueryNode;
 import com.monk3.model.QueryPayload;
 import com.monk3.model.RangeQuery;
@@ -30,14 +31,12 @@ public class VirtualFieldExpander {
 
     public JsonNode expandAndTranslate(
             VirtualField virtualField,
-            QueryPayload payload,
+            QueryData data,
             boolean isNegated,
             QueryParseContext context,
             SearchEngine engine
     ) {
-        validatePayloadType(virtualField, payload);
-
-        Map<String, JsonNode> vars = buildSubstitutionMap(payload);
+        Map<String, JsonNode> vars = resolveSubstitutionVariables(virtualField, data);
         JsonNode substituted = substitute(virtualField.expansion(), vars);
 
         QueryNode expanded;
@@ -55,13 +54,31 @@ public class VirtualFieldExpander {
         return isNegated ? QueryJson.mustNot(engine, translated) : translated;
     }
 
+    private Map<String, JsonNode> resolveSubstitutionVariables(VirtualField virtualField, QueryData data) {
+        if (virtualField.type() == FieldType.PREDICATE) {
+            if (data != null) {
+                throw new QueryTranslationException(
+                        "Predicate virtual field '" + virtualField.logicalName() + "' does not accept a data payload");
+            }
+            // No variables: any '{{...}}' in a predicate expansion is a config error and will
+            // be rejected by substitute().
+            return Map.of();
+        }
+        if (!(data instanceof QueryPayload payload)) {
+            throw new QueryTranslationException(
+                    "Virtual field '" + virtualField.logicalName() + "' requires a query payload");
+        }
+        validatePayloadType(virtualField, payload);
+        return buildSubstitutionMap(payload);
+    }
+
     private void validatePayloadType(VirtualField virtualField, QueryPayload payload) {
         boolean compatible = switch (virtualField.type()) {
             case STRING, FREETEXT -> payload instanceof TextQuery;
             case NUMBER -> payload instanceof RangeQuery.Numeric || payload instanceof ExactQuery.Numeric;
             case DATETIME -> payload instanceof RangeQuery.Datetime || payload instanceof ExactQuery.Datetime;
             case BOOLEAN -> payload instanceof ExactQuery.BooleanValues;
-            case SUBDOCUMENT -> false;
+            case SUBDOCUMENT, PREDICATE -> false;
         };
         if (!compatible) {
             throw new QueryTranslationException(
@@ -83,7 +100,7 @@ public class VirtualFieldExpander {
                 JsonNode value = vars.get(varName);
                 if (value == null) {
                     throw new QueryTranslationException(
-                            "Template variable '{{" + varName + "}}' is not available for this query payload");
+                            "Template variable '{{" + varName + "}}' is not available for this virtual field expansion");
                 }
                 return value;
             }

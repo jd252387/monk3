@@ -676,6 +676,104 @@ class QueryResourceTest {
     }
 
     @Test
+    void expandsPredicateVirtualFieldWithoutDataToElasticsearchDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Predicate virtual field expansion ES",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "twentyFirstCentury"
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].query.bool.must[0].range.book_year.gte", equalTo(2000));
+    }
+
+    @Test
+    void expandsPredicateVirtualFieldWithoutDataToSolrDsl() {
+        String recentLower = java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString();
+        String recentUpper = java.time.Instant.now().toString();
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Predicate virtual field expansion Solr",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "",
+                            "data": [
+                              [
+                                { "field": "twentyFirstCentury" },
+                                { "field": "publishedAt", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
+                              ]
+                            ]
+                          }
+                        }
+                        """.formatted(recentLower, recentUpper))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body(containsString("\"book_year\""))
+                .body(containsString("2000"));
+    }
+
+    @Test
+    void negatesPredicateVirtualField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Negated predicate virtual field",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "twentyFirstCentury",
+                            "isNot": true
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].query.bool.must[0].bool.must_not[0].range.book_year.gte", equalTo(2000));
+    }
+
+    @Test
+    void predicateVirtualFieldRejectsDataPayloadWithError() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Predicate virtual field with data",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "twentyFirstCentury",
+                            "data": {"type": "text", "phrases": ["java"]}
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Predicate virtual field 'twentyFirstCentury' does not accept a data payload"));
+    }
+
+    @Test
     void routesBookQueryToSolrBooksWhenPublishedAtRangeIsRecent() {
         SearchBackendTestResource.reset();
 
