@@ -1,5 +1,5 @@
 {
-  "$schema": "../../mappings.schema.json",
+  "$schema": "./mappings.schema.json",
   "primaryKey": "id",
   "root": {
     "name": {
