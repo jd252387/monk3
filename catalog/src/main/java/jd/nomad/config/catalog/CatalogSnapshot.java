@@ -15,7 +15,4 @@ public record CatalogSnapshot(
         Map<String, List<RoutingRule>> routingRulesByMaterialType,
         Map<String, BackendConfig> backends
 ) {
-    public enum ConfigType {
-        MAPPINGS
-    }
 }

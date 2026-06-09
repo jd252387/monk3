@@ -22,8 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 @ApplicationScoped
 @LookupIfProperty(name = "indexer.catalog.source", stringValue = "etcd")
@@ -34,15 +32,11 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
     private final CatalogSnapshotBuilder snapshotBuilder;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private Client etcdClient;
-    private BiConsumer<String, JsonNode> mappingChangeListener = (materialType, node) -> {};
-    private Consumer<Map<String, BackendConfig>> backendsChangeListener = backends -> {};
+    private CatalogUpdateSink sink = NoopSink.INSTANCE;
 
     @Override
-    public CatalogSnapshot start(
-            BiConsumer<String, JsonNode> mappingChangeListener,
-            Consumer<Map<String, BackendConfig>> backendsChangeListener) throws IOException {
-        this.mappingChangeListener = mappingChangeListener;
-        this.backendsChangeListener = backendsChangeListener;
+    public CatalogSnapshot start(CatalogUpdateSink sink) throws IOException {
+        this.sink = sink;
         this.etcdClient = buildEtcd();
 
         Map<String, String> keys = indexerConfig.catalog().etcd().mappings();
@@ -109,7 +103,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             case PUT -> {
                 try {
                     JsonNode newNode = objectMapper.readTree(event.getKeyValue().getValue().getBytes());
-                    mappingChangeListener.accept(materialType, newNode);
+                    sink.updateMapping(materialType, newNode);
                 } catch (IOException e) {
                     throw new IllegalStateException("Failed to parse updated mapping for key " + key, e);
                 }
@@ -129,7 +123,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             case PUT -> {
                 try {
                     Map<String, BackendConfig> updated = parseBackends(event.getKeyValue().getValue().getBytes());
-                    backendsChangeListener.accept(updated);
+                    sink.updateBackends(updated);
                 } catch (IOException e) {
                     throw new IllegalStateException("Failed to parse updated backends for key " + key, e);
                 }
@@ -176,4 +170,20 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
     }
 
     private record BackendsFile(Map<String, BackendConfig> backends) {}
+
+    private enum NoopSink implements CatalogUpdateSink {
+        INSTANCE;
+
+        @Override
+        public void updateMapping(String materialType, JsonNode node) {
+        }
+
+        @Override
+        public void updateBackends(Map<String, BackendConfig> backends) {
+        }
+
+        @Override
+        public void replaceSnapshot(CatalogSnapshot snapshot) {
+        }
+    }
 }

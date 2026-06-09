@@ -24,14 +24,14 @@ import java.util.concurrent.atomic.AtomicReference;
 @ApplicationScoped
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @Slf4j
-public class ConfigurationCatalogService {
+public class ConfigurationCatalogService implements CatalogUpdateSink {
     private final List<Runnable> updateListeners = Collections.synchronizedList(new ArrayList<>());
     private final CatalogSnapshotBuilder snapshotBuilder;
     private final Instance<CatalogDatastore> datastoreInstance;
     private final AtomicReference<CatalogSnapshot> snapshot = new AtomicReference<>();
 
     void onStartup(@Observes StartupEvent event) throws Exception {
-        snapshot.set(datastoreInstance.get().start(this::updateMapping, this::updateBackends));
+        snapshot.set(datastoreInstance.get().start(this));
     }
 
     public void registerListener(Runnable callback) {
@@ -69,7 +69,19 @@ public class ConfigurationCatalogService {
                         "No backend configuration found for backend '" + name + "'"));
     }
 
-    private synchronized void updateMapping(String materialType, JsonNode updatedNode) {
+    @Override
+    public synchronized void replaceSnapshot(CatalogSnapshot newSnapshot) {
+        snapshot.set(newSnapshot);
+
+        for (Runnable listener : List.copyOf(updateListeners)) {
+            listener.run();
+        }
+
+        log.atInfo().log("Reloaded catalog snapshot");
+    }
+
+    @Override
+    public synchronized void updateMapping(String materialType, JsonNode updatedNode) {
         SearchMapping updated = snapshotBuilder.parseMapping(materialType, updatedNode);
         this.snapshot.getAndUpdate(currentSnapshot -> {
             Map<String, SearchMapping> next = new LinkedHashMap<>(currentSnapshot.mappings());
@@ -89,7 +101,8 @@ public class ConfigurationCatalogService {
         log.atInfo().addArgument(materialType).log("Reloaded mapping for material type {}");
     }
 
-    private synchronized void updateBackends(Map<String, BackendConfig> updatedBackends) {
+    @Override
+    public synchronized void updateBackends(Map<String, BackendConfig> updatedBackends) {
         snapshot.getAndUpdate(current -> new CatalogSnapshot(
                 current.mappings(),
                 current.virtualMappings(),

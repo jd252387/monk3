@@ -35,3 +35,9 @@ tasks.withType(JavaCompile).configureEach {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
+
+// The jandex plugin writes its index into build/resources/main, which the test compile
+// classpath consumes; make the ordering explicit so Gradle does not flag an implicit dependency.
+tasks.named('compileTestJava') {
+    dependsOn tasks.named('jandex')
+}

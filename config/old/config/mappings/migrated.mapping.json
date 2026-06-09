@@ -22,12 +22,8 @@
       "type": "number",
       "destinationField": "number_of_writers_i"
     },
-    "is_original": {
-      "type": "boolean",
-      "destinationField": "is_original_b"
-    },
     "text_contents": {
-      "type": "string",
+      "type": "freetext",
       "destinationField": "text_contents_t"
     }
   }

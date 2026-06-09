@@ -52,6 +52,12 @@
                     "path": "number_of_writers_i"
                 }
             },
+            "is_original": {
+                "mapping_name": {
+                    "filterType": "number",
+                    "path": "is_original_b"
+                }
+            },
             "duration_in_seconds": {
                 "mapping_name": {
                     "filterType": "duration",
@@ -60,8 +66,51 @@
             },
             "text_contents": {
                 "mapping_name": {
-                    "filterType": "contentNew",
+                    "filterType": "term",
                     "path": "text_contents_t"
+                }
+            },
+            "shakespear": {
+                "mapping_name": {
+                    "isDataFromFilter": true,
+                    "filters": [
+                        {
+                            "field": "",
+                            "data": [
+                                {
+                                    "field": "writers",
+                                    "data": "shakespear",
+                                    "bool": "must"
+                                },
+                                {
+                                    "field": "writers",
+                                    "data": "William",
+                                    "bool": "should"
+                                },
+                                {
+                                    "field": "writers",
+                                    "data": "bob",
+                                    "bool": "mustNot"
+                                },
+                                {
+                                    "field": "",
+                                    "data": [
+                                        {
+                                            "field": "text_contents",
+                                            "data": "Romeo",
+                                            "bool": "must"
+                                        },
+                                        {
+                                            "field": "text_contents",
+                                            "data": "Juliet",
+                                            "bool": "should"
+                                        }
+                                    ],
+                                    "bool": "should"
+                                }
+                            ]
+                        }
+                    ]
                 }
             }
         }

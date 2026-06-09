@@ -1,5 +1,5 @@
 {
-  "$schema": "../../virtual-mapping.schema.json",
+  "$schema": "./virtual-mapping.schema.json",
   "root": {
     "involved_people": {
       "type": "string",
