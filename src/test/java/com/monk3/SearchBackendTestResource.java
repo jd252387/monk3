@@ -49,6 +49,27 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                             }
                           }
                         ]
+                      },
+                      "aggregations": {
+                        "byAuthor": {
+                          "buckets": [
+                            { "key": "Jane Doe", "doc_count": 8 },
+                            { "key": "John Smith", "doc_count": 3 }
+                          ]
+                        },
+                        "uniqueYears": { "value": 42 },
+                        "byYear": {
+                          "buckets": [
+                            { "key": 2000.0, "doc_count": 5 },
+                            { "key": 2010.0, "doc_count": 7 }
+                          ]
+                        },
+                        "published": {
+                          "buckets": {
+                            "lastWeek": { "doc_count": 2 },
+                            "lastMonth": { "doc_count": 9 }
+                          }
+                        }
                       }
                     }
                     """));
@@ -64,6 +85,21 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                             "article_year": 2024
                           }
                         ]
+                      },
+                      "facets": {
+                        "count": 11,
+                        "byYear": {
+                          "buckets": [
+                            { "val": 2020, "count": 4 },
+                            { "val": 2024, "count": 6 }
+                          ]
+                        },
+                        "uniqueYears": 7,
+                        "published": {
+                          "count": 11,
+                          "lastWeek": { "count": 2 },
+                          "lastMonth": { "count": 9 }
+                        }
                       }
                     }
                     """));

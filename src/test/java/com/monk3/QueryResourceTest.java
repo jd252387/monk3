@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @QuarkusTest
 @QuarkusTestResource(SearchBackendTestResource.class)
@@ -267,6 +268,460 @@ class QueryResourceTest {
         assertThat(
                 requestBodiesByPath.get("/solr/articles/select"),
                 containsString("\"field\":{\"f\":\"article_headline\",\"query\":\"java\"}"));
+    }
+
+    @Test
+    void executesTermsAndUniqueAggregationsAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Faceted book search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "size": 10,
+                          "aggs": {
+                            "byAuthor": { "aggType": "terms", "args": { "field": "author", "size": 5 } },
+                            "uniqueYears": { "aggType": "unique", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].key", equalTo("Jane Doe"))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].count", equalTo(8))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[1].key", equalTo("John Smith"))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[1].count", equalTo(3))
+                .body("aggregations.'elastic-books'.uniqueYears.value", equalTo(42));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"byAuthor\":{\"terms\":{\"field\":\"book_author\",\"size\":5}},"
+                        + "\"uniqueYears\":{\"cardinality\":{\"field\":\"book_year\"}}}"));
+    }
+
+    @Test
+    void executesTermsAndUniqueAggregationsAgainstSolr() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Faceted article search",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["solr"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "size": 10,
+                          "aggs": {
+                            "byYear": { "aggType": "terms", "args": { "field": "year", "size": 5 } },
+                            "uniqueYears": { "aggType": "unique", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'solr-articles'.byYear.buckets[0].key", equalTo(2020))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].count", equalTo(4))
+                .body("aggregations.'solr-articles'.byYear.buckets[1].key", equalTo(2024))
+                .body("aggregations.'solr-articles'.byYear.buckets[1].count", equalTo(6))
+                .body("aggregations.'solr-articles'.uniqueYears.value", equalTo(7));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"facet\":{\"byYear\":{\"type\":\"terms\",\"field\":\"article_year\",\"limit\":5},"
+                        + "\"uniqueYears\":\"unique(article_year)\"}"));
+    }
+
+    @Test
+    void executesRangeAggregationAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Year histogram",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "byYear": { "aggType": "range", "args": { "field": "year", "interval": 10, "from": 2000, "to": 2030 } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.byYear.buckets[0].key", equalTo(2000.0f))
+                .body("aggregations.'elastic-books'.byYear.buckets[0].count", equalTo(5))
+                .body("aggregations.'elastic-books'.byYear.buckets[1].key", equalTo(2010.0f))
+                .body("aggregations.'elastic-books'.byYear.buckets[1].count", equalTo(7));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"byYear\":{\"histogram\":{\"field\":\"book_year\",\"interval\":10,\"min_doc_count\":0,"
+                        + "\"hard_bounds\":{\"min\":2000,\"max\":2030},\"extended_bounds\":{\"min\":2000,\"max\":2030}}}"));
+    }
+
+    @Test
+    void executesRangeAggregationAgainstSolr() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Year range facet",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["solr"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "byYear": { "aggType": "range", "args": { "field": "year", "interval": 10, "from": 2000, "to": 2030 } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'solr-articles'.byYear.buckets[0].key", equalTo(2020))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].count", equalTo(4));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"byYear\":{\"type\":\"range\",\"field\":\"article_year\",\"start\":2000,\"end\":2030,\"gap\":10}"));
+    }
+
+    @Test
+    void executesSubfacetsAggregationAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Published subfacets",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "published": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "publishedAt",
+                                "filters": {
+                                  "lastWeek": { "type": "range", "gt": "2026-02-01T00:00:00Z", "lt": "2026-02-07T00:00:00Z" },
+                                  "lastMonth": { "type": "range", "gt": "2026-01-07T00:00:00Z", "lt": "2026-02-07T00:00:00Z" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.published.buckets[0].key", equalTo("lastWeek"))
+                .body("aggregations.'elastic-books'.published.buckets[0].count", equalTo(2))
+                .body("aggregations.'elastic-books'.published.buckets[1].key", equalTo("lastMonth"))
+                .body("aggregations.'elastic-books'.published.buckets[1].count", equalTo(9));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"published\":{\"filters\":{\"filters\":{"
+                        + "\"lastWeek\":{\"range\":{\"book_published_at\":{\"gt\":\"2026-02-01T00:00:00Z\",\"lt\":\"2026-02-07T00:00:00Z\"}}},"
+                        + "\"lastMonth\":{\"range\":{\"book_published_at\":{\"gt\":\"2026-01-07T00:00:00Z\",\"lt\":\"2026-02-07T00:00:00Z\"}}}}}}"));
+    }
+
+    @Test
+    void executesSubfacetsAggregationAgainstSolr() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Published subfacets Solr",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["solr"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "published": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "publishedAt",
+                                "filters": {
+                                  "lastWeek": { "type": "range", "gt": "2026-02-01T00:00:00Z", "lt": "2026-02-07T00:00:00Z" },
+                                  "lastMonth": { "type": "range", "gt": "2026-01-07T00:00:00Z", "lt": "2026-02-07T00:00:00Z" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'solr-articles'.published.buckets[0].key", equalTo("lastWeek"))
+                .body("aggregations.'solr-articles'.published.buckets[0].count", equalTo(2))
+                .body("aggregations.'solr-articles'.published.buckets[1].key", equalTo("lastMonth"))
+                .body("aggregations.'solr-articles'.published.buckets[1].count", equalTo(9));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"published\":{\"type\":\"query\",\"q\":\"*:*\",\"facet\":{"
+                        + "\"lastWeek\":{\"type\":\"query\",\"q\":{\"frange\":{\"query\":\"article_published_at\""));
+    }
+
+    @Test
+    void returnsAggregationResultsPerBackend() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Cross-backend facets",
+                            "materialTypes": ["book", "article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "byYear": { "aggType": "terms", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations", hasKey("elastic-books"))
+                .body("aggregations", hasKey("solr-articles"))
+                .body("aggregations.'elastic-books'.byYear.buckets[0].key", equalTo(2000.0f))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].key", equalTo(2020));
+    }
+
+    @Test
+    void searchWithoutAggregationsOmitsAggregationsInResponse() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Plain search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"]
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations", nullValue());
+    }
+
+    @Test
+    void aggregationTranslationFailuresReturnStructuredBadRequest() {
+        assertAggregationTranslationError("""
+                {"missing": {"aggType": "terms", "args": {"field": "missing"}}}
+                """, "Aggregation field 'missing' is not defined for material type 'book'");
+
+        assertAggregationTranslationError("""
+                {"byChapter": {"aggType": "terms", "args": {"field": "chapters"}}}
+                """, "Aggregations are only supported on root document fields");
+
+        assertAggregationTranslationError("""
+                {"byTitle": {"aggType": "terms", "args": {"field": "title"}}}
+                """, "Aggregation type 'terms' is not supported for field 'title' with mapping type 'freetext'");
+
+        assertAggregationTranslationError("""
+                {"byTitle": {"aggType": "range", "args": {"field": "title", "interval": 10, "from": 0, "to": 100}}}
+                """, "Aggregation type 'range' is not supported for field 'title' with mapping type 'freetext'");
+
+        assertAggregationTranslationError("""
+                {"byVirtual": {"aggType": "terms", "args": {"field": "recentBook"}}}
+                """, "Virtual field 'recentBook' cannot be used in aggregations");
+    }
+
+    @Test
+    void aggregationFieldMissingFromOneMaterialTypeOnSharedBackendFails() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Shared backend facets",
+                            "materialTypes": ["book", "ds"],
+                            "query": {
+                              "field": "materialType",
+                              "data": { "type": "text", "phrases": ["book"] }
+                            }
+                          },
+                          "fields": ["materialType"],
+                          "aggs": {
+                            "byYear": { "aggType": "terms", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Aggregation field 'year' is not defined for material type 'ds'"));
+    }
+
+    @Test
+    void invalidAggregationStructuresReturnStructuredBadRequest() {
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "geo", "args": {"field": "year"}}}
+                """, "Unsupported aggregation type 'geo'");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "terms", "args": {"field": "year", "foo": 1}}}
+                """, "Unknown terms aggregation property: foo");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "terms"}}
+                """, "Aggregation args must be an object");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "terms", "args": {"size": 5}}}
+                """, "Aggregation args field is required");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "range", "args": {"field": "year", "interval": 10, "to": 100}}}
+                """, "Range aggregation requires a numeric 'from'");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "subfacets", "args": {"field": "publishedAt", "filters": {}}}}
+                """, "Subfacets aggregation filters must not be empty");
+    }
+
+    @Test
+    void invalidSubfacetFilterPayloadReturnsStructuredExplanationWithPath() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Bad subfacet filter",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "published": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "publishedAt",
+                                "filters": {
+                                  "lastWeek": { "type": "geo" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("filters.lastWeek"))
+                .body("error.message", containsString("Unsupported query data type 'geo'"));
+    }
+
+    private static void assertAggregationTranslationError(String aggs, String expectedMessage) {
+        assertAggregationError(aggs, "query_translation_failed", expectedMessage);
+    }
+
+    private static void assertAggregationStructureError(String aggs, String expectedMessage) {
+        assertAggregationError(aggs, "invalid_query_structure", expectedMessage);
+    }
+
+    private static void assertAggregationError(String aggs, String expectedCode, String expectedMessage) {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Aggregation error",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": %s
+                        }
+                        """.formatted(aggs))
+                .when().post("/queries/search")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo(expectedCode))
+                .body("error.message", containsString(expectedMessage));
     }
 
     @Test
@@ -528,7 +983,24 @@ class QueryResourceTest {
                 .statusCode(200)
                 .contentType("application/schema+json")
                 .body("$schema", equalTo("https://json-schema.org/draft/2020-12/schema"))
-                .body("required", containsInAnyOrder("name", "materialTypes", "query"))
+                .body("required", containsInAnyOrder("query", "fields"))
+                .body("properties.query.$ref", equalTo("#/$defs/SearchQuery"))
+                .body("properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
+                .body("$defs.SearchQuery.required", containsInAnyOrder("name", "materialTypes", "query"))
+                .body("$defs.Aggregations.additionalProperties.$ref", equalTo("#/$defs/Aggregation"))
+                .body("$defs.Aggregation.oneOf.$ref", containsInAnyOrder(
+                        "#/$defs/TermsAggregation",
+                        "#/$defs/UniqueAggregation",
+                        "#/$defs/RangeAggregation",
+                        "#/$defs/SubfacetsAggregation"
+                ))
+                .body("$defs.TermsAggregation.properties.aggType.const", equalTo("terms"))
+                .body("$defs.UniqueAggregation.properties.aggType.const", equalTo("unique"))
+                .body("$defs.RangeAggregation.properties.aggType.const", equalTo("range"))
+                .body("$defs.SubfacetsAggregation.properties.aggType.const", equalTo("subfacets"))
+                .body("$defs.RangeAggregation.properties.args.required", containsInAnyOrder("field", "interval", "from", "to"))
+                .body("$defs.SubfacetsAggregation.properties.args.properties.filters.additionalProperties.$ref",
+                        equalTo("#/$defs/QueryPayload"))
                 .body("$defs.QueryPayload.oneOf.$ref", containsInAnyOrder(
                         "#/$defs/TextQuery",
                         "#/$defs/RangeQuery",
