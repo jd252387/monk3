@@ -133,7 +133,7 @@ public class QueryResource {
     @Operation(summary = "Execute a search", description = "Fans out the query to all configured backends, merges results, and normalizes scores.")
     @RequestBody(required = true, content = @Content(examples = {
             @ExampleObject(name = "Cross-backend search",
-                    summary = "Boolean query across books and articles, projecting title/year/author",
+                    summary = "Boolean query across books and articles with terms and range aggs",
                     value = """
                             {
                               "query": {
@@ -158,11 +158,26 @@ public class QueryResource {
                                 }
                               },
                               "fields": ["title", "year", "author"],
-                              "size": 20
+                              "size": 20,
+                              "aggs": {
+                                "byAuthor": {
+                                  "aggType": "terms",
+                                  "args": { "field": "author", "size": 10 }
+                                },
+                                "yearDistribution": {
+                                  "aggType": "range",
+                                  "args": {
+                                    "field": "year",
+                                    "interval": 1,
+                                    "from": 2020,
+                                    "to": 2025
+                                  }
+                                }
+                              }
                             }
                             """),
             @ExampleObject(name = "Simple text search",
-                    summary = "Single-backend phrase search with field projection",
+                    summary = "Single-backend phrase search with a unique-count aggregation",
                     value = """
                             {
                               "query": {
@@ -174,11 +189,17 @@ public class QueryResource {
                                 }
                               },
                               "fields": ["title", "year"],
-                              "size": 10
+                              "size": 10,
+                              "aggs": {
+                                "distinctAuthors": {
+                                  "aggType": "unique",
+                                  "args": { "field": "author" }
+                                }
+                              }
                             }
                             """),
             @ExampleObject(name = "Faceted search",
-                    summary = "Phrase search with terms and subfacets aggregations",
+                    summary = "Phrase search with terms, unique, and subfacets aggregations",
                     value = """
                             {
                               "query": {
@@ -195,6 +216,10 @@ public class QueryResource {
                                 "byAuthor": {
                                   "aggType": "terms",
                                   "args": { "field": "author", "size": 5 }
+                                },
+                                "distinctTitles": {
+                                  "aggType": "unique",
+                                  "args": { "field": "title" }
                                 },
                                 "published": {
                                   "aggType": "subfacets",

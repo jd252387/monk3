@@ -6,7 +6,7 @@
       "index": "books",
       "defaultSize": 10
     },
-    "solr-books": {
+    "solr-articles": {
       "engine": "SOLR",
       "url": "http://localhost:8983/solr",
       "collection": "articles",

@@ -11,3 +11,5 @@ bin/
 target/
 .quarkus
 .codegraph
+.codegraph/*
+reasonix.toml
