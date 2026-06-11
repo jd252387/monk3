@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.SearchMappingConfig;
+import com.monk3.model.Aggregation;
+import com.monk3.model.AggregationResult;
 import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchQueryRequest;
@@ -52,21 +54,26 @@ public class SearchExecutionService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
-        List<SearchResult> results = executeBackendSearches(request);
+        List<BackendSearchResult> backendResults = executeBackendSearches(request);
+        List<SearchResult> results = backendResults.stream()
+                .flatMap(backendResult -> backendResult.results().stream())
+                .toList();
 
-        if (results.isEmpty()) {
+        if (results.isEmpty() && !hasAggregations(request)) {
             throw new QueryTranslationException("No configured search backend supports the requested material types");
         }
 
-        return new SearchExecutionResponse(results.stream()
-                .sorted(Comparator.comparingDouble(SearchResult::normalizedScore)
-                        .thenComparingDouble(SearchResult::score)
-                        .reversed())
-                .limit(size(request, null))
-                .toList());
+        return new SearchExecutionResponse(
+                results.stream()
+                        .sorted(Comparator.comparingDouble(SearchResult::normalizedScore)
+                                .thenComparingDouble(SearchResult::score)
+                                .reversed())
+                        .limit(size(request, null))
+                        .toList(),
+                hasAggregations(request) ? aggregationsByBackend(backendResults) : null);
     }
 
-    private List<SearchResult> executeBackendSearches(SearchExecutionRequest request) {
+    private List<BackendSearchResult> executeBackendSearches(SearchExecutionRequest request) {
         QueryAnalysis analysis = QueryAnalyzer.analyze(request.query().query());
         Map<String, List<String>> materialTypesByBackend = new LinkedHashMap<>();
         for (String materialType : request.query().materialTypes()) {
@@ -77,13 +84,13 @@ public class SearchExecutionService {
             materialTypesByBackend.computeIfAbsent(backendName, k -> new ArrayList<>()).add(materialType);
         }
 
-        List<Callable<List<SearchResult>>> searches = materialTypesByBackend.entrySet().stream()
+        List<Callable<BackendSearchResult>> searches = materialTypesByBackend.entrySet().stream()
                 .map(entry -> resolveTarget(entry.getKey(), entry.getValue()))
-                .map(target -> (Callable<List<SearchResult>>) () -> searchBackend(target, request))
+                .map(target -> (Callable<BackendSearchResult>) () -> searchBackend(target, request))
                 .toList();
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             return executor.invokeAll(searches).stream()
-                    .flatMap(search -> completed(search).stream())
+                    .map(SearchExecutionService::completed)
                     .toList();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
@@ -101,7 +108,7 @@ public class SearchExecutionService {
         return new BackendTarget(backendName, backend, searchEngine(backend), materialTypes);
     }
 
-    private static List<SearchResult> completed(java.util.concurrent.Future<List<SearchResult>> search) {
+    private static BackendSearchResult completed(java.util.concurrent.Future<BackendSearchResult> search) {
         try {
             return search.get();
         } catch (InterruptedException exception) {
@@ -115,7 +122,7 @@ public class SearchExecutionService {
         }
     }
 
-    private List<SearchResult> searchBackend(BackendTarget target, SearchExecutionRequest request) {
+    private BackendSearchResult searchBackend(BackendTarget target, SearchExecutionRequest request) {
         SearchQueryRequest backendQuery = new SearchQueryRequest(
                 request.query().id(),
                 request.query().name(),
@@ -124,9 +131,44 @@ public class SearchExecutionService {
         List<FieldProjection> projections = projections(target.materialTypes(), request.fields());
         ObjectNode body = queryTranslationService.translate(target.engine(), backendQuery);
         applyResultOptions(target, body, projections, request);
+        if (hasAggregations(request)) {
+            body.set(target.engine() == SearchEngine.ELASTICSEARCH ? "aggs" : "facet",
+                    queryTranslationService.translateAggregations(target.engine(), target.materialTypes(), request.aggs()));
+        }
 
         JsonNode response = postJson(target.name(), targetUri(target.backend(), target.engine()), body);
-        return parseResponse(target, projections, response);
+        return new BackendSearchResult(
+                target.name(),
+                parseResponse(target, projections, response),
+                hasAggregations(request) ? parseAggregations(target, request.aggs(), response) : null);
+    }
+
+    private static boolean hasAggregations(SearchExecutionRequest request) {
+        return request.aggs() != null && !request.aggs().isEmpty();
+    }
+
+    private static Map<String, AggregationResult> parseAggregations(
+            BackendTarget target,
+            Map<String, Aggregation> aggs,
+            JsonNode response
+    ) {
+        JsonNode aggregations = response.path(target.engine() == SearchEngine.ELASTICSEARCH ? "aggregations" : "facets");
+        Map<String, AggregationResult> results = new LinkedHashMap<>();
+        aggs.forEach((name, aggregation) -> results.put(name,
+                target.engine() == SearchEngine.ELASTICSEARCH
+                        ? aggregation.parseElasticsearch(aggregations.path(name))
+                        : aggregation.parseSolr(aggregations.path(name))));
+        return results;
+    }
+
+    private static Map<String, Map<String, AggregationResult>> aggregationsByBackend(List<BackendSearchResult> backendResults) {
+        Map<String, Map<String, AggregationResult>> aggregations = new LinkedHashMap<>();
+        for (BackendSearchResult backendResult : backendResults) {
+            if (backendResult.aggregations() != null) {
+                aggregations.put(backendResult.backend(), backendResult.aggregations());
+            }
+        }
+        return aggregations;
     }
 
     private void applyResultOptions(BackendTarget target, ObjectNode body, List<FieldProjection> projections, SearchExecutionRequest request) {
@@ -324,5 +366,12 @@ public class SearchExecutionService {
     }
 
     private record FieldProjection(String logicalName, String storedField) {
+    }
+
+    private record BackendSearchResult(
+            String backend,
+            List<SearchResult> results,
+            Map<String, AggregationResult> aggregations
+    ) {
     }
 }

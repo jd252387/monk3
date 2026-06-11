@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.SearchMappingConfig;
+import com.monk3.model.Aggregation;
 import com.monk3.model.BackendQuery;
 import com.monk3.model.SearchQueryRequest;
 import com.monk3.routing.QueryAnalysis;
@@ -103,5 +104,29 @@ public class QueryTranslationService {
         }
 
         return QueryJson.boolShould(searchEngine, 1, materialQueries);
+    }
+
+    public ObjectNode translateAggregations(
+            SearchEngine searchEngine,
+            List<String> materialTypes,
+            Map<String, Aggregation> aggs
+    ) {
+        AggregationContext context = aggregationContext(materialTypes);
+        ObjectNode translated = JsonNodeFactory.instance.objectNode();
+        aggs.forEach((name, aggregation) -> translated.set(name,
+                searchEngine == SearchEngine.ELASTICSEARCH
+                        ? aggregation.toElasticsearch(context)
+                        : aggregation.toSolr(context)));
+        return translated;
+    }
+
+    private AggregationContext aggregationContext(List<String> materialTypes) {
+        Map<String, QueryParseContext> contexts = new LinkedHashMap<>();
+        for (String materialType : materialTypes) {
+            SearchMapping mapping = catalogService.mappingForMaterialType(materialType);
+            VirtualMapping virtualMapping = catalogService.virtualMappingForMaterialType(materialType).orElse(null);
+            contexts.put(materialType, QueryParseContext.root(mapping, config, virtualMapping, virtualFieldExpander));
+        }
+        return new AggregationContext(contexts);
     }
 }

@@ -2,38 +2,234 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/search-query-dsl.schema.json",
   "title": "Search Query DSL",
-  "description": "Defines the root JSON DSL document used to describe a search query before it is translated to Apache Solr or Elasticsearch.",
+  "description": "Defines the root JSON DSL document used to execute a search: the query that is translated to Apache Solr or Elasticsearch, the fields to project, the result size, and optional aggregations.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "name",
-    "materialTypes",
-    "query"
+    "query",
+    "fields"
   ],
   "properties": {
-    "id": {
-      "type": "string",
-      "description": "Optional randomly generated identifier for this query instance."
+    "query": {
+      "$ref": "#/$defs/SearchQuery",
+      "description": "Required search query to translate and execute."
     },
-    "name": {
-      "type": "string",
-      "description": "Required human-readable query name used in logs and diagnostics."
-    },
-    "materialTypes": {
+    "fields": {
       "type": "array",
-      "description": "Required list of source or material types to fetch data from.",
+      "description": "Required field names to project in the response.",
       "minItems": 1,
       "items": {
         "type": "string",
-        "description": "A source or material type identifier."
+        "description": "A logical root document field name."
       }
     },
-    "query": {
-      "$ref": "#/$defs/QueryNode",
-      "description": "Required root query node."
+    "size": {
+      "type": "integer",
+      "description": "Optional maximum number of results to return per backend.",
+      "minimum": 1
+    },
+    "aggs": {
+      "$ref": "#/$defs/Aggregations",
+      "description": "Optional named facets/aggregations over root document fields, computed per backend."
     }
   },
   "$defs": {
+    "SearchQuery": {
+      "type": "object",
+      "description": "Describes a search query before it is translated to Apache Solr or Elasticsearch.",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "materialTypes",
+        "query"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Optional randomly generated identifier for this query instance."
+        },
+        "name": {
+          "type": "string",
+          "description": "Required human-readable query name used in logs and diagnostics."
+        },
+        "materialTypes": {
+          "type": "array",
+          "description": "Required list of source or material types to fetch data from.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "description": "A source or material type identifier."
+          }
+        },
+        "query": {
+          "$ref": "#/$defs/QueryNode",
+          "description": "Required root query node."
+        }
+      }
+    },
+    "Aggregations": {
+      "type": "object",
+      "description": "Named aggregations; each key is the aggregation name echoed back in the response.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/Aggregation"
+      }
+    },
+    "Aggregation": {
+      "description": "A single named facet/aggregation over a root document field.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TermsAggregation"
+        },
+        {
+          "$ref": "#/$defs/UniqueAggregation"
+        },
+        {
+          "$ref": "#/$defs/RangeAggregation"
+        },
+        {
+          "$ref": "#/$defs/SubfacetsAggregation"
+        }
+      ]
+    },
+    "TermsAggregation": {
+      "type": "object",
+      "description": "Top-N distinct values of a root document field with counts.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "terms"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Root document field to facet on."
+            },
+            "size": {
+              "type": "integer",
+              "description": "Optional maximum number of buckets to return.",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "UniqueAggregation": {
+      "type": "object",
+      "description": "Count of distinct values of a root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "unique"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Root document field to count distinct values of."
+            }
+          }
+        }
+      }
+    },
+    "RangeAggregation": {
+      "type": "object",
+      "description": "Histogram of a numeric root document field, bucketed by a fixed interval between bounds.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "range"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "interval",
+            "from",
+            "to"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to facet on."
+            },
+            "interval": {
+              "type": "number",
+              "description": "Bucket width.",
+              "exclusiveMinimum": 0
+            },
+            "from": {
+              "type": "number",
+              "description": "Inclusive lower bound of the first bucket."
+            },
+            "to": {
+              "type": "number",
+              "description": "Upper bound of the last bucket; must be greater than 'from'."
+            }
+          }
+        }
+      }
+    },
+    "SubfacetsAggregation": {
+      "type": "object",
+      "description": "A facet with one named sub-facet per filter; each filter is a query DSL payload applied to the given root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "subfacets"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "filters"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Root document field the filters apply to."
+            },
+            "filters": {
+              "type": "object",
+              "description": "Named filters in query DSL payload syntax; each becomes a sub-facet with the given name.",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/QueryPayload"
+              }
+            }
+          }
+        }
+      }
+    },
     "QueryNode": {
       "type": "object",
       "description": "A recursive query node. A node with an empty field is a boolean/group node; if the field is equal to the name of a document type in the mapping, then the sub-queries in 'data' query the fields in the specified document type; if 'field' is empty, then the node is a leaf field query.",

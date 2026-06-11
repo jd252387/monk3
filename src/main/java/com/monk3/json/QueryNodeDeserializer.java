@@ -90,7 +90,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         }
     }
 
-    private static QueryPayload readPayloadData(JsonParser parser, ObjectMapper mapper, JsonNode node)
+    static QueryPayload readPayloadData(JsonParser parser, ObjectMapper mapper, JsonNode node)
             throws IOException {
         if (!node.isObject()) {
             throw MismatchedInputException.from(parser, Object.class, "Query payload must be an object");

@@ -176,6 +176,37 @@ public class QueryResource {
                               "fields": ["title", "year"],
                               "size": 10
                             }
+                            """),
+            @ExampleObject(name = "Faceted search",
+                    summary = "Phrase search with terms and subfacets aggregations",
+                    value = """
+                            {
+                              "query": {
+                                "name": "Java books with facets",
+                                "materialTypes": ["book"],
+                                "query": {
+                                  "field": "title",
+                                  "data": { "type": "text", "phrases": ["java"] }
+                                }
+                              },
+                              "fields": ["title", "year"],
+                              "size": 10,
+                              "aggs": {
+                                "byAuthor": {
+                                  "aggType": "terms",
+                                  "args": { "field": "author", "size": 5 }
+                                },
+                                "published": {
+                                  "aggType": "subfacets",
+                                  "args": {
+                                    "field": "publishedAt",
+                                    "filters": {
+                                      "lastYear": { "type": "range", "gte": "2025-01-01T00:00:00Z", "lt": "2026-01-01T00:00:00Z" }
+                                    }
+                                  }
+                                }
+                              }
+                            }
                             """)
     }))
     @APIResponses({
