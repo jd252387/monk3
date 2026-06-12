@@ -21,7 +21,7 @@ import java.util.Set;
 @Schema(description = "An exact-match query against one or more values", oneOf = {ExactQuery.Numeric.class, ExactQuery.Datetime.class, ExactQuery.BooleanValues.class})
 public sealed interface ExactQuery<T> extends QueryPayload
         permits ExactQuery.Numeric, ExactQuery.Datetime, ExactQuery.BooleanValues {
-    Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME);
+    Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
     JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @JsonProperty

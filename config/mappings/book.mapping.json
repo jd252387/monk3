@@ -22,6 +22,10 @@
       "type": "datetime",
       "destinationField": "book_published_at"
     },
+    "inPrint": {
+      "type": "boolean",
+      "destinationField": "book_in_print"
+    },
     "chapters": {
       "type": "subdocument",
       "subdocumentType": "chapter",

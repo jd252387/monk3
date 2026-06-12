@@ -103,6 +103,14 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       }
                     }
                     """));
+            server.createContext("/es/empty/_search", exchange -> respond(exchange, """
+                    {
+                      "hits": {
+                        "max_score": null,
+                        "hits": []
+                      }
+                    }
+                    """));
             server.createContext("/solr/books/select", exchange -> respond(exchange, """
                     {
                       "response": {
@@ -125,9 +133,10 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             String backendsJson = """
                     {"backends":{
                       "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books"},
+                      "elastic-empty":{"engine":"ELASTICSEARCH","url":"%s/es","index":"empty"},
                       "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles"},
                       "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books"}
-                    }}""".formatted(baseUrl, baseUrl, baseUrl);
+                    }}""".formatted(baseUrl, baseUrl, baseUrl, baseUrl);
             backendsFile = Files.createTempFile("monk3-test-backends", ".json");
             Files.writeString(backendsFile, backendsJson);
 
@@ -147,7 +156,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                         ]
                       },
                       "article": {"physical":"config/mappings/article.mapping.json","backend":"solr-articles"},
-                      "ds":      {"physical":"config/mappings/dataset.mapping.json","backend":"elastic-books"}
+                      "ds":      {"physical":"config/mappings/dataset.mapping.json","backend":"elastic-books"},
+                      "emptyset":{"physical":"config/mappings/dataset.mapping.json","backend":"elastic-empty"}
                     }}""";
             catalogFile = Files.createTempFile("monk3-test-catalog", ".json");
             Files.writeString(catalogFile, catalogJson);

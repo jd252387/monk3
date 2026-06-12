@@ -25,6 +25,10 @@
     "citationCount": {
       "type": "number",
       "destinationField": "article_citation_count"
+    },
+    "openAccess": {
+      "type": "boolean",
+      "destinationField": "article_open_access"
     }
   }
 }

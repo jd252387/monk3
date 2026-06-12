@@ -53,13 +53,12 @@ public class SearchExecutionService {
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
         List<BackendSearchResult> backendResults = executeBackendSearches(request);
+        if (backendResults.isEmpty()) {
+            throw new QueryTranslationException("No configured search backend supports the requested material types");
+        }
         List<SearchResult> results = backendResults.stream()
                 .flatMap(backendResult -> backendResult.results().stream())
                 .toList();
-
-        if (results.isEmpty() && !hasAggregations(request)) {
-            throw new QueryTranslationException("No configured search backend supports the requested material types");
-        }
 
         return new SearchExecutionResponse(
                 results.stream()

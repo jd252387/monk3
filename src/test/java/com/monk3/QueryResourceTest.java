@@ -577,6 +577,73 @@ class QueryResourceTest {
     }
 
     @Test
+    void searchMatchingNoDocumentsReturnsEmptyResults() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "No matches",
+                            "materialTypes": ["emptyset"],
+                            "query": {
+                              "field": "ds",
+                              "data": { "type": "text", "phrases": ["nonexistent"] }
+                            }
+                          },
+                          "fields": ["ds"]
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results.size()", equalTo(0))
+                .body("aggregations", nullValue());
+    }
+
+    @Test
+    void parsesBooleanExactQueryForElasticsearchAndSolr() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Boolean exact query (ES)",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "inPrint",
+                            "data": { "type": "exact", "values": [true] }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].query.bool.must[0].terms.book_in_print[0]", equalTo(true));
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "name": "Boolean exact query (Solr)",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "openAccess",
+                            "data": { "type": "exact", "values": [true] }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].query.bool.must[0].field.f", equalTo("article_open_access"))
+                .body("[0].query.bool.must[0].field.query", equalTo(true));
+    }
+
+    @Test
     void aggregationTranslationFailuresReturnStructuredBadRequest() {
         assertAggregationTranslationError("""
                 {"missing": {"aggType": "terms", "args": {"field": "missing"}}}
