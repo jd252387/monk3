@@ -1,15 +1,25 @@
+# Build output
 .gradle/
 build/
 bin/
+out/
+target/
 
+# Compiled / log files
 *.class
 *.log
+*.pid
 
+# IDEs
 .idea/
 *.iml
 
-target/
-.quarkus
-.codegraph
-.codegraph/*
+# Quarkus
+.quarkus/
+
+# Tooling
+.codegraph/
 reasonix.toml
+
+# OS
+.DS_Store

@@ -33,17 +33,6 @@ dependencies {
     testAnnotationProcessor(libs.lombok)
 }
 
-val copySearchQuerySchema by tasks.registering(Copy::class) {
-    from(layout.projectDirectory.file("search-query-dsl.schema.json"))
-    into(layout.buildDirectory.dir("generated/resources/search-query-schema"))
-}
-
-sourceSets {
-    main {
-        resources.srcDir(copySearchQuerySchema)
-    }
-}
-
 tasks.withType<Test> {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
 }
