@@ -32,7 +32,6 @@ public class VirtualFieldExpander {
     public JsonNode expandAndTranslate(
             VirtualField virtualField,
             QueryData data,
-            boolean isNegated,
             QueryParseContext context,
             SearchEngine engine
     ) {
@@ -47,11 +46,7 @@ public class VirtualFieldExpander {
                     "Failed to parse expansion for virtual field '" + virtualField.logicalName() + "': " + e.getMessage());
         }
 
-        JsonNode translated = engine == SearchEngine.ELASTICSEARCH
-                ? expanded.toElasticsearch(context)
-                : expanded.toSolr(context);
-
-        return isNegated ? QueryJson.mustNot(engine, translated) : translated;
+        return expanded.translate(engine, context);
     }
 
     private Map<String, JsonNode> resolveSubstitutionVariables(VirtualField virtualField, QueryData data) {
@@ -69,7 +64,7 @@ public class VirtualFieldExpander {
                     "Virtual field '" + virtualField.logicalName() + "' requires a query payload");
         }
         validatePayloadType(virtualField, payload);
-        return buildSubstitutionMap(payload);
+        return Map.of("data", objectMapper.valueToTree(payload));
     }
 
     private void validatePayloadType(VirtualField virtualField, QueryPayload payload) {
@@ -84,12 +79,8 @@ public class VirtualFieldExpander {
             throw new QueryTranslationException(
                     "Query payload type is not compatible with virtual field '"
                             + virtualField.logicalName() + "' of type '"
-                            + virtualField.type().name().toLowerCase() + "'");
+                            + QueryParseContext.typeName(virtualField.type()) + "'");
         }
-    }
-
-    private Map<String, JsonNode> buildSubstitutionMap(QueryPayload payload) {
-        return Map.of("data", objectMapper.valueToTree(payload));
     }
 
     private JsonNode substitute(JsonNode node, Map<String, JsonNode> vars) {

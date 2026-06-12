@@ -27,13 +27,18 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 
 ### Package layout
 
+Root project (`com.monk3`):
+
 | Package | Role |
 |---|---|
 | `api` | JAX-RS resources and `ExceptionMapper` implementations |
 | `json` | Custom Jackson deserializers for the query DSL |
-| `mapping` | Field mapping definitions (logical name → search-engine field name) |
+| `mapping` | Application-level mapping config (`SearchMappingConfig`) |
 | `model` | Immutable records for the domain model |
+| `routing` | Query analysis and routing of material types to backends |
 | `search` | Query translation and search execution services |
+
+`catalog` subproject (`jd.nomad.*`): configuration catalog with hot reload — `config` (catalog datastores: `FileCatalogDatastore`, `EtcdCatalogDatastore`, `ConfigurationCatalogService`), `mapping` (mapping/backend config records, `FieldType`), `routing` (`RoutingRule` / `RoutingCondition`).
 
 ### REST endpoints (`/queries`)
 
@@ -45,26 +50,30 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 
 `SearchQueryRequest` carries a list of `materialTypes` and a root `QueryNode`. A `QueryNode` has a `field` and `data`:
 
-- **Leaf node**: non-empty `field` with `QueryPayload` data — one of `TextQuery`, `RangeQuery` (`NumericRangeQuery` / `DatetimeRangeQuery`), or `ExactQuery` (`NumericExactQuery` / `DatetimeExactQuery` / `BooleanExactQuery`).
+- **Leaf node**: non-empty `field` with `QueryPayload` data — one of `TextQuery`, `RangeQuery` (`Numeric` / `Datetime`), or `ExactQuery` (`Numeric` / `Datetime` / `BooleanValues`).
 - **Boolean node**: empty `field` with `BooleanQueryData` (a list-of-lists of `QueryNode`s, outer = OR/should clauses, inner = AND/must clauses).
 - **Subdocument node**: non-empty `field` pointing to a subdocument type, with `BooleanQueryData` — translates to ES `nested` or Solr `{!parent}` queries.
 
 `QueryNode` fields `minimumMatch` and `isNot` are only meaningful on boolean nodes.
 
-### Field mapping
+### Configuration catalog and field mapping
 
-Mappings live in `src/main/resources/mappings/*.mapping.json` and are loaded at startup by `MappingRepository` using the `monk3.search.material-type-mappings` config. Each mapping file declares:
+Configuration is loaded (and hot-reloaded) by the `catalog` subproject, selected via `indexer.catalog.source` (`FILE` or `etcd`) in `application.yaml`. For the file source, `indexer.catalog.file.config` points at `config/catalog.json` (per material type: `physical` mapping file, optional `virtual` mapping file, default `backend`, optional `routing` rules) and `indexer.catalog.file.backends` points at `config/backends.json`.
+
+Each mapping file (`config/mappings/*.mapping.json`) declares:
 - `primaryKey` — the stored field name used as the document ID
 - `root` — root-level fields
 - Additional named blocks for subdocument types
 
 Each field entry has a `type` (`string`, `freetext`, `number`, `datetime`, `boolean`, `subdocument`) and optionally a `destinationField` (the actual field name sent to the search engine). Subdocument fields also declare `subdocumentType` referencing another block in the same file.
 
+Virtual mapping files (`*.virtual.json`) declare virtual fields that expand to query templates (with a `{{data}}` placeholder) via `VirtualFieldExpander`; `predicate`-typed virtual fields take no data.
+
 ### Search execution
 
 `SearchExecutionService` fans out to all configured backends in parallel using virtual threads, translates the query per backend's engine, resolves field projections, POSTs the JSON body, then merges and normalizes scores before returning sorted results.
 
-Backends are configured under `monk3.search.backends` in `application.yaml`. Each backend declares its `engine` (`ELASTICSEARCH` or `SOLR`), `url`, either `index` (ES) or `collection` (Solr), and the `materialTypes` it serves.
+Backends are configured in `config/backends.json`. Each backend declares its `engine` (`ELASTICSEARCH` or `SOLR`), `url`, either `index` (ES) or `collection` (Solr), and an optional `defaultSize`. Each material type routes to its default backend from `catalog.json` unless a `routing` rule matches (e.g. `datetimeRangeWithin` sends recent-range queries elsewhere); `QueryAnalyzer` + `RoutingEngine` evaluate the rules per request.
 
 ### Testing
 

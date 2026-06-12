@@ -13,9 +13,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Set;
 
 @Schema(description = "A range query with lower and upper bounds", oneOf = {RangeQuery.Numeric.class, RangeQuery.Datetime.class})
 public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Numeric, RangeQuery.Datetime {
+    Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.NUMBER, FieldType.DATETIME);
+
     @JsonProperty
     default String type() {
         return "range";
@@ -29,6 +32,14 @@ public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Nu
 
     T lt();
 
+    default T lowerBound() {
+        return gte() != null ? gte() : gt();
+    }
+
+    default T upperBound() {
+        return lte() != null ? lte() : lt();
+    }
+
     @AssertTrue(message = "range queries require exactly one lower bound and exactly one upper bound")
     default boolean hasValidBounds() {
         return (gte() != null) != (gt() != null) && (lte() != null) != (lt() != null);
@@ -36,7 +47,7 @@ public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Nu
 
     @Override
     default JsonNode toElasticsearch(QueryParseContext context) {
-        String field = context.requireSearchField("range", FieldType.NUMBER, FieldType.DATETIME);
+        String field = context.requireSearchField("range", SUPPORTED_FIELD_TYPES);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode range = root.putObject("range");
         ObjectNode fieldRange = range.putObject(field);
@@ -49,7 +60,7 @@ public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Nu
 
     @Override
     default JsonNode toSolr(QueryParseContext context) {
-        String field = context.requireSearchField("range", FieldType.NUMBER, FieldType.DATETIME);
+        String field = context.requireSearchField("range", SUPPORTED_FIELD_TYPES);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode range = root.putObject("frange");
         range.put("query", field);

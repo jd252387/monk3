@@ -4,7 +4,6 @@ import com.monk3.model.BooleanQueryData;
 import com.monk3.model.QueryNode;
 import com.monk3.model.RangeQuery;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -39,10 +38,8 @@ public final class QueryAnalyzer {
                 }
             }
         } else if (!node.field().isBlank() && node.data() instanceof RangeQuery.Datetime datetimeRange) {
-            Instant lower = datetimeRange.gte() != null ? datetimeRange.gte() : datetimeRange.gt();
-            Instant upper = datetimeRange.lte() != null ? datetimeRange.lte() : datetimeRange.lt();
             datetimeRanges.computeIfAbsent(node.field(), k -> new ArrayList<>())
-                    .add(new QueryAnalysis.DatetimeRangeInfo(lower, upper));
+                    .add(new QueryAnalysis.DatetimeRangeInfo(datetimeRange.lowerBound(), datetimeRange.upperBound()));
         }
     }
 }

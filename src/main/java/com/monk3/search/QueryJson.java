@@ -5,10 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.DecimalNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public final class QueryJson {
@@ -35,6 +39,10 @@ public final class QueryJson {
         return root;
     }
 
+    public static JsonNode shouldOrSingle(SearchEngine engine, List<JsonNode> clauses) {
+        return clauses.size() == 1 ? clauses.getFirst() : boolShould(engine, 1, clauses);
+    }
+
     public static ObjectNode boolMust(List<JsonNode> clauses) {
         ObjectNode root = JSON.objectNode();
         ArrayNode must = root.putObject("bool").putArray("must");
@@ -55,7 +63,22 @@ public final class QueryJson {
         return root;
     }
 
+    public static ObjectNode solrFieldQuery(String field, Object value) {
+        ObjectNode root = JSON.objectNode();
+        root.putObject("field")
+                .put("f", field)
+                .set("query", valueNode(value));
+        return root;
+    }
+
     public static JsonNode valueNode(Object value) {
-        return MAPPER.valueToTree(value);
+        return switch (value) {
+            case String text -> JSON.textNode(text);
+            // DecimalNode directly, since JsonNodeFactory.instance normalizes BigDecimals
+            case BigDecimal decimal -> DecimalNode.valueOf(decimal);
+            case Boolean bool -> JSON.booleanNode(bool);
+            case Instant instant -> JSON.textNode(DateTimeFormatter.ISO_INSTANT.format(instant));
+            default -> MAPPER.valueToTree(value);
+        };
     }
 }

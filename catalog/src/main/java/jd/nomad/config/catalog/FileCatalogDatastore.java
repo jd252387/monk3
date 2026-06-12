@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 @ApplicationScoped
-@LookupIfProperty(name = "indexer.catalog.source", stringValue = "file")
+@LookupIfProperty(name = "indexer.catalog.source", stringValue = "FILE")
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @Slf4j
 public class FileCatalogDatastore implements CatalogDatastore {

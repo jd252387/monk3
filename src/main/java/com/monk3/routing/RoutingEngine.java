@@ -7,9 +7,12 @@ import jd.nomad.routing.RoutingRule;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class RoutingEngine {
+    private static final Map<String, Duration> PARSED_PERIODS = new ConcurrentHashMap<>();
 
     public String resolve(String defaultBackend, List<RoutingRule> rules, QueryAnalysis analysis) {
         Instant now = Instant.now();
@@ -39,7 +42,7 @@ public class RoutingEngine {
                 if (ranges == null || ranges.isEmpty()) {
                     yield false;
                 }
-                Instant threshold = now.minus(Duration.parse(period));
+                Instant threshold = now.minus(PARSED_PERIODS.computeIfAbsent(period, Duration::parse));
                 yield ranges.stream().anyMatch(r -> r.lowerBound() != null && r.lowerBound().isAfter(threshold));
             }
         };

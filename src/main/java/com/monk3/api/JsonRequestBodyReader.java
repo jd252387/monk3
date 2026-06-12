@@ -10,7 +10,6 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
-import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
 
@@ -47,14 +46,7 @@ public class JsonRequestBodyReader implements MessageBodyReader<Object> {
         try {
             return objectMapper.readValue(entityStream, type);
         } catch (JsonMappingException exception) {
-            throw new BadRequestException(structuredResponse(exception), exception);
+            throw new BadRequestException(JsonMappingExceptionMapper.response(exception), exception);
         }
-    }
-
-    private static Response structuredResponse(JsonMappingException exception) {
-        return Response.status(Response.Status.BAD_REQUEST)
-                .type(MediaType.APPLICATION_JSON_TYPE)
-                .entity(ErrorResponse.of(JsonMappingExceptionMapper.CODE, JsonMappingExceptionMapper.explanation(exception)))
-                .build();
     }
 }

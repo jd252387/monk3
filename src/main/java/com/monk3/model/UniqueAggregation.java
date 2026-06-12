@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.monk3.search.AggregationContext;
 import jakarta.validation.constraints.NotBlank;
-import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(description = "Count of distinct values of a root document field", example = """
@@ -19,9 +18,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         }
         """)
 public record UniqueAggregation(@NotBlank String field) implements Aggregation {
-    private static final FieldType[] SUPPORTED_FIELD_TYPES =
-            {FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN};
-
     @JsonProperty
     public String aggType() {
         return "unique";
@@ -29,7 +25,7 @@ public record UniqueAggregation(@NotBlank String field) implements Aggregation {
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.putObject("cardinality").put("field", searchField);
         return root;
@@ -37,7 +33,7 @@ public record UniqueAggregation(@NotBlank String field) implements Aggregation {
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
         return TextNode.valueOf("unique(" + searchField + ")");
     }
 

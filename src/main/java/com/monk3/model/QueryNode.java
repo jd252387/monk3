@@ -1,14 +1,13 @@
 package com.monk3.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.monk3.json.QueryNodeDeserializer;
+import com.monk3.search.QueryJson;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;
 import com.monk3.search.SearchEngine;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -35,44 +34,21 @@ public record QueryNode(
         @Schema(description = "Negate this node's result") Boolean isNot,
         @Valid @Schema(description = "Query payload (leaf) or boolean clause list (boolean node); absent for predicate virtual fields") QueryData data
 ) {
-    @AssertTrue(message = "field determines data shape")
-    public boolean hasMatchingDataShape() {
-        if (field == null || data == null) {
-            return true;
-        }
-        return field.isEmpty() ? data instanceof BooleanQueryData : data instanceof QueryPayload || data instanceof BooleanQueryData;
+    public JsonNode translate(SearchEngine engine, QueryParseContext context) {
+        JsonNode query = translateData(engine, context);
+        return Boolean.TRUE.equals(isNot) ? QueryJson.mustNot(engine, query) : query;
     }
 
-    public JsonNode toElasticsearch(QueryParseContext context) {
+    private JsonNode translateData(SearchEngine engine, QueryParseContext context) {
         if (!field.isEmpty()) {
-            var vf = context.findVirtualField(field);
-            if (vf.isPresent()) {
-                return context.expandVirtual(vf.get(), data, isNegated(), SearchEngine.ELASTICSEARCH);
+            var virtualField = context.findVirtualField(field);
+            if (virtualField.isPresent()) {
+                return context.expandVirtual(virtualField.get(), data, engine);
             }
         }
-        requireData();
-        return data.toElasticsearch(context, this);
-    }
-
-    public JsonNode toSolr(QueryParseContext context) {
-        if (!field.isEmpty()) {
-            var vf = context.findVirtualField(field);
-            if (vf.isPresent()) {
-                return context.expandVirtual(vf.get(), data, isNegated(), SearchEngine.SOLR);
-            }
-        }
-        requireData();
-        return data.toSolr(context, this);
-    }
-
-    private void requireData() {
         if (data == null) {
             throw new QueryTranslationException("Query node for field '" + field + "' requires data");
         }
-    }
-
-    @JsonIgnore
-    boolean isNegated() {
-        return Boolean.TRUE.equals(isNot);
+        return data.translate(engine, context, this);
     }
 }

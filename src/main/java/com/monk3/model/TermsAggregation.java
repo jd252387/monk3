@@ -20,9 +20,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         }
         """)
 public record TermsAggregation(@NotBlank String field, @Positive Integer size) implements Aggregation {
-    private static final FieldType[] SUPPORTED_FIELD_TYPES =
-            {FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN};
-
     @JsonProperty
     public String aggType() {
         return "terms";
@@ -30,7 +27,7 @@ public record TermsAggregation(@NotBlank String field, @Positive Integer size) i
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode terms = root.putObject("terms");
         terms.put("field", searchField);
@@ -42,7 +39,7 @@ public record TermsAggregation(@NotBlank String field, @Positive Integer size) i
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "terms");
         facet.put("field", searchField);
@@ -50,15 +47,5 @@ public record TermsAggregation(@NotBlank String field, @Positive Integer size) i
             facet.put("limit", size);
         }
         return facet;
-    }
-
-    @Override
-    public AggregationResult parseElasticsearch(JsonNode aggregation) {
-        return Aggregation.bucketsResult(aggregation, "key", "doc_count");
-    }
-
-    @Override
-    public AggregationResult parseSolr(JsonNode facet) {
-        return Aggregation.bucketsResult(facet, "val", "count");
     }
 }

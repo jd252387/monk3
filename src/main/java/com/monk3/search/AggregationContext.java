@@ -4,15 +4,14 @@ import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 
 import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public record AggregationContext(Map<String, QueryParseContext> contextsByMaterialType) {
 
-    public ResolvedFacetField requireFacetField(String logicalName, String aggType, FieldType... supportedTypes) {
-        Set<String> resolutions = new LinkedHashSet<>();
+    public ResolvedFacetField requireFacetField(String logicalName, String aggType, Set<FieldType> supportedTypes) {
+        Set<Resolution> resolutions = new LinkedHashSet<>();
         ResolvedFacetField resolved = null;
         for (Map.Entry<String, QueryParseContext> entry : contextsByMaterialType.entrySet()) {
             String materialType = entry.getKey();
@@ -24,19 +23,21 @@ public record AggregationContext(Map<String, QueryParseContext> contextsByMateri
                         "Aggregations are only supported on root document fields; '" + logicalName
                                 + "' is a subdocument field for material type '" + materialType + "'");
             }
-            if (!List.of(supportedTypes).contains(mappedField.type())) {
+            if (!supportedTypes.contains(mappedField.type())) {
                 throw new QueryTranslationException(
                         "Aggregation type '" + aggType + "' is not supported for field '" + logicalName
-                                + "' with mapping type '" + typeName(mappedField) + "'");
+                                + "' with mapping type '" + QueryParseContext.typeName(mappedField.type()) + "'");
             }
-            resolutions.add(mappedField.searchField() + " (" + typeName(mappedField) + ")");
+            resolutions.add(new Resolution(mappedField.searchField(), mappedField.type()));
             if (resolved == null) {
                 resolved = new ResolvedFacetField(mappedField.searchField(), context.withField(mappedField));
             }
         }
         if (resolutions.size() > 1) {
             throw new QueryTranslationException("Aggregation field '" + logicalName
-                    + "' resolves differently across the requested material types: " + resolutions);
+                    + "' resolves differently across the requested material types: " + resolutions.stream()
+                    .map(Resolution::display)
+                    .collect(Collectors.joining(", ", "[", "]")));
         }
         if (resolved == null) {
             throw new QueryTranslationException("No material types are available to resolve aggregation field '" + logicalName + "'");
@@ -56,8 +57,10 @@ public record AggregationContext(Map<String, QueryParseContext> contextsByMateri
                 "Aggregation field '" + logicalName + "' is not defined for material type '" + materialType + "'");
     }
 
-    private static String typeName(MappedField mappedField) {
-        return mappedField.type().name().toLowerCase(Locale.ROOT);
+    private record Resolution(String searchField, FieldType type) {
+        String display() {
+            return searchField + " (" + QueryParseContext.typeName(type) + ")";
+        }
     }
 
     public record ResolvedFacetField(String searchField, QueryParseContext payloadContext) {

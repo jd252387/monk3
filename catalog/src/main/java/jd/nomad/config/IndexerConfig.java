@@ -14,7 +14,7 @@ public interface IndexerConfig {
 
     interface Catalog {
 
-        @WithDefault("file")
+        @WithDefault("FILE")
         CatalogSource source();
 
         FileSource file();

@@ -5,6 +5,8 @@ import io.quarkus.test.common.QuarkusTestResource;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,8 +157,6 @@ class QueryResourceTest {
 
     @Test
     void parsesSubdocumentQueryToSolrBlockJoinDsl() {
-        String recentLower = java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString();
-        String recentUpper = java.time.Instant.now().toString();
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -189,7 +189,7 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """.formatted(recentLower, recentUpper))
+                        """.formatted(recentRange()))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -1059,8 +1059,6 @@ class QueryResourceTest {
 
     @Test
     void expandsRootVirtualFieldToSolrDsl() {
-        String recentLower = java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString();
-        String recentUpper = java.time.Instant.now().toString();
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -1077,7 +1075,7 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """.formatted(recentLower, recentUpper))
+                        """.formatted(recentRange()))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -1172,8 +1170,6 @@ class QueryResourceTest {
 
     @Test
     void expandsPredicateVirtualFieldWithoutDataToSolrDsl() {
-        String recentLower = java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString();
-        String recentUpper = java.time.Instant.now().toString();
         given()
                 .contentType(ContentType.JSON)
                 .body("""
@@ -1190,7 +1186,7 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """.formatted(recentLower, recentUpper))
+                        """.formatted(recentRange()))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -1268,20 +1264,15 @@ class QueryResourceTest {
                           "fields": ["title"],
                           "size": 5
                         }
-                        """.formatted(
-                        java.time.Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS).toString(),
-                        java.time.Instant.now().toString()))
+                        """.formatted(recentRange()))
                 .when().post("/queries/search")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("results[0].backend", equalTo("solr-books"));
 
-        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
-        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
-                hasItem("/solr/books/select"));
-        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
-                not(hasItem("/es/books/_search")));
+        assertThat(SearchBackendTestResource.requestPaths(), hasItem("/solr/books/select"));
+        assertThat(SearchBackendTestResource.requestPaths(), not(hasItem("/es/books/_search")));
     }
 
     @Test
@@ -1314,11 +1305,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("results[0].backend", equalTo("elastic-books"));
 
-        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
-        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
-                hasItem("/es/books/_search"));
-        assertThat(requests.stream().map(SearchBackendTestResource.RecordedRequest::path).toList(),
-                not(hasItem("/solr/books/select")));
+        assertThat(SearchBackendTestResource.requestPaths(), hasItem("/es/books/_search"));
+        assertThat(SearchBackendTestResource.requestPaths(), not(hasItem("/solr/books/select")));
+    }
+
+    /** Lower (7 days ago) and upper (now) bounds for a "recently published" range, for use with formatted(). */
+    private static Object[] recentRange() {
+        Instant now = Instant.now();
+        return new Object[] {now.minus(7, ChronoUnit.DAYS), now};
     }
 
     private static void assertBadRequest(String body) {

@@ -13,8 +13,6 @@ import com.monk3.routing.RoutingEngine;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.config.catalog.ConfigurationCatalogService;
 import jd.nomad.mapping.BackendConfig;
-import jd.nomad.mapping.SearchMapping;
-import jd.nomad.mapping.VirtualMapping;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
@@ -31,6 +29,18 @@ public class QueryTranslationService {
     private final RoutingEngine routingEngine;
 
     public List<BackendQuery> translateByBackend(SearchQueryRequest request) {
+        return resolveTargets(request).stream()
+                .map(target -> new BackendQuery(
+                        target.name(), target.engine(), target.materialTypes(),
+                        translate(target.engine(), target.request())))
+                .toList();
+    }
+
+    /**
+     * Routes each requested material type to a backend and groups the request per backend,
+     * preserving request order.
+     */
+    public List<BackendTarget> resolveTargets(SearchQueryRequest request) {
         QueryAnalysis analysis = QueryAnalyzer.analyze(request.query());
         Map<String, List<String>> materialTypesByBackend = new LinkedHashMap<>();
         for (String materialType : request.materialTypes()) {
@@ -41,69 +51,44 @@ public class QueryTranslationService {
             materialTypesByBackend.computeIfAbsent(backendName, k -> new ArrayList<>()).add(materialType);
         }
         return materialTypesByBackend.entrySet().stream()
-                .map(entry -> buildBackendQuery(entry.getKey(), entry.getValue(), request))
+                .map(entry -> resolveTarget(entry.getKey(), entry.getValue(), request))
                 .toList();
     }
 
-    private BackendQuery buildBackendQuery(String backendName, List<String> materialTypes, SearchQueryRequest request) {
+    private BackendTarget resolveTarget(String backendName, List<String> materialTypes, SearchQueryRequest request) {
         BackendConfig backendConfig;
         try {
             backendConfig = catalogService.backendConfig(backendName);
         } catch (IllegalStateException e) {
             throw new QueryTranslationException("No configured search backend named '" + backendName + "'");
         }
-        SearchEngine engine = SearchEngine.valueOf(backendConfig.engine().name());
         SearchQueryRequest groupedRequest = new SearchQueryRequest(
                 request.id(), request.name(), materialTypes, request.query());
-        ObjectNode translated = translate(engine, groupedRequest);
-        return new BackendQuery(backendName, engine, materialTypes, (ObjectNode) translated.get("query"));
+        return new BackendTarget(backendName, backendConfig, SearchEngine.of(backendConfig.engine()), groupedRequest);
     }
 
     public ObjectNode translate(SearchEngine searchEngine, SearchQueryRequest request) {
         List<JsonNode> materialQueries = request.materialTypes().stream()
-                .map(materialType -> translateMaterialType(searchEngine, request, materialType))
+                .<JsonNode>map(materialType -> translateMaterialType(searchEngine, request, materialType))
                 .toList();
-
-        ObjectNode response = JsonNodeFactory.instance.objectNode();
-        response.set("query", combineMaterialQueries(searchEngine, materialQueries));
-        return response;
+        return (ObjectNode) QueryJson.shouldOrSingle(searchEngine, materialQueries);
     }
 
-    private JsonNode translateMaterialType(
+    private ObjectNode translateMaterialType(
             SearchEngine searchEngine,
             SearchQueryRequest request,
             String materialType
     ) {
-        SearchMapping mapping = catalogService.mappingForMaterialType(materialType);
-        VirtualMapping virtualMapping = catalogService.virtualMappingForMaterialType(materialType).orElse(null);
-        QueryParseContext context = QueryParseContext.root(mapping, config, virtualMapping, virtualFieldExpander);
-        JsonNode query = searchEngine == SearchEngine.ELASTICSEARCH
-                ? request.query().toElasticsearch(context)
-                : request.query().toSolr(context);
+        JsonNode query = request.query().translate(searchEngine, contextFor(materialType));
+        JsonNode filter = searchEngine == SearchEngine.ELASTICSEARCH
+                ? JsonNodeFactory.instance.objectNode()
+                        .set("term", JsonNodeFactory.instance.objectNode().put(config.materialTypeField(), materialType))
+                : QueryJson.solrFieldQuery(config.materialTypeField(), materialType);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode bool = root.putObject("bool");
-        JsonNode filter;
-        if (searchEngine == SearchEngine.ELASTICSEARCH) {
-            filter = JsonNodeFactory.instance.objectNode()
-                    .set("term", JsonNodeFactory.instance.objectNode().put(config.materialTypeField(), materialType));
-        } else {
-            ObjectNode fieldQuery = JsonNodeFactory.instance.objectNode();
-            fieldQuery.putObject("field")
-                    .put("f", config.materialTypeField())
-                    .set("query", QueryJson.valueNode(materialType));
-            filter = fieldQuery;
-        }
         bool.putArray("filter").add(filter);
         bool.putArray("must").add(query);
         return root;
-    }
-
-    private JsonNode combineMaterialQueries(SearchEngine searchEngine, List<JsonNode> materialQueries) {
-        if (materialQueries.size() == 1) {
-            return materialQueries.get(0);
-        }
-
-        return QueryJson.boolShould(searchEngine, 1, materialQueries);
     }
 
     public ObjectNode translateAggregations(
@@ -113,20 +98,33 @@ public class QueryTranslationService {
     ) {
         AggregationContext context = aggregationContext(materialTypes);
         ObjectNode translated = JsonNodeFactory.instance.objectNode();
-        aggs.forEach((name, aggregation) -> translated.set(name,
-                searchEngine == SearchEngine.ELASTICSEARCH
-                        ? aggregation.toElasticsearch(context)
-                        : aggregation.toSolr(context)));
+        aggs.forEach((name, aggregation) -> translated.set(name, aggregation.translate(searchEngine, context)));
         return translated;
     }
 
     private AggregationContext aggregationContext(List<String> materialTypes) {
         Map<String, QueryParseContext> contexts = new LinkedHashMap<>();
         for (String materialType : materialTypes) {
-            SearchMapping mapping = catalogService.mappingForMaterialType(materialType);
-            VirtualMapping virtualMapping = catalogService.virtualMappingForMaterialType(materialType).orElse(null);
-            contexts.put(materialType, QueryParseContext.root(mapping, config, virtualMapping, virtualFieldExpander));
+            contexts.put(materialType, contextFor(materialType));
         }
         return new AggregationContext(contexts);
+    }
+
+    private QueryParseContext contextFor(String materialType) {
+        return QueryParseContext.root(
+                catalogService.mappingForMaterialType(materialType),
+                catalogService.virtualMappingForMaterialType(materialType).orElse(null),
+                virtualFieldExpander);
+    }
+
+    public record BackendTarget(
+            String name,
+            BackendConfig backend,
+            SearchEngine engine,
+            SearchQueryRequest request
+    ) {
+        public List<String> materialTypes() {
+            return request.materialTypes();
+        }
     }
 }

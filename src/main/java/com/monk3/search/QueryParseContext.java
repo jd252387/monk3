@@ -1,7 +1,6 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.model.QueryData;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
@@ -10,27 +9,25 @@ import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualField;
 import jd.nomad.mapping.VirtualMapping;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 public record QueryParseContext(
         SearchMapping mapping,
         DocumentMapping document,
         MappedField currentField,
         Integer minimumMatch,
-        SearchMappingConfig config,
         VirtualMapping virtualMapping,
         VirtualFieldExpander expander,
         String nestedPath
 ) {
     public static QueryParseContext root(
             SearchMapping mapping,
-            SearchMappingConfig config,
             VirtualMapping virtualMapping,
             VirtualFieldExpander expander
     ) {
-        return new QueryParseContext(mapping, mapping.root(), null, null, config, virtualMapping, expander, null);
+        return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -42,11 +39,11 @@ public record QueryParseContext(
     }
 
     public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
-        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, config, virtualMapping, expander, path);
+        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path);
     }
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
-        return new QueryParseContext(mapping, document, currentField, minimumMatch, config, virtualMapping, expander, nestedPath);
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander, nestedPath);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {
@@ -56,17 +53,12 @@ public record QueryParseContext(
         return virtualMapping.document(document.name()).flatMap(d -> d.field(logicalName));
     }
 
-    public JsonNode expandVirtual(
-            VirtualField virtualField,
-            QueryData data,
-            boolean isNegated,
-            SearchEngine engine
-    ) {
-        return expander.expandAndTranslate(virtualField, data, isNegated, this, engine);
+    public JsonNode expandVirtual(VirtualField virtualField, QueryData data, SearchEngine engine) {
+        return expander.expandAndTranslate(virtualField, data, this, engine);
     }
 
-    public int minimumMatchOrDefault(int defaultValue) {
-        return minimumMatch == null ? defaultValue : minimumMatch;
+    public int minimumMatchOrOne() {
+        return minimumMatch == null ? 1 : minimumMatch;
     }
 
     public MappedField requireMappedField(String logicalName) {
@@ -86,17 +78,20 @@ public record QueryParseContext(
                         "Document type '" + documentName + "' is not defined for material type '" + mapping.materialType() + "'"));
     }
 
-    public String requireSearchField(String queryType, FieldType... supportedTypes) {
+    public String requireSearchField(String queryType, Set<FieldType> supportedTypes) {
         if (currentField == null) {
             throw new QueryTranslationException("No mapped field is available for " + queryType + " query conversion");
         }
-        boolean supported = List.of(supportedTypes).contains(currentField.type());
-        if (!supported) {
+        if (!supportedTypes.contains(currentField.type())) {
             throw new QueryTranslationException(
                     "Query type '" + queryType + "' is not supported for field '" + currentField.logicalName()
-                            + "' with mapping type '" + currentField.type().name().toLowerCase(Locale.ROOT) + "'");
+                            + "' with mapping type '" + typeName(currentField.type()) + "'");
         }
         String fieldName = currentField.searchField();
         return nestedPath != null ? nestedPath + "." + fieldName : fieldName;
+    }
+
+    public static String typeName(FieldType type) {
+        return type.name().toLowerCase(Locale.ROOT);
     }
 }

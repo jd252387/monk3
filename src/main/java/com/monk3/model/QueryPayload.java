@@ -2,7 +2,6 @@ package com.monk3.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jd.nomad.mapping.MappedField;
-import com.monk3.search.QueryJson;
 import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;
 import com.monk3.search.SearchEngine;
@@ -12,16 +11,16 @@ public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQ
 
     JsonNode toSolr(QueryParseContext context);
 
-    @Override
-    default JsonNode toElasticsearch(QueryParseContext context, QueryNode node) {
-        JsonNode query = toElasticsearch(context.withField(requireLeafMappedField(context, node)));
-        return node.isNegated() ? QueryJson.mustNot(SearchEngine.ELASTICSEARCH, query) : query;
+    default JsonNode translate(SearchEngine engine, QueryParseContext context) {
+        return switch (engine) {
+            case ELASTICSEARCH -> toElasticsearch(context);
+            case SOLR -> toSolr(context);
+        };
     }
 
     @Override
-    default JsonNode toSolr(QueryParseContext context, QueryNode node) {
-        JsonNode query = toSolr(context.withField(requireLeafMappedField(context, node)));
-        return node.isNegated() ? QueryJson.mustNot(SearchEngine.SOLR, query) : query;
+    default JsonNode translate(SearchEngine engine, QueryParseContext context, QueryNode node) {
+        return translate(engine, context.withField(requireLeafMappedField(context, node)));
     }
 
     private static MappedField requireLeafMappedField(QueryParseContext context, QueryNode node) {
@@ -34,5 +33,4 @@ public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQ
         }
         return mappedField;
     }
-
 }

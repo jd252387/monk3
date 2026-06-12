@@ -17,10 +17,11 @@ import com.monk3.model.UniqueAggregation;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static com.monk3.json.QueryNodeDeserializer.rejectUnknownFields;
 
 public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static final Set<String> WRAPPER_FIELDS = Set.of("aggType", "args");
@@ -136,16 +137,5 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static String unsupportedTypeMessage(String aggType) {
         return "Unsupported aggregation type '" + aggType
                 + "'. Supported aggregation types are 'terms', 'unique', 'range', and 'subfacets'.";
-    }
-
-    private static void rejectUnknownFields(JsonParser parser, JsonNode node, Set<String> allowed, String label)
-            throws JsonMappingException {
-        Iterator<String> fieldNames = node.fieldNames();
-        while (fieldNames.hasNext()) {
-            String fieldName = fieldNames.next();
-            if (!allowed.contains(fieldName)) {
-                throw MismatchedInputException.from(parser, Object.class, "Unknown " + label + " property: " + fieldName);
-            }
-        }
     }
 }

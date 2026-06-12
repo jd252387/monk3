@@ -14,6 +14,7 @@ import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.util.Set;
 
 @Schema(description = "Histogram of a numeric root document field, bucketed by a fixed interval between bounds", example = """
         {
@@ -42,9 +43,11 @@ public record RangeAggregation(
         return from == null || to == null || from.compareTo(to) < 0;
     }
 
+    private static final Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.NUMBER);
+
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), FieldType.NUMBER).searchField();
+        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode histogram = root.putObject("histogram");
         histogram.put("field", searchField);
@@ -57,7 +60,7 @@ public record RangeAggregation(
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), FieldType.NUMBER).searchField();
+        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "range");
         facet.put("field", searchField);
@@ -65,16 +68,6 @@ public record RangeAggregation(
         facet.set("end", QueryJson.valueNode(to));
         facet.set("gap", QueryJson.valueNode(interval));
         return facet;
-    }
-
-    @Override
-    public AggregationResult parseElasticsearch(JsonNode aggregation) {
-        return Aggregation.bucketsResult(aggregation, "key", "doc_count");
-    }
-
-    @Override
-    public AggregationResult parseSolr(JsonNode facet) {
-        return Aggregation.bucketsResult(facet, "val", "count");
     }
 
     private void putBounds(ObjectNode histogram, String boundsProperty) {

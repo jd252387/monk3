@@ -1,6 +1,5 @@
 package com.monk3.model;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -18,7 +17,6 @@ import jakarta.validation.constraints.NotNull;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
-import java.util.function.Function;
 
 @Schema(description = """
         A boolean combination of clauses. The outer list is OR'd (should clauses);
@@ -49,76 +47,43 @@ public record BooleanQueryData(
 ) implements QueryData {
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
-    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
-    public BooleanQueryData {
-    }
-
     @JsonValue
     public List<List<QueryNode>> jsonValue() {
         return clauses;
     }
 
     @Override
-    public JsonNode toElasticsearch(QueryParseContext context, QueryNode node) {
+    public JsonNode translate(SearchEngine engine, QueryParseContext context, QueryNode node) {
         QueryParseContext booleanContext = context.withMinimumMatch(node.minimumMatch());
-        JsonNode query;
         if (node.field().isEmpty()) {
-            query = toElasticsearch(booleanContext);
-        } else {
-            NestedDocument nestedDocument = nestedDocument(context, node.field());
-            ObjectNode nested = JSON.objectNode();
-            nested.putObject("nested")
-                    .put("path", nestedDocument.path())
-                    .set("query", toElasticsearch(booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path())));
-            query = nested;
+            return toBooleanQuery(engine, booleanContext);
         }
-        return node.isNegated() ? QueryJson.mustNot(SearchEngine.ELASTICSEARCH, query) : query;
-    }
-
-    @Override
-    public JsonNode toSolr(QueryParseContext context, QueryNode node) {
-        QueryParseContext booleanContext = context.withMinimumMatch(node.minimumMatch());
-        JsonNode query;
-        if (node.field().isEmpty()) {
-            query = toSolr(booleanContext);
-        } else {
-            NestedDocument nestedDocument = nestedDocument(context, node.field());
-            ObjectNode parent = JSON.objectNode();
-            parent.putObject("parent")
+        NestedDocument nestedDocument = nestedDocument(context, node.field());
+        QueryParseContext nestedContext = booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path());
+        ObjectNode wrapper = JSON.objectNode();
+        switch (engine) {
+            case ELASTICSEARCH -> wrapper.putObject("nested")
+                    .put("path", nestedDocument.path())
+                    .set("query", toBooleanQuery(engine, nestedContext));
+            case SOLR -> wrapper.putObject("parent")
                     .put("which", nestedDocument.mapping().blockMask().orElseThrow(() ->
                             new QueryTranslationException("Subdocument '" + nestedDocument.mapping().name()
                                     + "' does not declare a 'block_mask', which is required for Solr nested queries")))
-                    .set("query", toSolr(booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path())));
-            query = parent;
+                    .set("query", toBooleanQuery(engine, nestedContext));
         }
-        return node.isNegated() ? QueryJson.mustNot(SearchEngine.SOLR, query) : query;
+        return wrapper;
     }
 
-    private JsonNode toElasticsearch(QueryParseContext context) {
-        return toBooleanQuery(context, SearchEngine.ELASTICSEARCH, queryNode -> queryNode.toElasticsearch(context));
-    }
-
-    private JsonNode toSolr(QueryParseContext context) {
-        return toBooleanQuery(context, SearchEngine.SOLR, queryNode -> queryNode.toSolr(context));
-    }
-
-    private JsonNode toBooleanQuery(
-            QueryParseContext context,
-            SearchEngine searchEngine,
-            Function<QueryNode, JsonNode> query
-    ) {
-        return QueryJson.boolShould(searchEngine, context.minimumMatchOrDefault(1), clauses.stream()
-                .map(clause -> toMustClause(clause, query))
+    private JsonNode toBooleanQuery(SearchEngine engine, QueryParseContext context) {
+        return QueryJson.boolShould(engine, context.minimumMatchOrOne(), clauses.stream()
+                .map(clause -> toMustClause(engine, context, clause))
                 .toList());
     }
 
-    private JsonNode toMustClause(
-            List<QueryNode> clause,
-            Function<QueryNode, JsonNode> query
-    ) {
+    private static JsonNode toMustClause(SearchEngine engine, QueryParseContext context, List<QueryNode> clause) {
         return clause.size() == 1
-                ? query.apply(clause.getFirst())
-                : QueryJson.boolMust(clause.stream().map(query).toList());
+                ? clause.getFirst().translate(engine, context)
+                : QueryJson.boolMust(clause.stream().map(node -> node.translate(engine, context)).toList());
     }
 
     private static NestedDocument nestedDocument(QueryParseContext context, String field) {

@@ -168,17 +168,17 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
         if (executor != null) {
             executor.close();
         }
-        if (backendsFile != null) {
-            try {
-                Files.deleteIfExists(backendsFile);
-            } catch (IOException ignored) {
-            }
+        deleteQuietly(backendsFile);
+        deleteQuietly(catalogFile);
+    }
+
+    private static void deleteQuietly(Path file) {
+        if (file == null) {
+            return;
         }
-        if (catalogFile != null) {
-            try {
-                Files.deleteIfExists(catalogFile);
-            } catch (IOException ignored) {
-            }
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException ignored) {
         }
     }
 
@@ -196,6 +196,10 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
 
     public static List<RecordedRequest> requests() {
         return List.copyOf(REQUESTS);
+    }
+
+    public static List<String> requestPaths() {
+        return REQUESTS.stream().map(RecordedRequest::path).toList();
     }
 
     private static void respond(HttpExchange exchange, String body) throws IOException {

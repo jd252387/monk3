@@ -21,10 +21,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 @ApplicationScoped
-@LookupIfProperty(name = "indexer.catalog.source", stringValue = "etcd")
+@LookupIfProperty(name = "indexer.catalog.source", stringValue = "ETCD")
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @Slf4j
 public class EtcdCatalogDatastore implements CatalogDatastore {
@@ -40,11 +41,14 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
         this.etcdClient = buildEtcd();
 
         Map<String, String> keys = indexerConfig.catalog().etcd().mappings();
+        Map<String, CompletableFuture<GetResponse>> pendingFetches = new LinkedHashMap<>();
+        keys.forEach((materialType, key) -> pendingFetches.put(materialType, fetchFromEtcd(key)));
+
         Map<String, SearchMapping> mappings = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : keys.entrySet()) {
             String materialType = entry.getKey();
             String key = entry.getValue();
-            JsonNode node = readJsonFromEtcd(key);
+            JsonNode node = objectMapper.readTree(awaitEtcdValue(pendingFetches.get(materialType), key));
             mappings.put(materialType, snapshotBuilder.parseMapping(materialType, node));
             registerWatcher(this.etcdClient, materialType, key);
         }
@@ -147,16 +151,17 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
         return Map.copyOf(file.backends());
     }
 
-    private JsonNode readJsonFromEtcd(String key) throws IOException {
-        return objectMapper.readTree(readBytesFromEtcd(key));
+    private byte[] readBytesFromEtcd(String key) {
+        return awaitEtcdValue(fetchFromEtcd(key), key);
     }
 
-    private byte[] readBytesFromEtcd(String key) throws IOException {
+    private CompletableFuture<GetResponse> fetchFromEtcd(String key) {
+        return this.etcdClient.getKVClient().get(ByteSequence.from(key, StandardCharsets.UTF_8));
+    }
+
+    private static byte[] awaitEtcdValue(CompletableFuture<GetResponse> pending, String key) {
         try {
-            GetResponse response = this.etcdClient
-                    .getKVClient()
-                    .get(ByteSequence.from(key, StandardCharsets.UTF_8))
-                    .get();
+            GetResponse response = pending.get();
             if (response.getKvs().isEmpty()) {
                 throw new IllegalStateException("Etcd key " + key + " does not exist");
             }

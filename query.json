@@ -1,0 +1,13 @@
+{
+    "$schema": "./search-query-dsl.schema.json", 
+    "query": {
+        "materialTypes": ["ew"], 
+        "query": {
+            "field": "dsdsd", 
+            "data":{
+                "type": "range", 
+                "lt": 0
+            }
+                }
+    }
+}

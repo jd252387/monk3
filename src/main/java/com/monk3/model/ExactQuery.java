@@ -16,10 +16,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 
 @Schema(description = "An exact-match query against one or more values", oneOf = {ExactQuery.Numeric.class, ExactQuery.Datetime.class, ExactQuery.BooleanValues.class})
 public sealed interface ExactQuery<T> extends QueryPayload
         permits ExactQuery.Numeric, ExactQuery.Datetime, ExactQuery.BooleanValues {
+    Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME);
     JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @JsonProperty
@@ -32,7 +34,7 @@ public sealed interface ExactQuery<T> extends QueryPayload
 
     @Override
     default JsonNode toElasticsearch(QueryParseContext context) {
-        String field = context.requireSearchField("exact", FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME);
+        String field = context.requireSearchField("exact", SUPPORTED_FIELD_TYPES);
         ObjectNode root = JSON.objectNode();
         ArrayNode fieldValues = root.putObject("terms").putArray(field);
         values().stream().map(QueryJson::valueNode).forEach(fieldValues::add);
@@ -41,22 +43,9 @@ public sealed interface ExactQuery<T> extends QueryPayload
 
     @Override
     default JsonNode toSolr(QueryParseContext context) {
-        String field = context.requireSearchField("exact", FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME);
-        if (values().size() == 1) {
-            ObjectNode root = JSON.objectNode();
-            ObjectNode fieldQuery = root.putObject("field");
-            fieldQuery.put("f", field).set("query", QueryJson.valueNode(values().getFirst()));
-            return root;
-        }
-
-        return QueryJson.boolShould(SearchEngine.SOLR, 1, values().stream()
-                .map(value -> {
-                    ObjectNode root = JSON.objectNode();
-                    ObjectNode fieldQuery = root.putObject("field");
-                    fieldQuery.put("f", field).set("query", QueryJson.valueNode(value));
-                    return root;
-                })
-                .map(JsonNode.class::cast)
+        String field = context.requireSearchField("exact", SUPPORTED_FIELD_TYPES);
+        return QueryJson.shouldOrSingle(SearchEngine.SOLR, values().stream()
+                .<JsonNode>map(value -> QueryJson.solrFieldQuery(field, value))
                 .toList());
     }
 

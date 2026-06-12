@@ -1,29 +1,27 @@
 package com.monk3.search;
 
+import com.fasterxml.jackson.core.JsonPointer;
+import jd.nomad.mapping.BackendEngine;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.util.Arrays;
-
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum SearchEngine {
-    ELASTICSEARCH("elasticsearch", "minimum_should_match", "/hits/hits", "_score"),
-    SOLR("solr", "mm", "/response/docs", "score");
+    ELASTICSEARCH("minimum_should_match", JsonPointer.compile("/hits/hits"), "_score", "aggs", "aggregations", "size"),
+    SOLR("mm", JsonPointer.compile("/response/docs"), "score", "facet", "facets", "limit");
 
-    private final String pathName;
     private final String minimumShouldMatchProperty;
-    private final String resultsPath;
+    private final JsonPointer resultsPath;
     private final String scoreField;
+    private final String aggregationsRequestProperty;
+    private final String aggregationsResponseProperty;
+    private final String sizeProperty;
 
-    public static SearchEngine fromPath(String pathName) {
-        return Arrays.stream(values())
-                .filter(searchEngine -> searchEngine.pathName.equalsIgnoreCase(pathName))
-                .findFirst()
-                .orElseThrow(() -> new QueryTranslationException(
-                        "Unsupported search engine '" + pathName + "'. Supported values are: elasticsearch, solr"));
+    public static SearchEngine of(BackendEngine engine) {
+        return valueOf(engine.name());
     }
 }

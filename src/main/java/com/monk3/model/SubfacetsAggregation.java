@@ -16,6 +16,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 @Schema(description = "A facet with one named sub-facet per filter; each filter is a query DSL payload applied to the given root document field", example = """
@@ -34,8 +35,8 @@ public record SubfacetsAggregation(
         @NotBlank String field,
         @NotEmpty Map<String, @NotNull @Valid QueryPayload> filters
 ) implements Aggregation {
-    private static final FieldType[] SUPPORTED_FIELD_TYPES =
-            {FieldType.STRING, FieldType.FREETEXT, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN};
+    private static final Set<FieldType> SUPPORTED_FIELD_TYPES =
+            Set.of(FieldType.STRING, FieldType.FREETEXT, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
 
     @JsonProperty
     public String aggType() {
