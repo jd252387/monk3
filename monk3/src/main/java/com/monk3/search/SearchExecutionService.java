@@ -106,7 +106,7 @@ public class SearchExecutionService {
     public List<BackendQuery> parse(SearchExecutionRequest request) {
         return queryTranslationService.resolveTargets(request.query()).stream()
                 .map(target -> new BackendQuery(
-                        target.name(), target.engine(), List.of(target.materialType()),
+                        target.name(), target.engine(), target.materialTypes(),
                         buildRequestBody(target, request, projections(target, request.fields()))))
                 .toList();
     }
@@ -224,7 +224,7 @@ public class SearchExecutionService {
         return new SearchResult(
                 target.name(),
                 target.engine(),
-                materialType(document, target.materialType()),
+                materialType(document, null),
                 id(document, target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_id").asText(null) : null, target.backend().primaryKey()),
                 score,
                 normalizedScore(score, maxScore),
@@ -234,7 +234,7 @@ public class SearchExecutionService {
     private List<FieldProjection> projections(BackendTarget target, List<String> logicalFields) {
         SearchMapping mapping = catalogService.mappingForBackend(target.name());
         return logicalFields.stream()
-                .map(logicalField -> projection(mapping, target.materialType(), logicalField))
+                .map(logicalField -> projection(mapping, target.materialTypes().getFirst(), logicalField))
                 .toList();
     }
 

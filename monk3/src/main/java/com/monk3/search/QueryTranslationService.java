@@ -1,6 +1,7 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.SearchMappingConfig;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 @RequiredArgsConstructor
@@ -34,6 +36,14 @@ public class QueryTranslationService {
         QueryAnalysis analysis = QueryAnalyzer.analyze(request.query());
         return request.materialTypes().stream()
                 .map(materialType -> resolveTarget(materialType, request.query(), analysis))
+                .collect(Collectors.groupingBy(BackendTarget::name))
+                .values().stream()
+                .map(group -> new BackendTarget(
+                        group.getFirst().name(),
+                        group.stream().flatMap(target -> target.materialTypes().stream()).toList(),
+                        group.getFirst().backend(),
+                        group.getFirst().engine(),
+                        group.getFirst().query()))
                 .toList();
     }
 
@@ -48,21 +58,34 @@ public class QueryTranslationService {
         } catch (IllegalStateException e) {
             throw new QueryTranslationException("No configured search backend named '" + backendName + "'");
         }
-        return new BackendTarget(backendName, materialType, backendConfig, SearchEngine.of(backendConfig.engine()), query);
+        return new BackendTarget(backendName, List.of(materialType), backendConfig, SearchEngine.of(backendConfig.engine()), query);
     }
 
     public ObjectNode translate(BackendTarget target) {
         SearchEngine engine = target.engine();
         JsonNode query = target.query().translate(engine, contextForBackend(target.name()));
+        List<String> materialTypes = target.materialTypes();
         JsonNode filter = engine == SearchEngine.ELASTICSEARCH
-                ? JsonNodeFactory.instance.objectNode()
-                        .set("term", JsonNodeFactory.instance.objectNode().put(config.materialTypeField(), target.materialType()))
-                : QueryJson.solrFieldQuery(config.materialTypeField(), target.materialType());
+                ? materialTypeTerms(materialTypes)
+                : materialTypeSolrFilter(materialTypes);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode bool = root.putObject("bool");
         bool.putArray("filter").add(filter);
         bool.putArray("must").add(query);
         return root;
+    }
+
+    private ObjectNode materialTypeTerms(List<String> materialTypes) {
+        ObjectNode termNode = JsonNodeFactory.instance.objectNode();
+        ArrayNode values = termNode.putObject("terms").putArray(config.materialTypeField());
+        materialTypes.forEach(values::add);
+        return termNode;
+    }
+
+    private JsonNode materialTypeSolrFilter(List<String> materialTypes) {
+        return QueryJson.shouldOrSingle(SearchEngine.SOLR, materialTypes.stream()
+                .<JsonNode>map(materialType -> QueryJson.solrFieldQuery(config.materialTypeField(), materialType))
+                .toList());
     }
 
     public ObjectNode translateAggregations(BackendTarget target, Map<String, Aggregation> aggs) {
@@ -82,7 +105,7 @@ public class QueryTranslationService {
 
     public record BackendTarget(
             String name,
-            String materialType,
+            List<String> materialTypes,
             BackendConfig backend,
             SearchEngine engine,
             QueryNode query

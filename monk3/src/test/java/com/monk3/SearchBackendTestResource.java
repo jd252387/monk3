@@ -153,7 +153,9 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                           }
                         ]
                       },
+                      "book_elastic": {"backend":"elastic-books"},
                       "article": {"backend":"solr-articles"},
+                      "article_solr": {"backend":"solr-articles"},
                       "emptyset":{"backend":"elastic-empty"}
                     }}""";
             catalogFile = Files.createTempFile("monk3-test-catalog", ".json");

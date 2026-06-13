@@ -47,7 +47,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
                 .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java records"));
     }
 
@@ -109,7 +109,7 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
                 .body("[0].materialTypes[0]", equalTo("book"))
-                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
                 .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("history"))
                 .body("[1].backend", equalTo("solr-articles"))
                 .body("[1].engine", equalTo("SOLR"))
@@ -1253,7 +1253,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
                 .body("[0].body.query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
                 .body("[0].body.query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
                 .body("[0].body.query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
@@ -1318,7 +1318,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
                 .body("[0].body.query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.page_count\""))
                 .body(containsString("\"gte\""))
@@ -1366,7 +1366,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
                 .body("[0].body.query.bool.must[0].range.book_year.gte", equalTo(2000));
     }
 
@@ -1509,6 +1509,144 @@ class QueryResourceTest {
 
         assertThat(SearchBackendTestResource.requestPaths(), hasItem("/es/books/_search"));
         assertThat(SearchBackendTestResource.requestPaths(), not(hasItem("/solr/books/select")));
+    }
+
+    @Test
+    void mergesQueriesWhenMultipleMaterialTypesResolveToSameElasticsearchBackend() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Merged material types ES",
+                          "materialTypes": ["book", "book_elastic"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": ["java records"]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("size()", equalTo(1))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].materialTypes", containsInAnyOrder("book", "book_elastic"))
+                .body("[0].body.query.bool.filter[0].terms.material_type", containsInAnyOrder("book", "book_elastic"))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java records"));
+    }
+
+    @Test
+    void mergesQueriesWhenMultipleMaterialTypesResolveToSameSolrBackend() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Merged material types Solr",
+                          "materialTypes": ["article", "article_solr"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": ["solr search"]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("size()", equalTo(1))
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].materialTypes", containsInAnyOrder("article", "article_solr"))
+                .body("[0].body.query.bool.filter[0].bool.should[0].field.f", equalTo("material_type"))
+                .body("[0].body.query.bool.filter[0].bool.should[0].field.query", equalTo("article"))
+                .body("[0].body.query.bool.filter[0].bool.should[1].field.f", equalTo("material_type"))
+                .body("[0].body.query.bool.filter[0].bool.should[1].field.query", equalTo("article_solr"))
+                .body("[0].body.query.bool.filter[0].bool.mm", equalTo(1))
+                .body("[0].body.query.bool.must[0].field.f", equalTo("article_headline"))
+                .body("[0].body.query.bool.must[0].field.query", equalTo("solr search"));
+    }
+
+    @Test
+    void mergesSearchBackendRequestsWhenMultipleMaterialTypesResolveToSameBackend() {
+        SearchBackendTestResource.reset();
+        SearchBackendTestResource.requireParallelRequests(1);
+
+        try {
+            given()
+                    .contentType(ContentType.JSON)
+                    .body("""
+                            {
+                              "query": {
+                                "name": "Merged search",
+                                "materialTypes": ["book", "book_elastic"],
+                                "query": {
+                                  "field": "title",
+                                  "data": {
+                                    "type": "text",
+                                    "phrases": ["java"]
+                                  }
+                                }
+                              },
+                              "fields": ["title", "year"],
+                              "size": 10
+                            }
+                            """)
+                    .when().post("/queries/search")
+                    .then()
+                    .statusCode(200)
+                    .contentType(ContentType.JSON)
+                    .body("results.size()", equalTo(1))
+                    .body("results[0].backend", equalTo("elastic-books"))
+                    .body("results[0].id", equalTo("book-1"))
+                    .body("results[0].score", equalTo(10.0f))
+                    .body("results[0].fields.title", equalTo("Java Records"))
+                    .body("results[0].fields.year", equalTo(2025));
+        } finally {
+            SearchBackendTestResource.clearParallelRequestRequirement();
+        }
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().path(), equalTo("/es/books/_search"));
+        assertThat(
+                requests.getFirst().body(),
+                containsString("\"terms\":{\"material_type\":[\"book\",\"book_elastic\"]}"));
+    }
+
+    @Test
+    void preservesSeparateBackendQueriesWhenMaterialTypesResolveToDifferentBackends() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Still separate",
+                          "materialTypes": ["book", "article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": ["history"]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("size()", equalTo(2))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].materialTypes[0]", equalTo("book"))
+                .body("[1].backend", equalTo("solr-articles"))
+                .body("[1].materialTypes[0]", equalTo("article"));
     }
 
     /** Lower (7 days ago) and upper (now) bounds for a "recently published" range, for use with formatted(). */
