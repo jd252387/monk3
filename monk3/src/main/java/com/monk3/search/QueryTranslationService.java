@@ -89,10 +89,12 @@ public class QueryTranslationService {
     }
 
     public ObjectNode translateAggregations(BackendTarget target, Map<String, Aggregation> aggs) {
-        AggregationContext context = new AggregationContext(
-                Map.of(target.materialType(), contextForBackend(target.name())));
+        QueryParseContext context = contextForBackend(target.name());
+        AggregationContext aggContext = new AggregationContext(
+                target.materialTypes().stream()
+                        .collect(Collectors.toMap(mt -> mt, mt -> context)));
         ObjectNode translated = JsonNodeFactory.instance.objectNode();
-        aggs.forEach((name, aggregation) -> translated.set(name, aggregation.translate(target.engine(), context)));
+        aggs.forEach((name, aggregation) -> translated.set(name, aggregation.translate(target.engine(), aggContext)));
         return translated;
     }
 
