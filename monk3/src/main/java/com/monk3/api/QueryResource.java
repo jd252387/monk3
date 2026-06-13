@@ -3,8 +3,6 @@ package com.monk3.api;
 import com.monk3.model.BackendQuery;
 import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
-import com.monk3.model.SearchQueryRequest;
-import com.monk3.search.QueryTranslationService;
 import com.monk3.search.SearchExecutionService;
 import io.smallrye.common.annotation.RunOnVirtualThread;
 import jakarta.validation.Valid;
@@ -38,26 +36,35 @@ public class QueryResource {
     private static final String SCHEMA_MEDIA_TYPE = "application/schema+json";
     private static final byte[] QUERY_SCHEMA = loadQuerySchema();
 
-    private final QueryTranslationService queryTranslationService;
     private final SearchExecutionService searchExecutionService;
 
     @POST
     @Path("/parse")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @Operation(summary = "Translate a query", description = "Translates a monk3 query into each configured backend's native DSL (Elasticsearch or Solr).")
+    @Operation(summary = "Translate a query", description = "Accepts the same request body as /queries/search and translates the full request (query, result fields, size, and aggregations) into each configured backend's native body (Elasticsearch or Solr) without executing it. The returned body per backend is exactly what /queries/search would POST.")
     @RequestBody(required = true, content = @Content(examples = {
             @ExampleObject(name = "Text search",
-                    summary = "Simple phrase search → ES match_phrase / Solr field query",
+                    summary = "Simple phrase search → ES match_phrase / Solr field query, with size and a terms agg",
                     value = """
                             {
-                              "name": "Elasticsearch text query",
-                              "materialTypes": ["book"],
                               "query": {
-                                "field": "title",
-                                "data": {
-                                  "type": "text",
-                                  "phrases": ["java records"]
+                                "name": "Elasticsearch text query",
+                                "materialTypes": ["book"],
+                                "query": {
+                                  "field": "title",
+                                  "data": {
+                                    "type": "text",
+                                    "phrases": ["java records"]
+                                  }
+                                }
+                              },
+                              "fields": ["title"],
+                              "size": 10,
+                              "aggs": {
+                                "byAuthor": {
+                                  "aggType": "terms",
+                                  "args": { "field": "author", "size": 5 }
                                 }
                               }
                             }
@@ -66,50 +73,59 @@ public class QueryResource {
                     summary = "Datetime range query on a date field",
                     value = """
                             {
-                              "name": "Articles published in 2024",
-                              "materialTypes": ["article"],
                               "query": {
-                                "field": "publishedAt",
-                                "data": {
-                                  "type": "range",
-                                  "gte": "2024-01-01T00:00:00Z",
-                                  "lt": "2025-01-01T00:00:00Z"
+                                "name": "Articles published in 2024",
+                                "materialTypes": ["article"],
+                                "query": {
+                                  "field": "publishedAt",
+                                  "data": {
+                                    "type": "range",
+                                    "gte": "2024-01-01T00:00:00Z",
+                                    "lt": "2025-01-01T00:00:00Z"
+                                  }
                                 }
-                              }
+                              },
+                              "fields": ["title", "publishedAt"]
                             }
                             """),
             @ExampleObject(name = "Exact match",
                     summary = "Exact value match for specific years",
                     value = """
                             {
-                              "name": "Articles from 1995 or 2020",
-                              "materialTypes": ["article"],
                               "query": {
-                                "field": "year",
-                                "data": {
-                                  "type": "exact",
-                                  "values": [1995, 2020]
+                                "name": "Articles from 1995 or 2020",
+                                "materialTypes": ["article"],
+                                "query": {
+                                  "field": "year",
+                                  "data": {
+                                    "type": "exact",
+                                    "values": [1995, 2020]
+                                  }
                                 }
-                              }
+                              },
+                              "fields": ["title", "year"]
                             }
                             """),
             @ExampleObject(name = "Subdocument / nested",
                     summary = "Nested subdocument query on chapters",
                     value = """
                             {
-                              "name": "Nested chapter query",
-                              "materialTypes": ["book"],
                               "query": {
-                                "field": "chapters",
-                                "data": [
-                                  [
-                                    {
-                                      "field": "title",
-                                      "data": { "type": "text", "phrases": ["introduction"] }
-                                    }
+                                "name": "Nested chapter query",
+                                "materialTypes": ["book"],
+                                "query": {
+                                  "field": "chapters",
+                                  "data": [
+                                    [
+                                      {
+                                        "field": "title",
+                                        "data": { "type": "text", "phrases": ["introduction"] }
+                                      }
+                                    ]
                                   ]
-                                ]
-                              }
+                                }
+                              },
+                              "fields": ["title"]
                             }
                             """)
     }))
@@ -125,8 +141,8 @@ public class QueryResource {
                             }
                             """)))
     })
-    public List<BackendQuery> parseQuery(@Valid SearchQueryRequest request) {
-        return queryTranslationService.translateByBackend(request);
+    public List<BackendQuery> parseQuery(@Valid SearchExecutionRequest request) {
+        return searchExecutionService.parse(request);
     }
 
     @POST

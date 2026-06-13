@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.model.Aggregation;
-import com.monk3.model.BackendQuery;
 import com.monk3.model.SearchQueryRequest;
 import com.monk3.routing.QueryAnalysis;
 import com.monk3.routing.QueryAnalyzer;
@@ -27,14 +26,6 @@ public class QueryTranslationService {
     private final SearchMappingConfig config;
     private final VirtualFieldExpander virtualFieldExpander;
     private final RoutingEngine routingEngine;
-
-    public List<BackendQuery> translateByBackend(SearchQueryRequest request) {
-        return resolveTargets(request).stream()
-                .map(target -> new BackendQuery(
-                        target.name(), target.engine(), target.materialTypes(),
-                        translate(target.engine(), target.request())))
-                .toList();
-    }
 
     /**
      * Routes each requested material type to a backend and groups the request per backend,

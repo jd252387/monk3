@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.model.Aggregation;
 import com.monk3.model.AggregationResult;
+import com.monk3.model.BackendQuery;
 import com.monk3.model.SearchExecutionRequest;
 import com.monk3.model.SearchExecutionResponse;
 import com.monk3.model.SearchResult;
@@ -98,9 +99,38 @@ public class SearchExecutionService {
         }
     }
 
+    /**
+     * Translates the request into each backend's native body without executing it. Returns the exact
+     * body {@link #search} would POST per backend (query, result options, and aggregations).
+     */
+    public List<BackendQuery> parse(SearchExecutionRequest request) {
+        return queryTranslationService.resolveTargets(request.query()).stream()
+                .map(target -> new BackendQuery(
+                        target.name(), target.engine(), target.materialTypes(),
+                        buildRequestBody(target, request,
+                                projections(target.materialTypes(), request.fields()),
+                                primaryKeys(target.materialTypes()))))
+                .toList();
+    }
+
     private BackendSearchResult searchBackend(BackendTarget target, SearchExecutionRequest request) {
         List<FieldProjection> projections = projections(target.materialTypes(), request.fields());
         List<String> primaryKeys = primaryKeys(target.materialTypes());
+        ObjectNode body = buildRequestBody(target, request, projections, primaryKeys);
+
+        JsonNode response = postJson(target.name(), targetUri(target.backend(), target.engine()), body);
+        return new BackendSearchResult(
+                target.name(),
+                parseResponse(target, projections, primaryKeys, response),
+                hasAggregations(request) ? parseAggregations(target, request.aggs(), response) : null);
+    }
+
+    private ObjectNode buildRequestBody(
+            BackendTarget target,
+            SearchExecutionRequest request,
+            List<FieldProjection> projections,
+            List<String> primaryKeys
+    ) {
         ObjectNode body = JsonNodeFactory.instance.objectNode();
         body.set("query", queryTranslationService.translate(target.engine(), target.request()));
         applyResultOptions(target, body, projections, primaryKeys, request);
@@ -108,12 +138,7 @@ public class SearchExecutionService {
             body.set(target.engine().aggregationsRequestProperty(),
                     queryTranslationService.translateAggregations(target.engine(), target.materialTypes(), request.aggs()));
         }
-
-        JsonNode response = postJson(target.name(), targetUri(target.backend(), target.engine()), body);
-        return new BackendSearchResult(
-                target.name(),
-                parseResponse(target, projections, primaryKeys, response),
-                hasAggregations(request) ? parseAggregations(target, request.aggs(), response) : null);
+        return body;
     }
 
     private static boolean hasAggregations(SearchExecutionRequest request) {

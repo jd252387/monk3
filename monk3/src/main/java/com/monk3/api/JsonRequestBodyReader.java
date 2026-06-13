@@ -3,7 +3,6 @@ package com.monk3.api;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.monk3.model.SearchExecutionRequest;
-import com.monk3.model.SearchQueryRequest;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
@@ -31,7 +30,7 @@ public class JsonRequestBodyReader implements MessageBodyReader<Object> {
             Annotation[] annotations,
             MediaType mediaType
     ) {
-        return type == SearchQueryRequest.class || type == SearchExecutionRequest.class;
+        return type == SearchExecutionRequest.class;
     }
 
     @Override

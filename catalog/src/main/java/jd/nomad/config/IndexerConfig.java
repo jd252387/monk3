@@ -4,7 +4,6 @@ import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @ConfigMapping(prefix = "indexer")
@@ -24,7 +23,7 @@ public interface IndexerConfig {
 
     interface FileSource {
 
-        String config();
+        Optional<String> config();
 
         Optional<String> backends();
     }
@@ -34,8 +33,10 @@ public interface IndexerConfig {
         @WithDefault("http://localhost:2379")
         List<String> endpoints();
 
-        Map<String, String> mappings();
+        /** Etcd key holding the catalog document (same shape as the file-source {@code catalog.json}). */
+        Optional<String> catalog();
 
+        /** Optional etcd key holding the backends document (same shape as {@code backends.json}). */
         Optional<String> backends();
     }
 }

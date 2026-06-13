@@ -1,0 +1,24 @@
+{
+  "primaryKey": "id",
+  "root": {
+    "materialType": {
+      "type": "string",
+      "destinationField": "material_type"
+    },
+    "title": {
+      "type": "freetext"
+    },
+    "category": {
+      "type": "string"
+    },
+    "price": {
+      "type": "number"
+    },
+    "description": {
+      "type": "freetext"
+    },
+    "year": {
+      "type": "datetime"
+    }
+  }
+}

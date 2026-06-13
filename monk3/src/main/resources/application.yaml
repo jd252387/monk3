@@ -6,10 +6,11 @@ quarkus:
 
 indexer:
   catalog:
-    source: FILE
-    file:
-      config: config/catalog.json
-      backends: config/backends.json
+    source: ETCD
+    etcd:
+      endpoints: http://localhost:2379
+      catalog: /monk3/catalog
+      backends: /monk3/backends
 
 monk3:
   search:

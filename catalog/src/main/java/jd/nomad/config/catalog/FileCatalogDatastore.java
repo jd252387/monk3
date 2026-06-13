@@ -111,7 +111,9 @@ public class FileCatalogDatastore implements CatalogDatastore {
     }
 
     private CatalogSnapshot buildSnapshot(Set<String> outRefs) throws IOException {
-        String configPath = indexerConfig.catalog().file().config();
+        String configPath = indexerConfig.catalog().file().config()
+                .orElseThrow(() -> new IllegalStateException(
+                        "indexer.catalog.file.config must be set when indexer.catalog.source=FILE"));
         outRefs.add(resolveLocation(configPath));
         JsonNode configNode = readJson(configPath);
         CatalogConfig catalogConfig = objectMapper.treeToValue(configNode, CatalogConfig.class);

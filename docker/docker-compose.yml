@@ -1,0 +1,97 @@
+services:
+  solr:
+    image: solr:9.7
+    ports:
+      - "8983:8983"
+    environment:
+      SOLR_MODE: solrcloud
+      SOLR_JAVA_MEM: "-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8983/solr/admin/info/system"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # Web UI for Elasticsearch.
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.16
+    ports:
+      - "2379:2379"
+    environment:
+      ETCD_LISTEN_CLIENT_URLS: "http://0.0.0.0:2379"
+      ETCD_ADVERTISE_CLIENT_URLS: "http://0.0.0.0:2379"
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Loads the contents of ../config into etcd (v3 keyspace) so monk3 can read its catalog from etcd.
+  etcd-seed:
+    build:
+      context: .
+      dockerfile: helper.Dockerfile
+    command: /scripts/seed-etcd.sh
+    volumes:
+      - ../config:/config:ro
+    depends_on:
+      etcd:
+        condition: service_healthy
+
+  # Web UI for etcd. Open http://localhost:8002 and add a connection to host "etcd", port 2379.
+  etcd-workbench:
+    image: tzfun/etcd-workbench:latest
+    ports:
+      - "8002:8002"
+    depends_on:
+      etcd:
+        condition: service_healthy
+
+  init:
+    build:
+      context: .
+      dockerfile: helper.Dockerfile
+    command: /scripts/init.sh
+    depends_on:
+      solr:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  test:
+    build:
+      context: .
+      dockerfile: helper.Dockerfile
+    command: /scripts/test.sh
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      etcd-seed:
+        condition: service_completed_successfully

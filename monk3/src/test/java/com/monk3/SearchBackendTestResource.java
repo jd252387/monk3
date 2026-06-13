@@ -163,6 +163,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             Files.writeString(catalogFile, catalogJson);
 
             return Map.of(
+                    "indexer.catalog.source", "FILE",
                     "indexer.catalog.file.backends", backendsFile.toAbsolutePath().toString(),
                     "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString());
         } catch (IOException exception) {

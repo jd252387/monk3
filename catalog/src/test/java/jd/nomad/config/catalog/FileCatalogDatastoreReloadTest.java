@@ -157,8 +157,8 @@ class FileCatalogDatastoreReloadTest {
     private static IndexerConfig fileIndexerConfig(String configPath) {
         IndexerConfig.FileSource fileSource = new IndexerConfig.FileSource() {
             @Override
-            public String config() {
-                return configPath;
+            public Optional<String> config() {
+                return Optional.of(configPath);
             }
 
             @Override

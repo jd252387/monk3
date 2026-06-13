@@ -1,0 +1,12 @@
+{
+  "mappings": {
+    "product": {
+      "physical": "/monk3/mappings/sample",
+      "backend": "solr-sample"
+    },
+    "product_elastic": {
+      "physical": "/monk3/mappings/sample",
+      "backend": "elastic-sample"
+    }
+  }
+}

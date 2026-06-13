@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "monk3"
 
 include("catalog")
+include("monk3")

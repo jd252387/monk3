@@ -6,17 +6,22 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(description = "A query translated into a specific backend's native DSL", example = """
+@Schema(description = "A request translated into a specific backend's native body", example = """
         {
           "backend": "elastic-books",
           "engine": "ELASTICSEARCH",
           "materialTypes": ["book"],
-          "query": {
+          "body": {
             "query": {
               "bool": {
                 "filter": [{ "term": { "material_type": "book" } }],
                 "must": [{ "match_phrase": { "book_title": "java records" } }]
               }
+            },
+            "size": 10,
+            "_source": ["material_type", "id", "book_title"],
+            "aggs": {
+              "byAuthor": { "terms": { "field": "book_author", "size": 5 } }
             }
           }
         }
@@ -25,6 +30,7 @@ public record BackendQuery(
         @Schema(description = "Configured backend name") String backend,
         @Schema(description = "Search engine type") SearchEngine engine,
         @Schema(description = "Material types this query targets") List<String> materialTypes,
-        @Schema(description = "The translated query body (Elasticsearch or Solr JSON)") ObjectNode query
+        @Schema(description = "The full translated request body (Elasticsearch or Solr JSON), including query, result options, and aggregations")
+        ObjectNode body
 ) {
 }

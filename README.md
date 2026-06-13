@@ -26,15 +26,15 @@ configured backends and returning merged, normalized results.
 # Build (compiles and runs the full test suite)
 ./gradlew build
 
-# Run in dev mode with hot reload
-./gradlew quarkusDev
+# Run in dev mode with hot reload (the app lives in the :monk3 subproject)
+./gradlew :monk3:quarkusDev
 
 # Run the tests
 ./gradlew test
 
 # Run a single test class / method
-./gradlew test --tests "com.monk3.QueryResourceTest"
-./gradlew test --tests "com.monk3.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
+./gradlew :monk3:test --tests "com.monk3.QueryResourceTest"
+./gradlew :monk3:test --tests "com.monk3.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
 ```
 
 The service listens on `http://localhost:8080`. Swagger UI is available at
@@ -42,11 +42,11 @@ The service listens on `http://localhost:8080`. Swagger UI is available at
 
 ## REST endpoints (`/queries`)
 
-| Method & path          | Description                                                           |
-|------------------------|-----------------------------------------------------------------------|
-| `POST /queries/parse`  | Translates a DSL request to Elasticsearch or Solr DSL per backend.    |
-| `POST /queries/search` | Executes against the configured backends and returns merged results.  |
-| `GET  /queries/schema` | Serves the query DSL JSON Schema (draft 2020-12).                     |
+| Method & path          | Description                                                                                |
+|------------------------|--------------------------------------------------------------------------------------------|
+| `POST /queries/parse`  | Accepts the same body as `/queries/search`; translates the query to ES or Solr per backend. |
+| `POST /queries/search` | Executes against the configured backends and returns merged results.                      |
+| `GET  /queries/schema` | Serves the query DSL JSON Schema (draft 2020-12).                                          |
 
 ## Query DSL
 
@@ -65,7 +65,7 @@ authoritative description.
 ## Configuration
 
 Configuration is loaded and hot-reloaded by the `catalog` subproject. The source is selected via
-`indexer.catalog.source` (`FILE` or `etcd`) in [`application.yaml`](src/main/resources/application.yaml).
+`indexer.catalog.source` (`FILE` or `ETCD`) in [`application.yaml`](src/main/resources/application.yaml).
 
 For the file source:
 
@@ -74,6 +74,16 @@ For the file source:
   `routing` rules.
 - `indexer.catalog.file.backends` → [`config/backends.json`](config/backends.json) — each backend's
   `engine` (`ELASTICSEARCH` or `SOLR`), `url`, `index` (ES) or `collection` (Solr), and optional `defaultSize`.
+
+For the etcd source, the same documents live under etcd keys instead of files:
+
+- `indexer.catalog.etcd.endpoints` → comma-separated etcd client endpoints (default `http://localhost:2379`).
+- `indexer.catalog.etcd.catalog` → key holding a `catalog.json`-shaped document, whose `physical`/`virtual`
+  entries reference **other etcd keys** rather than file paths.
+- `indexer.catalog.etcd.backends` → key holding a `backends.json`-shaped document.
+
+Each referenced key is watched; any change rebuilds the live snapshot, and a failed rebuild retains the
+last-good configuration (the same hot-reload semantics as the file source).
 
 ### Mapping files (`config/mappings/*.mapping.json`)
 
@@ -101,6 +111,30 @@ monk3/
 ├── config/                    Catalog, backends, and mapping configuration
 └── src/test/                  Quarkus integration tests (REST-assured)
 ```
+
+## Running the stack with Docker
+
+[`docker/docker-compose.yml`](docker/docker-compose.yml) brings up the supporting services and seeds
+the configuration into etcd, which is what `application.yaml` reads from by default:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+This starts:
+
+- **Elasticsearch** (`:9200`) and **Solr** (`:8983`) search backends.
+- **Kibana** (`:5601`) — web UI for Elasticsearch.
+- **etcd** (`:2379`) and **etcd-workbench** (`:8002`) — etcd plus a web UI; open
+  <http://localhost:8002> and add a connection to host `etcd`, port `2379`.
+- **etcd-seed** — a one-shot job that loads [`config/catalog-etcd.json`](config/catalog-etcd.json),
+  the sample mapping, and [`config/backends-docker.json`](config/backends-docker.json) into the etcd
+  `/monk3/*` keys via the v3 gateway.
+- **init** — a one-shot job that creates the `sample` Solr collection and Elasticsearch index and
+  indexes the sample documents.
+
+Once the stack is up, run the service against it with `./gradlew :monk3:quarkusDev` (it connects to etcd on
+`localhost:2379` and to the backends on `localhost:9200`/`localhost:8983`).
 
 ## Testing
 

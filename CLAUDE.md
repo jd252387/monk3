@@ -8,17 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build
 ./gradlew build
 
-# Run in dev mode (hot reload)
-./gradlew quarkusDev
+# Run in dev mode (hot reload) — the app lives in the :monk3 subproject
+./gradlew :monk3:quarkusDev
 
 # Run all tests
 ./gradlew test
 
 # Run a single test class
-./gradlew test --tests "com.monk3.QueryResourceTest"
+./gradlew :monk3:test --tests "com.monk3.QueryResourceTest"
 
 # Run a single test method
-./gradlew test --tests "com.monk3.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
+./gradlew :monk3:test --tests "com.monk3.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
 ```
 
 ## Architecture
@@ -27,7 +27,7 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 
 ### Package layout
 
-Root project (`com.monk3`):
+`monk3` subproject (`com.monk3`) — the Quarkus application:
 
 | Package | Role |
 |---|---|
@@ -42,7 +42,7 @@ Root project (`com.monk3`):
 
 ### REST endpoints (`/queries`)
 
-- `POST /queries/parse` — translates to Elasticsearch or Solr DSL for each configured backend
+- `POST /queries/parse` — accepts the same body as `/queries/search`; translates the query to Elasticsearch or Solr DSL for each configured backend
 - `POST /queries/search` — executes against configured backends and returns merged, normalized results
 - `GET /queries/schema` — serves the bundled `search-query-dsl.schema.json`
 

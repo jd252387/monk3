@@ -28,7 +28,7 @@ class QueryResourceTest {
     void parsesTextQueryToElasticsearchDslUsingConfiguredMapping() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Elasticsearch text query",
                           "materialTypes": ["book"],
@@ -40,22 +40,22 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("[0].query.bool.must[0].match_phrase.book_title", equalTo("java records"));
+                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java records"));
     }
 
     @Test
     void parsesRangeQueryToSolrJsonDslUsingConfiguredMapping() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Solr range query",
                           "materialTypes": ["article"],
@@ -68,27 +68,27 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("solr-articles"))
                 .body("[0].engine", equalTo("SOLR"))
-                .body("[0].query.bool.filter[0].field.f", equalTo("material_type"))
-                .body("[0].query.bool.filter[0].field.query", equalTo("article"))
-                .body("[0].query.bool.must[0].frange.query", equalTo("article_year"))
-                .body("[0].query.bool.must[0].frange.l", equalTo(1995))
-                .body("[0].query.bool.must[0].frange.u", equalTo(2020))
-                .body("[0].query.bool.must[0].frange.incl", equalTo(true))
-                .body("[0].query.bool.must[0].frange.incu", equalTo(false));
+                .body("[0].body.query.bool.filter[0].field.f", equalTo("material_type"))
+                .body("[0].body.query.bool.filter[0].field.query", equalTo("article"))
+                .body("[0].body.query.bool.must[0].frange.query", equalTo("article_year"))
+                .body("[0].body.query.bool.must[0].frange.l", equalTo(1995))
+                .body("[0].body.query.bool.must[0].frange.u", equalTo(2020))
+                .body("[0].body.query.bool.must[0].frange.incl", equalTo(true))
+                .body("[0].body.query.bool.must[0].frange.incu", equalTo(false));
     }
 
     @Test
     void routesMultipleMaterialTypesToTheirRespectiveBackends() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Cross material query",
                           "materialTypes": ["book", "article"],
@@ -100,7 +100,7 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -109,22 +109,22 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
                 .body("[0].materialTypes[0]", equalTo("book"))
-                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("[0].query.bool.must[0].match_phrase.book_title", equalTo("history"))
+                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("history"))
                 .body("[1].backend", equalTo("solr-articles"))
                 .body("[1].engine", equalTo("SOLR"))
                 .body("[1].materialTypes[0]", equalTo("article"))
-                .body("[1].query.bool.filter[0].field.f", equalTo("material_type"))
-                .body("[1].query.bool.filter[0].field.query", equalTo("article"))
-                .body("[1].query.bool.must[0].field.f", equalTo("article_headline"))
-                .body("[1].query.bool.must[0].field.query", equalTo("history"));
+                .body("[1].body.query.bool.filter[0].field.f", equalTo("material_type"))
+                .body("[1].body.query.bool.filter[0].field.query", equalTo("article"))
+                .body("[1].body.query.bool.must[0].field.f", equalTo("article_headline"))
+                .body("[1].body.query.bool.must[0].field.query", equalTo("history"));
     }
 
     @Test
     void parsesSubdocumentQueryToElasticsearchNestedDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Nested chapter query",
                           "materialTypes": ["book"],
@@ -143,14 +143,14 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].query.bool.must[0].nested.path", equalTo("chapters"))
+                .body("[0].body.query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.title\""))
                 .body(containsString("\"introduction\""));
     }
@@ -159,7 +159,7 @@ class QueryResourceTest {
     void parsesSubdocumentQueryToSolrBlockJoinDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Nested chapter query Solr",
                           "materialTypes": ["book"],
@@ -189,7 +189,7 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """.formatted(recentRange()))
+                        """.formatted(recentRange())))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -199,6 +199,169 @@ class QueryResourceTest {
                 .body(containsString("\"*:* -_nest_path_:*\""))
                 .body(containsString("\"chapters.title\""))
                 .body(containsString("\"introduction\""));
+    }
+
+    @Test
+    void parseEmitsElasticsearchResultOptionsAndAggregations() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "ES full body",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title", "year"],
+                          "size": 25,
+                          "aggs": {
+                            "byAuthor": { "aggType": "terms", "args": { "field": "author", "size": 5 } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[0].body.size", equalTo(25))
+                .body("[0].body._source", containsInAnyOrder("material_type", "id", "book_title", "book_year"))
+                .body("[0].body.aggs.byAuthor.terms.field", equalTo("book_author"))
+                .body("[0].body.aggs.byAuthor.terms.size", equalTo(5));
+    }
+
+    @Test
+    void parseDefaultsSizeToBackendDefaultSizeWhenOmitted() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "ES default size",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "text", "phrases": ["java"] }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.size", equalTo(10));
+    }
+
+    @Test
+    void parseEmitsSolrResultOptionsAndFacets() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Solr full body",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["solr"] }
+                            }
+                          },
+                          "fields": ["title", "year"],
+                          "size": 15,
+                          "aggs": {
+                            "byYear": { "aggType": "terms", "args": { "field": "year", "size": 5 } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.limit", equalTo(15))
+                .body("[0].body.fields[0]", equalTo("score"))
+                .body("[0].body.fields", containsInAnyOrder("score", "material_type", "id", "article_headline", "article_year"))
+                .body("[0].body.facet.byYear.type", equalTo("terms"))
+                .body("[0].body.facet.byYear.field", equalTo("article_year"))
+                .body("[0].body.facet.byYear.limit", equalTo(5));
+    }
+
+    @Test
+    void parseEmitsRangeAggregationMatchingSearchBody() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Year histogram",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "byYear": { "aggType": "range", "args": { "field": "year", "interval": 10, "from": 2000, "to": 2030 } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byYear.histogram.field", equalTo("book_year"))
+                .body("[0].body.aggs.byYear.histogram.interval", equalTo(10))
+                .body(containsString(
+                        "\"byYear\":{\"histogram\":{\"field\":\"book_year\",\"interval\":10,\"min_doc_count\":0,"
+                                + "\"hard_bounds\":{\"min\":2000,\"max\":2030},\"extended_bounds\":{\"min\":2000,\"max\":2030}}}"));
+    }
+
+    @Test
+    void parseEmitsSolrSubfacetsAggregationMatchingSearchBody() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Published subfacets Solr",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["solr"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "published": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "publishedAt",
+                                "filters": {
+                                  "lastWeek": { "type": "range", "gt": "2026-02-01T00:00:00Z", "lt": "2026-02-07T00:00:00Z" },
+                                  "lastMonth": { "type": "range", "gt": "2026-01-07T00:00:00Z", "lt": "2026-02-07T00:00:00Z" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].body.facet.published.type", equalTo("query"))
+                .body(containsString(
+                        "\"published\":{\"type\":\"query\",\"q\":\"*:*\",\"facet\":{"
+                                + "\"lastWeek\":{\"type\":\"query\",\"q\":{\"frange\":{\"query\":\"article_published_at\""));
     }
 
     @Test
@@ -605,7 +768,7 @@ class QueryResourceTest {
     void parsesBooleanExactQueryForElasticsearchAndSolr() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Boolean exact query (ES)",
                           "materialTypes": ["book"],
@@ -614,17 +777,17 @@ class QueryResourceTest {
                             "data": { "type": "exact", "values": [true] }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].query.bool.must[0].terms.book_in_print[0]", equalTo(true));
+                .body("[0].body.query.bool.must[0].terms.book_in_print[0]", equalTo(true));
 
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Boolean exact query (Solr)",
                           "materialTypes": ["article"],
@@ -633,14 +796,14 @@ class QueryResourceTest {
                             "data": { "type": "exact", "values": [true] }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].engine", equalTo("SOLR"))
-                .body("[0].query.bool.must[0].field.f", equalTo("article_open_access"))
-                .body("[0].query.bool.must[0].field.query", equalTo(true));
+                .body("[0].body.query.bool.must[0].field.f", equalTo("article_open_access"))
+                .body("[0].body.query.bool.must[0].field.query", equalTo(true));
     }
 
     @Test
@@ -795,7 +958,7 @@ class QueryResourceTest {
     void invalidTranslationRequestsReturnStructuredBadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Unknown mapped field",
                           "materialTypes": ["book"],
@@ -804,7 +967,7 @@ class QueryResourceTest {
                             "data": {"type": "text", "phrases": ["x"]}
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
@@ -941,7 +1104,7 @@ class QueryResourceTest {
     void invalidQuerySerializationFieldsReturnStructuredExplanation() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Serialized validation helper",
                           "materialTypes": ["book"],
@@ -954,13 +1117,13 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
-                .body("error.message", containsString("query.data.textType"))
+                .body("error.message", containsString("query.query.data.textType"))
                 .body("error.message", containsString("property 'textType' is not part of the query DSL"));
     }
 
@@ -968,7 +1131,7 @@ class QueryResourceTest {
     void invalidQueryDataTypeReturnsStructuredExplanation() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Invalid payload type",
                           "materialTypes": ["book"],
@@ -980,7 +1143,7 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
@@ -994,7 +1157,7 @@ class QueryResourceTest {
     void missingQueryDataTypeReturnsStructuredExplanation() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Missing payload type",
                           "materialTypes": ["book"],
@@ -1006,13 +1169,13 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
-                .body("error.message", containsString("query.data"))
+                .body("error.message", containsString("query.query.data"))
                 .body("error.message", containsString("Query payload type is required"));
     }
 
@@ -1020,7 +1183,7 @@ class QueryResourceTest {
     void customJsonMappingExceptionsReturnStructuredExplanation() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Missing range bounds",
                           "materialTypes": ["book"],
@@ -1031,13 +1194,13 @@ class QueryResourceTest {
                             }
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
-                .body("error.message", containsString("query.data"))
+                .body("error.message", containsString("query.query.data"))
                 .body("error.message", containsString("Range query requires at least one bound"));
     }
 
@@ -1102,7 +1265,7 @@ class QueryResourceTest {
     void expandsRootVirtualFieldToElasticsearchDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Virtual field expansion ES",
                           "materialTypes": ["book"],
@@ -1111,24 +1274,24 @@ class QueryResourceTest {
                             "data": {"type": "text", "phrases": ["java"]}
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("[0].query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
-                .body("[0].query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
-                .body("[0].query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
+                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[0].body.query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
+                .body("[0].body.query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
     }
 
     @Test
     void expandsRootVirtualFieldToSolrDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Virtual field expansion Solr",
                           "materialTypes": ["book"],
@@ -1142,7 +1305,7 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """.formatted(recentRange()))
+                        """.formatted(recentRange())))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -1160,7 +1323,7 @@ class QueryResourceTest {
     void expandsSubdocumentVirtualFieldToElasticsearchNestedDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Subdocument virtual field expansion",
                           "materialTypes": ["book"],
@@ -1176,15 +1339,15 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("[0].query.bool.must[0].nested.path", equalTo("chapters"))
+                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.page_count\""))
                 .body(containsString("\"gte\""))
                 .body(containsString("\"lte\""));
@@ -1194,7 +1357,7 @@ class QueryResourceTest {
     void virtualFieldRejectsIncompatiblePayloadTypeWithError() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Wrong payload type for virtual field",
                           "materialTypes": ["book"],
@@ -1203,7 +1366,7 @@ class QueryResourceTest {
                             "data": {"type": "range", "gte": 2010, "lte": 2025}
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
@@ -1216,7 +1379,7 @@ class QueryResourceTest {
     void expandsPredicateVirtualFieldWithoutDataToElasticsearchDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Predicate virtual field expansion ES",
                           "materialTypes": ["book"],
@@ -1224,22 +1387,22 @@ class QueryResourceTest {
                             "field": "twentyFirstCentury"
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].query.bool.filter[0].term.material_type", equalTo("book"))
-                .body("[0].query.bool.must[0].range.book_year.gte", equalTo(2000));
+                .body("[0].body.query.bool.filter[0].term.material_type", equalTo("book"))
+                .body("[0].body.query.bool.must[0].range.book_year.gte", equalTo(2000));
     }
 
     @Test
     void expandsPredicateVirtualFieldWithoutDataToSolrDsl() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Predicate virtual field expansion Solr",
                           "materialTypes": ["book"],
@@ -1253,7 +1416,7 @@ class QueryResourceTest {
                             ]
                           }
                         }
-                        """.formatted(recentRange()))
+                        """.formatted(recentRange())))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
@@ -1268,7 +1431,7 @@ class QueryResourceTest {
     void negatesPredicateVirtualField() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Negated predicate virtual field",
                           "materialTypes": ["book"],
@@ -1277,20 +1440,20 @@ class QueryResourceTest {
                             "isNot": true
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
-                .body("[0].query.bool.must[0].bool.must_not[0].range.book_year.gte", equalTo(2000));
+                .body("[0].body.query.bool.must[0].bool.must_not[0].range.book_year.gte", equalTo(2000));
     }
 
     @Test
     void predicateVirtualFieldRejectsDataPayloadWithError() {
         given()
                 .contentType(ContentType.JSON)
-                .body("""
+                .body(parseRequest("""
                         {
                           "name": "Predicate virtual field with data",
                           "materialTypes": ["book"],
@@ -1299,7 +1462,7 @@ class QueryResourceTest {
                             "data": {"type": "text", "phrases": ["java"]}
                           }
                         }
-                        """)
+                        """))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400)
@@ -1385,9 +1548,19 @@ class QueryResourceTest {
     private static void assertBadRequest(String body) {
         given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(parseRequest(body))
                 .when().post("/queries/parse")
                 .then()
                 .statusCode(400);
+    }
+
+    /** Wraps a query request in the SearchExecutionRequest envelope shared by /queries/parse and /queries/search. */
+    private static String parseRequest(String query) {
+        return """
+                {
+                  "query": %s,
+                  "fields": ["title"]
+                }
+                """.formatted(query);
     }
 }
