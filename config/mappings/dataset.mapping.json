@@ -1,6 +1,5 @@
 {
   "$schema": "./mappings.schema.json",
-  "primaryKey": "id",
   "root": {
     "materialType": {
       "type": "string",

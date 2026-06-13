@@ -20,13 +20,12 @@ import java.util.Set;
 
 @ApplicationScoped
 public class CatalogSnapshotBuilder {
-    private static final Set<String> RESERVED_PROPERTIES = Set.of("$schema", "root", "primaryKey");
+    private static final Set<String> RESERVED_PROPERTIES = Set.of("$schema", "root");
     private static final Set<String> VIRTUAL_RESERVED_PROPERTIES = Set.of("$schema");
     private static final Set<String> DOCUMENT_RESERVED_PROPERTIES = Set.of("block_mask");
 
     public SearchMapping parseMapping(String materialType, JsonNode root) {
         ObjectNode mappingRoot = requireObject(root, "mapping for material type '" + materialType + "'");
-        String primaryKey = requireText(mappingRoot, "primaryKey", "material type '" + materialType + "'");
 
         Map<String, DocumentMapping> documents = new LinkedHashMap<>();
         documents.put("root", parseDocument(
@@ -39,7 +38,7 @@ public class CatalogSnapshotBuilder {
                         entry.getKey(),
                         requireObject(entry.getValue(), "material type '" + materialType + "' #/" + entry.getKey()))));
 
-        return new SearchMapping(materialType, primaryKey, Map.copyOf(documents));
+        return new SearchMapping(materialType, Map.copyOf(documents));
     }
 
     public VirtualMapping parseVirtualMapping(String materialType, JsonNode root) {

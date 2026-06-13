@@ -1,9 +1,7 @@
 package jd.nomad.config.catalog;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import jd.nomad.config.CatalogSource;
 import jd.nomad.config.IndexerConfig;
-import jd.nomad.mapping.BackendConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -11,11 +9,13 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -24,8 +24,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Exercises hot-reload of the file-backed catalog: editing a mapping file or {@code catalog.json} on disk
  * must replace the live {@link CatalogSnapshot}, while an invalid edit retains the last-good configuration.
  *
- * <p>The default {@link org.apache.commons.vfs2.impl.DefaultFileMonitor} poll interval is ~1s, so the tests
- * mutate files after a short settle and then await the resulting snapshot.
+ * <p>Mappings are loaded from each backend's {@code physical} file (declared in {@code backends.json});
+ * {@code catalog.json} only routes material types to backends. The default
+ * {@link org.apache.commons.vfs2.impl.DefaultFileMonitor} poll interval is ~1s, so the tests mutate files
+ * after a short settle and then await the resulting snapshot.
  */
 class FileCatalogDatastoreReloadTest {
 
@@ -47,50 +49,54 @@ class FileCatalogDatastoreReloadTest {
     @Test
     void physicalMappingChangeReloadsSnapshot() throws Exception {
         Path bookMapping = writeFile("book.mapping.json", mappingJson("title_s"));
-        Path catalog = writeFile("catalog.json", catalogJson("book", bookMapping, "es"));
+        Path backends = writeFile("backends.json", backendsJson(Map.of("es", bookMapping)));
+        Path catalog = writeFile("catalog.json", catalogJson("book", "es"));
 
         CapturingSink sink = new CapturingSink();
-        CatalogSnapshot initial = start(catalog, sink);
-        assertEquals("title_s", destinationField(initial, "book"), "sanity: initial mapping");
+        CatalogSnapshot initial = start(catalog, backends, sink);
+        assertEquals("title_s", destinationField(initial, "es"), "sanity: initial mapping");
 
         Thread.sleep(MONITOR_SETTLE_MILLIS);
         writeFile("book.mapping.json", mappingJson("title_t"));
 
-        await(() -> sink.latest.get() != null && "title_t".equals(destinationField(sink.latest.get(), "book")));
-        assertEquals("title_t", destinationField(sink.latest.get(), "book"));
+        await(() -> sink.latest.get() != null && "title_t".equals(destinationField(sink.latest.get(), "es")));
+        assertEquals("title_t", destinationField(sink.latest.get(), "es"));
     }
 
     @Test
     void catalogJsonChangeAddsMaterialType() throws Exception {
         Path bookMapping = writeFile("book.mapping.json", mappingJson("title_s"));
-        Path catalog = writeFile("catalog.json", catalogJson("book", bookMapping, "es"));
+        Path articleMapping = writeFile("article.mapping.json", mappingJson("headline_s"));
+        Path backends = writeFile("backends.json", backendsJson(Map.of(
+                "es", bookMapping,
+                "es-articles", articleMapping)));
+        Path catalog = writeFile("catalog.json", catalogJson("book", "es"));
 
         CapturingSink sink = new CapturingSink();
-        start(catalog, sink);
+        start(catalog, backends, sink);
 
         Thread.sleep(MONITOR_SETTLE_MILLIS);
-        Path articleMapping = writeFile("article.mapping.json", mappingJson("headline_s"));
-        writeFile("catalog.json", catalogJson(
-                "book", bookMapping, "es",
-                "article", articleMapping, "es-articles"));
+        writeFile("catalog.json", catalogJson("book", "es", "article", "es-articles"));
 
-        await(() -> sink.latest.get() != null && sink.latest.get().mappings().containsKey("article"));
+        await(() -> sink.latest.get() != null
+                && "es-articles".equals(sink.latest.get().backendsByMaterialType().get("article")));
         CatalogSnapshot snapshot = sink.latest.get();
-        assertEquals("headline_s", destinationField(snapshot, "article"));
+        assertEquals("headline_s", destinationField(snapshot, "es-articles"));
         assertEquals("es-articles", snapshot.backendsByMaterialType().get("article"));
     }
 
     @Test
     void invalidEditRetainsLastGoodConfiguration() throws Exception {
         Path bookMapping = writeFile("book.mapping.json", mappingJson("title_s"));
-        Path catalog = writeFile("catalog.json", catalogJson("book", bookMapping, "es"));
+        Path backends = writeFile("backends.json", backendsJson(Map.of("es", bookMapping)));
+        Path catalog = writeFile("catalog.json", catalogJson("book", "es"));
 
         CapturingSink sink = new CapturingSink();
-        start(catalog, sink);
+        start(catalog, backends, sink);
 
         Thread.sleep(MONITOR_SETTLE_MILLIS);
         writeFile("book.mapping.json", mappingJson("title_t"));
-        await(() -> sink.latest.get() != null && "title_t".equals(destinationField(sink.latest.get(), "book")));
+        await(() -> sink.latest.get() != null && "title_t".equals(destinationField(sink.latest.get(), "es")));
         int goodReloadCount = sink.replaceCount.get();
 
         // A malformed mapping must NOT clobber the live snapshot.
@@ -98,11 +104,12 @@ class FileCatalogDatastoreReloadTest {
 
         Thread.sleep(2_500);
         assertEquals(goodReloadCount, sink.replaceCount.get(), "invalid edit should not push a snapshot");
-        assertEquals("title_t", destinationField(sink.latest.get(), "book"), "last-good config retained");
+        assertEquals("title_t", destinationField(sink.latest.get(), "es"), "last-good config retained");
     }
 
-    private CatalogSnapshot start(Path catalog, CapturingSink sink) throws Exception {
-        datastore = new FileCatalogDatastore(fileIndexerConfig(catalog.toString()), new CatalogSnapshotBuilder());
+    private CatalogSnapshot start(Path catalog, Path backends, CapturingSink sink) throws Exception {
+        datastore = new FileCatalogDatastore(
+                fileIndexerConfig(catalog.toString(), backends.toString()), new CatalogSnapshotBuilder());
         return datastore.start(sink);
     }
 
@@ -112,9 +119,9 @@ class FileCatalogDatastoreReloadTest {
         return path;
     }
 
-    private static String destinationField(CatalogSnapshot snapshot, String materialType) {
-        return snapshot.mappings().get(materialType).root().field("title")
-                .or(() -> snapshot.mappings().get(materialType).root().field("headline"))
+    private static String destinationField(CatalogSnapshot snapshot, String backend) {
+        return snapshot.mappingsByBackend().get(backend).root().field("title")
+                .or(() -> snapshot.mappingsByBackend().get(backend).root().field("headline"))
                 .orElseThrow()
                 .searchField();
     }
@@ -123,7 +130,6 @@ class FileCatalogDatastoreReloadTest {
         String logical = destinationField.startsWith("headline") ? "headline" : "title";
         return """
                 {
-                  "primaryKey": "id",
                   "root": {
                     "%s": { "type": "string", "destinationField": "%s" }
                   }
@@ -131,30 +137,38 @@ class FileCatalogDatastoreReloadTest {
                 """.formatted(logical, destinationField);
     }
 
-    private static String catalogJson(String materialType, Path physical, String backend) {
+    private static String backendsJson(Map<String, Path> physicalByBackend) {
+        String entries = physicalByBackend.entrySet().stream()
+                .map(entry -> """
+                        "%s": { "engine": "ELASTICSEARCH", "url": "http://localhost:9200", "index": "%s", "primaryKey": "id", "physical": "%s" }"""
+                        .formatted(entry.getKey(), entry.getKey(), entry.getValue()))
+                .collect(Collectors.joining(",\n"));
+        return "{ \"backends\": {\n" + entries + "\n} }";
+    }
+
+    private static String catalogJson(String materialType, String backend) {
         return """
                 {
                   "mappings": {
-                    "%s": { "physical": "%s", "backend": "%s" }
+                    "%s": { "backend": "%s" }
                   }
                 }
-                """.formatted(materialType, physical, backend);
+                """.formatted(materialType, backend);
     }
 
-    private static String catalogJson(String firstType, Path firstPhysical, String firstBackend,
-                                      String secondType, Path secondPhysical, String secondBackend) {
+    private static String catalogJson(String firstType, String firstBackend,
+                                      String secondType, String secondBackend) {
         return """
                 {
                   "mappings": {
-                    "%s": { "physical": "%s", "backend": "%s" },
-                    "%s": { "physical": "%s", "backend": "%s" }
+                    "%s": { "backend": "%s" },
+                    "%s": { "backend": "%s" }
                   }
                 }
-                """.formatted(firstType, firstPhysical, firstBackend,
-                secondType, secondPhysical, secondBackend);
+                """.formatted(firstType, firstBackend, secondType, secondBackend);
     }
 
-    private static IndexerConfig fileIndexerConfig(String configPath) {
+    private static IndexerConfig fileIndexerConfig(String configPath, String backendsPath) {
         IndexerConfig.FileSource fileSource = new IndexerConfig.FileSource() {
             @Override
             public Optional<String> config() {
@@ -163,7 +177,7 @@ class FileCatalogDatastoreReloadTest {
 
             @Override
             public Optional<String> backends() {
-                return Optional.empty();
+                return Optional.of(backendsPath);
             }
 
             @Override
@@ -204,14 +218,6 @@ class FileCatalogDatastoreReloadTest {
     private static final class CapturingSink implements CatalogUpdateSink {
         private final AtomicReference<CatalogSnapshot> latest = new AtomicReference<>();
         private final AtomicInteger replaceCount = new AtomicInteger();
-
-        @Override
-        public void updateMapping(String materialType, JsonNode node) {
-        }
-
-        @Override
-        public void updateBackends(Map<String, BackendConfig> backends) {
-        }
 
         @Override
         public void replaceSnapshot(CatalogSnapshot snapshot) {

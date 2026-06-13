@@ -123,10 +123,9 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
         outRefs.add(catalogKey);
         CatalogConfig catalogConfig = objectMapper.treeToValue(readJsonFromEtcd(catalogKey), CatalogConfig.class);
 
-        Map<String, SearchMapping> mappings = new LinkedHashMap<>();
-        Map<String, VirtualMapping> virtualMappings = new LinkedHashMap<>();
         Map<String, String> backendsByMaterialType = new LinkedHashMap<>();
         Map<String, List<RoutingRule>> routingRulesByMaterialType = new LinkedHashMap<>();
+        Map<String, String> materialTypeByBackend = new LinkedHashMap<>();
         for (Map.Entry<String, CatalogConfig.MappingEntry> entry : catalogConfig.mappings().entrySet()) {
             String materialType = entry.getKey();
             CatalogConfig.MappingEntry mappingEntry = entry.getValue();
@@ -134,17 +133,11 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
                 throw new IllegalStateException(
                         "Catalog entry for material type '" + materialType + "' does not specify a backend");
             }
-            outRefs.add(mappingEntry.physical());
-            mappings.put(materialType,
-                    snapshotBuilder.parseMapping(materialType, readJsonFromEtcd(mappingEntry.physical())));
-            if (mappingEntry.virtual() != null) {
-                outRefs.add(mappingEntry.virtual());
-                virtualMappings.put(materialType,
-                        snapshotBuilder.parseVirtualMapping(materialType, readJsonFromEtcd(mappingEntry.virtual())));
-            }
+            List<RoutingRule> rules = mappingEntry.routing() != null ? List.copyOf(mappingEntry.routing()) : List.of();
             backendsByMaterialType.put(materialType, mappingEntry.backend());
-            routingRulesByMaterialType.put(materialType,
-                    mappingEntry.routing() != null ? List.copyOf(mappingEntry.routing()) : List.of());
+            routingRulesByMaterialType.put(materialType, rules);
+            materialTypeByBackend.put(mappingEntry.backend(), materialType);
+            rules.forEach(rule -> materialTypeByBackend.put(rule.backend(), materialType));
         }
 
         Map<String, BackendConfig> backends = Map.of();
@@ -152,6 +145,32 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             String backendsKey = indexerConfig.catalog().etcd().backends().get();
             outRefs.add(backendsKey);
             backends = readBackendsFromEtcd(backendsKey);
+        }
+
+        Map<String, SearchMapping> mappingsByBackend = new LinkedHashMap<>();
+        Map<String, VirtualMapping> virtualMappingsByBackend = new LinkedHashMap<>();
+        for (Map.Entry<String, BackendConfig> entry : backends.entrySet()) {
+            String backendName = entry.getKey();
+            BackendConfig backend = entry.getValue();
+            // Connection-only backends (e.g. clustered sinks declared just for their zk/chroot/hosts) carry
+            // no mapping of their own; only backends that declare a physical mapping are loaded here.
+            if (backend.physical() == null || backend.physical().isBlank()) {
+                continue;
+            }
+            String label = materialTypeByBackend.getOrDefault(backendName, backendName);
+            outRefs.add(backend.physical());
+            mappingsByBackend.put(backendName, snapshotBuilder.parseMapping(label, readJsonFromEtcd(backend.physical())));
+            if (backend.virtual() != null && !backend.virtual().isBlank()) {
+                outRefs.add(backend.virtual());
+                virtualMappingsByBackend.put(backendName, snapshotBuilder.parseVirtualMapping(label, readJsonFromEtcd(backend.virtual())));
+            }
+        }
+
+        for (String backendName : materialTypeByBackend.keySet()) {
+            if (!mappingsByBackend.containsKey(backendName)) {
+                throw new IllegalStateException(
+                        "Catalog references backend '" + backendName + "' which is not configured with a physical mapping");
+            }
         }
 
         Map<String, DatasourceDescriptor> datasources = Map.of();
@@ -162,8 +181,8 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
         }
 
         return new CatalogSnapshot(
-                Map.copyOf(mappings),
-                Map.copyOf(virtualMappings),
+                Map.copyOf(mappingsByBackend),
+                Map.copyOf(virtualMappingsByBackend),
                 Map.copyOf(backendsByMaterialType),
                 Map.copyOf(routingRulesByMaterialType),
                 backends,
@@ -217,14 +236,6 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
 
     private enum NoopSink implements CatalogUpdateSink {
         INSTANCE;
-
-        @Override
-        public void updateMapping(String materialType, JsonNode node) {
-        }
-
-        @Override
-        public void updateBackends(Map<String, BackendConfig> backends) {
-        }
 
         @Override
         public void replaceSnapshot(CatalogSnapshot snapshot) {

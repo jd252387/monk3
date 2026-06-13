@@ -12,6 +12,9 @@ public record BackendConfig(
         @JsonProperty URI url,
         @JsonProperty String index,
         @JsonProperty String collection,
+        @JsonProperty String primaryKey,
+        @JsonProperty String physical,
+        @JsonProperty String virtual,
         @JsonProperty int defaultSize,
         // Indexer-side connection details for clustered sinks; the query side (monk3) ignores these.
         @JsonProperty String zk,

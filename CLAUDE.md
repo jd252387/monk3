@@ -60,10 +60,9 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 
 ### Configuration catalog and field mapping
 
-Configuration is loaded (and hot-reloaded) by the `catalog` subproject, selected via `indexer.catalog.source` (`FILE` or `etcd`) in `application.yaml`. For the file source, `indexer.catalog.file.config` points at `config/catalog.json` (per material type: `physical` mapping file, optional `virtual` mapping file, default `backend`, optional `routing` rules) and `indexer.catalog.file.backends` points at `config/backends.json`.
+Configuration is loaded (and hot-reloaded) by the `catalog` subproject, selected via `indexer.catalog.source` (`FILE` or `etcd`) in `application.yaml`. For the file source, `indexer.catalog.file.config` points at `config/catalog.json` (per material type: a default `backend` and optional `routing` rules) and `indexer.catalog.file.backends` points at `config/backends.json` (per backend: connection details plus the `physical` mapping file, optional `virtual` mapping file, and `primaryKey`). Mappings are loaded from each backend's `physical` file; `catalog.json` only routes material types to backends, so the snapshot keys mappings by backend (`mappingsByBackend`).
 
 Each mapping file (`config/mappings/*.mapping.json`) declares:
-- `primaryKey` — the stored field name used as the document ID
 - `root` — root-level fields
 - Additional named blocks for subdocument types
 
@@ -77,7 +76,7 @@ Virtual mapping files (`*.virtual.json`) declare virtual fields that expand to q
 
 `SearchExecutionService` fans out to all configured backends in parallel using virtual threads, translates the query per backend's engine, resolves field projections, POSTs the JSON body, then merges and normalizes scores before returning sorted results.
 
-Backends are configured in `config/backends.json`. Each backend declares its `engine` (`ELASTICSEARCH` or `SOLR`), `url`, either `index` (ES) or `collection` (Solr), and an optional `defaultSize`. Optional indexer-side connection fields (`zk` / `chroot` for SolrCloud, `hosts` for an ES cluster) may also appear; monk3 ignores them. Each material type routes to its default backend from `catalog.json` unless a `routing` rule matches (e.g. `datetimeRangeWithin` sends recent-range queries elsewhere); `QueryAnalyzer` + `RoutingEngine` evaluate the rules per request.
+Backends are configured in `config/backends.json`. Each backend declares its `engine` (`ELASTICSEARCH` or `SOLR`), `url`, either `index` (ES) or `collection` (Solr), a `primaryKey` (the stored field used as the document ID), its `physical` mapping file and optional `virtual` mapping file, and an optional `defaultSize`. Optional indexer-side connection fields (`zk` / `chroot` for SolrCloud, `hosts` for an ES cluster) may also appear; connection-only backends (which declare no `physical`) contribute no mapping. Each material type routes to its default backend from `catalog.json` unless a `routing` rule matches (e.g. `datetimeRangeWithin` sends recent-range queries elsewhere); `QueryAnalyzer` + `RoutingEngine` evaluate the rules per request.
 
 ### Testing
 

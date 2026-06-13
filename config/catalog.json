@@ -1,9 +1,7 @@
 {
   "mappings": {
     "book": {
-      "physical": "config/mappings/book.mapping.json",
-      "virtual":  "config/mappings/book.virtual.json",
-      "backend":  "elastic-books",
+      "backend": "elastic-books",
       "routing": [
         {
           "conditions": [
@@ -13,8 +11,8 @@
         }
       ]
     },
-    "article": { "physical": "config/mappings/article.mapping.json", "backend": "solr-articles" },
-    "ds":      { "physical": "config/mappings/dataset.mapping.json",  "backend": "elastic-datasets" },
-    "document": { "physical": "config/mappings/document.mapping.json", "backend": "solr-collection-text" }
+    "article": { "backend": "solr-articles" },
+    "ds":      { "backend": "elastic-datasets" },
+    "document": { "backend": "solr-collection-text" }
   }
 }

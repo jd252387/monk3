@@ -106,12 +106,9 @@
         "root": {
             "description": "Mapping definition for the root search document. Fields declared here describe values that live directly on the top-level indexed document.",
             "$ref": "#/definitions/documentSchema"
-        },
-        "primaryKey": {
-            "type": "string"
         }
     },
-    "required": ["root", "primaryKey"],
+    "required": ["root"],
     "additionalProperties": {
         "description": "Mapping definition for a named subdocument type. Each additional top-level property name can be referenced by subdocument fields through subdocumentType.",
         "$ref": "#/definitions/documentSchema"

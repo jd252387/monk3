@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 public record CatalogSnapshot(
-        Map<String, SearchMapping> mappings,
-        Map<String, VirtualMapping> virtualMappings,
+        Map<String, SearchMapping> mappingsByBackend,
+        Map<String, VirtualMapping> virtualMappingsByBackend,
         Map<String, String> backendsByMaterialType,
         Map<String, List<RoutingRule>> routingRulesByMaterialType,
         Map<String, BackendConfig> backends,
