@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Etcd-backed catalog datastore. Mirrors {@link FileCatalogDatastore}: it reads a catalog document
@@ -51,6 +53,18 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
     private final List<Watch.Watcher> watchers = new CopyOnWriteArrayList<>();
     private final Set<String> watchedKeys = new LinkedHashSet<>();
 
+    /**
+     * Single thread that runs reloads off the etcd/Vert.x event loop. Watch callbacks are dispatched
+     * on the gRPC event loop thread; doing the blocking KV reads there would deadlock (the read's
+     * future can only complete on that same thread) and stall every other watcher. Serializing
+     * reloads here also means concurrent key changes never rebuild the snapshot in parallel.
+     */
+    private final ExecutorService reloadExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "etcd-catalog-reload");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     @Override
     public synchronized CatalogSnapshot start(CatalogUpdateSink sink) throws IOException {
         this.sink = sink;
@@ -67,6 +81,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
     void stop() {
         watchers.forEach(Watch.Watcher::close);
         watchers.clear();
+        reloadExecutor.shutdownNow();
         if (etcdClient != null) {
             etcdClient.close();
         }
@@ -151,7 +166,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
         Watch.Listener listener = Watch.listener(
                 response -> {
                     if (!response.getEvents().isEmpty()) {
-                        reload();
+                        reloadExecutor.execute(this::reload);
                     }
                 },
                 throwable -> log.atError()
