@@ -11,6 +11,9 @@ public record BackendConfig(
         @JsonProperty URI url,
         @JsonProperty String index,
         @JsonProperty String collection,
+        @JsonProperty String primaryKey,
+        @JsonProperty String physical,
+        @JsonProperty String virtual,
         @JsonProperty int defaultSize
 ) {
     public BackendConfig {

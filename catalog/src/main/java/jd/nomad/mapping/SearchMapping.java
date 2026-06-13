@@ -5,7 +5,6 @@ import java.util.Optional;
 
 public record SearchMapping(
         String materialType,
-        String primaryKey,
         Map<String, DocumentMapping> documents
 ) {
     private static final String ROOT_DOCUMENT = "root";

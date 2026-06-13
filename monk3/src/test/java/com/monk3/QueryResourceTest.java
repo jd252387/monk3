@@ -830,34 +830,6 @@ class QueryResourceTest {
     }
 
     @Test
-    void aggregationFieldMissingFromOneMaterialTypeOnSharedBackendFails() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {
-                          "query": {
-                            "name": "Shared backend facets",
-                            "materialTypes": ["book", "ds"],
-                            "query": {
-                              "field": "materialType",
-                              "data": { "type": "text", "phrases": ["book"] }
-                            }
-                          },
-                          "fields": ["materialType"],
-                          "aggs": {
-                            "byYear": { "aggType": "terms", "args": { "field": "year" } }
-                          }
-                        }
-                        """)
-                .when().post("/queries/search")
-                .then()
-                .statusCode(400)
-                .contentType(ContentType.JSON)
-                .body("error.code", equalTo("query_translation_failed"))
-                .body("error.message", containsString("Aggregation field 'year' is not defined for material type 'ds'"));
-    }
-
-    @Test
     void invalidAggregationStructuresReturnStructuredBadRequest() {
         assertAggregationStructureError("""
                 {"bad": {"aggType": "geo", "args": {"field": "year"}}}

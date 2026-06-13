@@ -1,5 +1,4 @@
 {
-  "primaryKey": "id",
   "root": {
     "materialType": {
       "type": "string",

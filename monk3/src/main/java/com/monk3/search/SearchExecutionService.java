@@ -106,37 +106,33 @@ public class SearchExecutionService {
     public List<BackendQuery> parse(SearchExecutionRequest request) {
         return queryTranslationService.resolveTargets(request.query()).stream()
                 .map(target -> new BackendQuery(
-                        target.name(), target.engine(), target.materialTypes(),
-                        buildRequestBody(target, request,
-                                projections(target.materialTypes(), request.fields()),
-                                primaryKeys(target.materialTypes()))))
+                        target.name(), target.engine(), List.of(target.materialType()),
+                        buildRequestBody(target, request, projections(target, request.fields()))))
                 .toList();
     }
 
     private BackendSearchResult searchBackend(BackendTarget target, SearchExecutionRequest request) {
-        List<FieldProjection> projections = projections(target.materialTypes(), request.fields());
-        List<String> primaryKeys = primaryKeys(target.materialTypes());
-        ObjectNode body = buildRequestBody(target, request, projections, primaryKeys);
+        List<FieldProjection> projections = projections(target, request.fields());
+        ObjectNode body = buildRequestBody(target, request, projections);
 
         JsonNode response = postJson(target.name(), targetUri(target.backend(), target.engine()), body);
         return new BackendSearchResult(
                 target.name(),
-                parseResponse(target, projections, primaryKeys, response),
+                parseResponse(target, projections, response),
                 hasAggregations(request) ? parseAggregations(target, request.aggs(), response) : null);
     }
 
     private ObjectNode buildRequestBody(
             BackendTarget target,
             SearchExecutionRequest request,
-            List<FieldProjection> projections,
-            List<String> primaryKeys
+            List<FieldProjection> projections
     ) {
         ObjectNode body = JsonNodeFactory.instance.objectNode();
-        body.set("query", queryTranslationService.translate(target.engine(), target.request()));
-        applyResultOptions(target, body, projections, primaryKeys, request);
+        body.set("query", queryTranslationService.translate(target));
+        applyResultOptions(target, body, projections, request);
         if (hasAggregations(request)) {
             body.set(target.engine().aggregationsRequestProperty(),
-                    queryTranslationService.translateAggregations(target.engine(), target.materialTypes(), request.aggs()));
+                    queryTranslationService.translateAggregations(target, request.aggs()));
         }
         return body;
     }
@@ -171,10 +167,9 @@ public class SearchExecutionService {
             BackendTarget target,
             ObjectNode body,
             List<FieldProjection> projections,
-            List<String> primaryKeys,
             SearchExecutionRequest request
     ) {
-        Set<String> storedFields = storedFields(primaryKeys, projections);
+        Set<String> storedFields = storedFields(target.backend().primaryKey(), projections);
         body.put(target.engine().sizeProperty(), size(request, target.backend()));
         switch (target.engine()) {
             case ELASTICSEARCH -> storedFields.forEach(body.putArray("_source")::add);
@@ -209,20 +204,18 @@ public class SearchExecutionService {
     private List<SearchResult> parseResponse(
             BackendTarget target,
             List<FieldProjection> projections,
-            List<String> primaryKeys,
             JsonNode response
     ) {
         ArrayNode hits = arrayAt(response.at(target.engine().resultsPath()));
         double maxScore = maxScore(target.engine(), response, hits);
         return StreamSupport.stream(hits.spliterator(), false)
-                .map(hit -> searchResult(target, projections, primaryKeys, hit, maxScore))
+                .map(hit -> searchResult(target, projections, hit, maxScore))
                 .toList();
     }
 
     private SearchResult searchResult(
             BackendTarget target,
             List<FieldProjection> projections,
-            List<String> primaryKeys,
             JsonNode hit,
             double maxScore
     ) {
@@ -231,24 +224,17 @@ public class SearchExecutionService {
         return new SearchResult(
                 target.name(),
                 target.engine(),
-                materialType(document, target.materialTypes()),
-                id(document, target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_id").asText(null) : null, primaryKeys),
+                materialType(document, target.materialType()),
+                id(document, target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_id").asText(null) : null, target.backend().primaryKey()),
                 score,
                 normalizedScore(score, maxScore),
                 logicalFields(document, projections));
     }
 
-    private List<FieldProjection> projections(List<String> materialTypes, List<String> logicalFields) {
-        return materialTypes.stream()
-                .flatMap(materialType -> projections(materialType, logicalFields).stream())
-                .distinct()
-                .toList();
-    }
-
-    private List<FieldProjection> projections(String materialType, List<String> logicalFields) {
-        SearchMapping mapping = catalogService.mappingForMaterialType(materialType);
+    private List<FieldProjection> projections(BackendTarget target, List<String> logicalFields) {
+        SearchMapping mapping = catalogService.mappingForBackend(target.name());
         return logicalFields.stream()
-                .map(logicalField -> projection(mapping, materialType, logicalField))
+                .map(logicalField -> projection(mapping, target.materialType(), logicalField))
                 .toList();
     }
 
@@ -264,17 +250,10 @@ public class SearchExecutionService {
         return new FieldProjection(logicalField, mappedField.searchField());
     }
 
-    private List<String> primaryKeys(List<String> materialTypes) {
-        return materialTypes.stream()
-                .map(catalogService::mappingForMaterialType)
-                .map(SearchMapping::primaryKey)
-                .toList();
-    }
-
-    private Set<String> storedFields(List<String> primaryKeys, List<FieldProjection> projections) {
+    private Set<String> storedFields(String primaryKey, List<FieldProjection> projections) {
         Set<String> fields = new LinkedHashSet<>();
         fields.add(config.materialTypeField());
-        fields.addAll(primaryKeys);
+        fields.add(primaryKey);
         projections.stream()
                 .map(FieldProjection::storedField)
                 .forEach(fields::add);
@@ -292,21 +271,14 @@ public class SearchExecutionService {
         return fields;
     }
 
-    private static String id(JsonNode document, String fallback, List<String> primaryKeys) {
-        return primaryKeys.stream()
-                .map(document::get)
-                .filter(SearchExecutionService::present)
-                .findFirst()
-                .map(JsonNode::asText)
-                .orElse(fallback);
+    private static String id(JsonNode document, String fallback, String primaryKey) {
+        JsonNode value = document.get(primaryKey);
+        return present(value) ? value.asText() : fallback;
     }
 
-    private String materialType(JsonNode document, List<String> materialTypes) {
+    private String materialType(JsonNode document, String materialType) {
         JsonNode value = document.get(config.materialTypeField());
-        if (present(value)) {
-            return value.asText();
-        }
-        return materialTypes.size() == 1 ? materialTypes.getFirst() : null;
+        return present(value) ? value.asText() : materialType;
     }
 
     private static ArrayNode arrayAt(JsonNode node) {

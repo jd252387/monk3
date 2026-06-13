@@ -1,11 +1,9 @@
 {
   "mappings": {
     "product": {
-      "physical": "config/mappings/sample.mapping.json",
       "backend": "solr-sample"
     },
     "product_elastic": {
-      "physical": "config/mappings/sample.mapping.json",
       "backend": "elastic-sample"
     }
   }

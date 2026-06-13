@@ -4,13 +4,35 @@
       "engine": "ELASTICSEARCH",
       "url": "http://localhost:9200",
       "index": "books",
+      "primaryKey": "id",
+      "physical": "config/mappings/book.mapping.json",
+      "virtual": "config/mappings/book.virtual.json",
+      "defaultSize": 10
+    },
+    "solr-books": {
+      "engine": "SOLR",
+      "url": "http://localhost:8983/solr",
+      "collection": "books",
+      "primaryKey": "id",
+      "physical": "config/mappings/book.mapping.json",
+      "virtual": "config/mappings/book.virtual.json",
       "defaultSize": 10
     },
     "solr-articles": {
       "engine": "SOLR",
       "url": "http://localhost:8983/solr",
       "collection": "articles",
+      "primaryKey": "id",
+      "physical": "config/mappings/article.mapping.json",
       "defaultSize": 20
+    },
+    "elastic-datasets": {
+      "engine": "ELASTICSEARCH",
+      "url": "http://localhost:9200",
+      "index": "datasets",
+      "primaryKey": "id",
+      "physical": "config/mappings/dataset.mapping.json",
+      "defaultSize": 10
     }
   }
 }

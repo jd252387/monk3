@@ -132,10 +132,10 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             String baseUrl = "http://localhost:" + server.getAddress().getPort();
             String backendsJson = """
                     {"backends":{
-                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books"},
-                      "elastic-empty":{"engine":"ELASTICSEARCH","url":"%s/es","index":"empty"},
-                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles"},
-                      "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books"}
+                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","primaryKey":"id","physical":"config/mappings/book.mapping.json","virtual":"config/mappings/book.virtual.json"},
+                      "elastic-empty":{"engine":"ELASTICSEARCH","url":"%s/es","index":"empty","primaryKey":"id","physical":"config/mappings/dataset.mapping.json"},
+                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles","primaryKey":"id","physical":"config/mappings/article.mapping.json"},
+                      "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books","primaryKey":"id","physical":"config/mappings/book.mapping.json","virtual":"config/mappings/book.virtual.json"}
                     }}""".formatted(baseUrl, baseUrl, baseUrl, baseUrl);
             backendsFile = Files.createTempFile("monk3-test-backends", ".json");
             Files.writeString(backendsFile, backendsJson);
@@ -143,8 +143,6 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             String catalogJson = """
                     {"mappings":{
                       "book": {
-                        "physical": "config/mappings/book.mapping.json",
-                        "virtual":  "config/mappings/book.virtual.json",
                         "backend":  "elastic-books",
                         "routing": [
                           {
@@ -155,9 +153,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                           }
                         ]
                       },
-                      "article": {"physical":"config/mappings/article.mapping.json","backend":"solr-articles"},
-                      "ds":      {"physical":"config/mappings/dataset.mapping.json","backend":"elastic-books"},
-                      "emptyset":{"physical":"config/mappings/dataset.mapping.json","backend":"elastic-empty"}
+                      "article": {"backend":"solr-articles"},
+                      "emptyset":{"backend":"elastic-empty"}
                     }}""";
             catalogFile = Files.createTempFile("monk3-test-catalog", ".json");
             Files.writeString(catalogFile, catalogJson);

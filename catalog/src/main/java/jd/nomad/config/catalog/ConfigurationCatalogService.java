@@ -1,6 +1,5 @@
 package jd.nomad.config.catalog;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -15,9 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,7 +23,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class ConfigurationCatalogService implements CatalogUpdateSink {
     private final List<Runnable> updateListeners = Collections.synchronizedList(new ArrayList<>());
-    private final CatalogSnapshotBuilder snapshotBuilder;
     private final Instance<CatalogDatastore> datastoreInstance;
     private final AtomicReference<CatalogSnapshot> snapshot = new AtomicReference<>();
 
@@ -38,18 +34,14 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
         updateListeners.add(callback);
     }
 
-    public SearchMapping mappingForMaterialType(String materialType) {
-        return Optional.ofNullable(snapshot.get().mappings().get(materialType))
+    public SearchMapping mappingForBackend(String backend) {
+        return Optional.ofNullable(snapshot.get().mappingsByBackend().get(backend))
                 .orElseThrow(() -> new IllegalStateException(
-                        "No mapping is configured for material type '" + materialType + "'"));
+                        "No mapping is configured for backend '" + backend + "'"));
     }
 
-    public Map<String, SearchMapping> mappings() {
-        return snapshot.get().mappings();
-    }
-
-    public Optional<VirtualMapping> virtualMappingForMaterialType(String materialType) {
-        return Optional.ofNullable(snapshot.get().virtualMappings().get(materialType));
+    public Optional<VirtualMapping> virtualMappingForBackend(String backend) {
+        return Optional.ofNullable(snapshot.get().virtualMappingsByBackend().get(backend));
     }
 
     public String backendForMaterialType(String materialType) {
@@ -78,42 +70,5 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
         }
 
         log.atInfo().log("Reloaded catalog snapshot");
-    }
-
-    @Override
-    public synchronized void updateMapping(String materialType, JsonNode updatedNode) {
-        SearchMapping updated = snapshotBuilder.parseMapping(materialType, updatedNode);
-        this.snapshot.getAndUpdate(currentSnapshot -> {
-            Map<String, SearchMapping> next = new LinkedHashMap<>(currentSnapshot.mappings());
-            next.put(materialType, updated);
-            return new CatalogSnapshot(
-                    Map.copyOf(next),
-                    currentSnapshot.virtualMappings(),
-                    currentSnapshot.backendsByMaterialType(),
-                    currentSnapshot.routingRulesByMaterialType(),
-                    currentSnapshot.backends());
-        });
-
-        for (Runnable listener : List.copyOf(updateListeners)) {
-            listener.run();
-        }
-
-        log.atInfo().addArgument(materialType).log("Reloaded mapping for material type {}");
-    }
-
-    @Override
-    public synchronized void updateBackends(Map<String, BackendConfig> updatedBackends) {
-        snapshot.getAndUpdate(current -> new CatalogSnapshot(
-                current.mappings(),
-                current.virtualMappings(),
-                current.backendsByMaterialType(),
-                current.routingRulesByMaterialType(),
-                Map.copyOf(updatedBackends)));
-
-        for (Runnable listener : List.copyOf(updateListeners)) {
-            listener.run();
-        }
-
-        log.atInfo().log("Reloaded backends configuration");
     }
 }
