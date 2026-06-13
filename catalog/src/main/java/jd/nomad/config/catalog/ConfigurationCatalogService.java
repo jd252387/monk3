@@ -69,6 +69,16 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
                         "No backend configuration found for backend '" + name + "'"));
     }
 
+    public DatasourceDescriptor datasource(String name) {
+        return Optional.ofNullable(snapshot.get().datasources().get(name))
+                .orElseThrow(() -> new IllegalStateException(
+                        "No datasource is configured with name '" + name + "'"));
+    }
+
+    public Map<String, DatasourceDescriptor> datasources() {
+        return snapshot.get().datasources();
+    }
+
     @Override
     public synchronized void replaceSnapshot(CatalogSnapshot newSnapshot) {
         snapshot.set(newSnapshot);
@@ -91,7 +101,8 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
                     currentSnapshot.virtualMappings(),
                     currentSnapshot.backendsByMaterialType(),
                     currentSnapshot.routingRulesByMaterialType(),
-                    currentSnapshot.backends());
+                    currentSnapshot.backends(),
+                    currentSnapshot.datasources());
         });
 
         for (Runnable listener : List.copyOf(updateListeners)) {
@@ -108,7 +119,8 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
                 current.virtualMappings(),
                 current.backendsByMaterialType(),
                 current.routingRulesByMaterialType(),
-                Map.copyOf(updatedBackends)));
+                Map.copyOf(updatedBackends),
+                current.datasources()));
 
         for (Runnable listener : List.copyOf(updateListeners)) {
             listener.run();

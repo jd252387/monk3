@@ -13,6 +13,7 @@ public record CatalogSnapshot(
         Map<String, VirtualMapping> virtualMappings,
         Map<String, String> backendsByMaterialType,
         Map<String, List<RoutingRule>> routingRulesByMaterialType,
-        Map<String, BackendConfig> backends
+        Map<String, BackendConfig> backends,
+        Map<String, DatasourceDescriptor> datasources
 ) {
 }

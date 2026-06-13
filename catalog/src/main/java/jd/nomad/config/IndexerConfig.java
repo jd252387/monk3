@@ -26,6 +26,9 @@ public interface IndexerConfig {
         Optional<String> config();
 
         Optional<String> backends();
+
+        /** Optional path to the datasources document (indexer-side; same shape as {@code datasources.json}). */
+        Optional<String> datasources();
     }
 
     interface EtcdSource {
@@ -38,5 +41,8 @@ public interface IndexerConfig {
 
         /** Optional etcd key holding the backends document (same shape as {@code backends.json}). */
         Optional<String> backends();
+
+        /** Optional etcd key holding the datasources document (indexer-side; same shape as {@code datasources.json}). */
+        Optional<String> datasources();
     }
 }

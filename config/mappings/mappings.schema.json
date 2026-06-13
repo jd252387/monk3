@@ -2,6 +2,46 @@
     "$schema": "https://json-schema.org/draft-07/schema",
     "type": "object",
     "definitions": {
+        "sourceExpression": {
+            "description": "How a value is extracted from a fetched source document. Either a bare jq string, or an object declaring exactly one of jq / jsonPointer plus optional partialUpdate and required.",
+            "oneOf": [
+                {
+                    "type": "string",
+                    "description": "Shorthand for a required jq expression."
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "jq": {
+                            "type": "string",
+                            "description": "jackson-jq program evaluated against the fetched document."
+                        },
+                        "jsonPointer": {
+                            "type": "string",
+                            "description": "RFC 6901 JSON Pointer resolved against the fetched document (alternative to jq)."
+                        },
+                        "partialUpdate": {
+                            "type": "string",
+                            "description": "Array/value operation applied in partial-update mode (e.g. set, add, add-distinct, remove, removeregex, inc)."
+                        },
+                        "required": {
+                            "type": "boolean",
+                            "description": "When true (default), a missing value aborts mapping of the document."
+                        }
+                    },
+                    "oneOf": [
+                        { "required": ["jq"], "not": { "required": ["jsonPointer"] } },
+                        { "required": ["jsonPointer"], "not": { "required": ["jq"] } }
+                    ]
+                }
+            ]
+        },
+        "sourcingMap": {
+            "description": "Per-datasource value extraction. Keys are datasource names; 'default' and '*' act as fallbacks.",
+            "type": "object",
+            "additionalProperties": { "$ref": "#/definitions/sourceExpression" }
+        },
         "documentSchema": {
             "type": "object",
             "properties": {
@@ -25,6 +65,19 @@
                     "destinationField": {
                         "description": "Physical field name that is stored in the search engine for this field.",
                         "type": "string"
+                    },
+                    "sourcing": {
+                        "description": "Indexer-side leaf value extraction, keyed by datasource. Ignored by the query side.",
+                        "$ref": "#/definitions/sourcingMap"
+                    },
+                    "primaryKey": {
+                        "description": "Indexer-side subdocument child-id extraction, keyed by datasource. Only valid on subdocument fields.",
+                        "$ref": "#/definitions/sourcingMap"
+                    },
+                    "partialUpdate": {
+                        "description": "Indexer-side subdocument array operation, keyed by datasource. Only valid on subdocument fields.",
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
                     }
                 },
                 "allOf": [

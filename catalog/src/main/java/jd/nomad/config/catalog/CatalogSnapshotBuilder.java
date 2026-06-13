@@ -8,6 +8,7 @@ import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.MappingParseException;
 import jd.nomad.mapping.SearchMapping;
+import jd.nomad.mapping.SourceExpression;
 import jd.nomad.mapping.VirtualDocumentMapping;
 import jd.nomad.mapping.VirtualField;
 import jd.nomad.mapping.VirtualMapping;
@@ -88,11 +89,107 @@ public class CatalogSnapshotBuilder {
         if (type == FieldType.SUBDOCUMENT && (subdocumentType == null || subdocumentType.isBlank())) {
             throw new MappingParseException("Subdocument field '" + logicalName + "' must declare subdocumentType");
         }
+
+        Map<String, SourceExpression> sourcing = parseSourcing(fieldObject.get("sourcing"),
+                "field '" + logicalName + "' sourcing");
+
+        Map<String, SourceExpression> primaryKeySourcing = Map.of();
+        Map<String, String> subdocumentPartialUpdate = Map.of();
+        if (type == FieldType.SUBDOCUMENT) {
+            primaryKeySourcing = parseSourcing(fieldObject.get("primaryKey"),
+                    "subdocument field '" + logicalName + "' primaryKey");
+            subdocumentPartialUpdate = parsePartialUpdate(fieldObject.get("partialUpdate"), logicalName);
+        }
+
         return new MappedField(
                 logicalName,
                 type,
                 subdocumentType,
-                optionalText(fieldObject, "destinationField"));
+                optionalText(fieldObject, "destinationField"),
+                sourcing,
+                primaryKeySourcing,
+                subdocumentPartialUpdate);
+    }
+
+    /**
+     * Parses a {@code datasource -> expression} sourcing map. Each value is either a bare string (treated as a
+     * required {@code jq} expression) or an object declaring {@code jq} or {@code jsonPointer} (exactly one),
+     * plus optional {@code partialUpdate} and {@code required}. Replicates nomad's dual-format sourcing parser.
+     */
+    private Map<String, SourceExpression> parseSourcing(JsonNode node, String location) {
+        if (node == null || node.isNull()) {
+            return Map.of();
+        }
+        ObjectNode sourcingObject = requireObject(node, location);
+        Map<String, SourceExpression> byDatasource = new LinkedHashMap<>();
+        sourcingObject.properties().forEach(entry ->
+                byDatasource.put(entry.getKey(), parseSourceExpression(entry.getValue(),
+                        location + " datasource '" + entry.getKey() + "'")));
+        return Map.copyOf(byDatasource);
+    }
+
+    private SourceExpression parseSourceExpression(JsonNode valueNode, String location) {
+        if (valueNode.isTextual()) {
+            String jq = valueNode.asText();
+            if (jq.isBlank()) {
+                throw new MappingParseException("Empty jq expression at " + location);
+            }
+            return new SourceExpression(jq, null, null, true);
+        }
+        if (valueNode.isObject()) {
+            ObjectNode object = (ObjectNode) valueNode;
+            String jq = optionalText(object, "jq");
+            String jsonPointer = optionalText(object, "jsonPointer");
+            if ((jq == null || jq.isBlank()) == (jsonPointer == null || jsonPointer.isBlank())) {
+                throw new MappingParseException(
+                        "Exactly one of 'jq' or 'jsonPointer' must be set at " + location);
+            }
+            String partialUpdate = optionalText(object, "partialUpdate");
+            JsonNode requiredNode = object.get("required");
+            boolean required = requiredNode == null || requiredNode.isNull() || requiredNode.asBoolean(true);
+            return new SourceExpression(jq, jsonPointer, partialUpdate, required);
+        }
+        throw new MappingParseException("Sourcing at " + location + " must be a string or an object");
+    }
+
+    private Map<String, String> parsePartialUpdate(JsonNode node, String logicalName) {
+        if (node == null || node.isNull()) {
+            return Map.of();
+        }
+        ObjectNode object = requireObject(node,
+                "subdocument field '" + logicalName + "' partialUpdate");
+        Map<String, String> byDatasource = new LinkedHashMap<>();
+        object.properties().forEach(entry -> byDatasource.put(entry.getKey(), entry.getValue().asText()));
+        return Map.copyOf(byDatasource);
+    }
+
+    /**
+     * Parses the datasources document, accepting either a bare {@code { "<name>": {...} }} object or a wrapped
+     * {@code { "datasources": { ... } }} object (mirroring the backends file convention). Each entry must
+     * declare a {@code type}; the whole entry node is retained as the datasource configuration.
+     */
+    public Map<String, DatasourceDescriptor> parseDatasources(JsonNode root) {
+        if (root == null || root.isNull()) {
+            return Map.of();
+        }
+        ObjectNode rootObject = requireObject(root, "datasources document");
+        JsonNode entries = rootObject.has("datasources") ? rootObject.get("datasources") : rootObject;
+        ObjectNode entriesObject = requireObject(entries, "datasources document #/datasources");
+
+        Map<String, DatasourceDescriptor> datasources = new LinkedHashMap<>();
+        entriesObject.properties().forEach(entry -> {
+            String name = entry.getKey();
+            JsonNode node = entry.getValue();
+            if (node == null || node.isNull()) {
+                return;
+            }
+            String type = optionalText(requireObject(node, "datasource '" + name + "'"), "type");
+            if (type == null || type.isBlank()) {
+                throw new MappingParseException("Datasource '" + name + "' must declare a type");
+            }
+            datasources.put(name, new DatasourceDescriptor(name, type.toLowerCase(), node));
+        });
+        return Map.copyOf(datasources);
     }
 
     private static ObjectNode requireObject(JsonNode node, String location) {

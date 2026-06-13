@@ -165,6 +165,11 @@ class FileCatalogDatastoreReloadTest {
             public Optional<String> backends() {
                 return Optional.empty();
             }
+
+            @Override
+            public Optional<String> datasources() {
+                return Optional.empty();
+            }
         };
         IndexerConfig.Catalog catalog = new IndexerConfig.Catalog() {
             @Override

@@ -11,6 +11,27 @@
       "url": "http://localhost:8983/solr",
       "collection": "articles",
       "defaultSize": 20
+    },
+    "solr-collection-text": {
+      "engine": "SOLR",
+      "zk": "localhost:2181",
+      "chroot": "/solr",
+      "collection": "text"
+    },
+    "solr-collection-text-small": {
+      "engine": "SOLR",
+      "zk": "zk-solr:2181",
+      "collection": "small-text"
+    },
+    "elastic-index-text": {
+      "engine": "ELASTICSEARCH",
+      "hosts": ["http://es01:9200", "http://es02:9200"],
+      "index": "index-text"
+    },
+    "elastic-index-text-semantic": {
+      "engine": "ELASTICSEARCH",
+      "hosts": ["http://es01:9200", "http://es02:9200"],
+      "index": "index-semantic"
     }
   }
 }

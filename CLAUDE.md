@@ -38,7 +38,9 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 | `routing` | Query analysis and routing of material types to backends |
 | `search` | Query translation and search execution services |
 
-`catalog` subproject (`jd.nomad.*`): configuration catalog with hot reload — `config` (catalog datastores: `FileCatalogDatastore`, `EtcdCatalogDatastore`, `ConfigurationCatalogService`), `mapping` (mapping/backend config records, `FieldType`), `routing` (`RoutingRule` / `RoutingCondition`).
+`catalog` subproject (`jd.nomad.*`): configuration catalog with hot reload — `config` (catalog datastores: `FileCatalogDatastore`, `EtcdCatalogDatastore`, `ConfigurationCatalogService`, `DatasourceDescriptor`), `mapping` (mapping/backend config records, `FieldType`, `SourceExpression`), `routing` (`RoutingRule` / `RoutingCondition`). It is shared by both `:monk3` (query side) and `:nomad` (indexing side).
+
+`nomad` subproject (`jd.nomad.*`): a Kafka→Solr/Elasticsearch indexing pipeline (Quarkus + Apache Camel) that consumes the **same** catalog config as monk3. It adds indexer-only config the query side ignores (per-datasource sourcing, datasources, richer backend connection info). See `nomad/CLAUDE.md`.
 
 ### REST endpoints (`/queries`)
 
@@ -67,13 +69,15 @@ Each mapping file (`config/mappings/*.mapping.json`) declares:
 
 Each field entry has a `type` (`string`, `freetext`, `number`, `datetime`, `boolean`, `subdocument`) and optionally a `destinationField` (the actual field name sent to the search engine). Subdocument fields also declare `subdocumentType` referencing another block in the same file.
 
+Field entries may also carry **indexer-only** keys (parsed by the shared `CatalogSnapshotBuilder` but ignored by monk3): `sourcing` (per-datasource value extraction — a bare jq string, or an object with exactly one of `jq`/`jsonPointer` plus optional `partialUpdate`/`required`), and on subdocument fields `primaryKey` (per-datasource child-id extraction) and `partialUpdate` (per-datasource array op). The per-field maps fall back `<datasource>` → `default` → `*`. The nomad indexer also reads a `config/datasources.json` (selected via `indexer.catalog.file.datasources` / etcd `…datasources`) and the optional `BackendConfig` connection fields `zk` / `chroot` / `hosts` from `backends.json`. All of these are optional, so monk3 mappings/backends that omit them still validate. The mapping JSON Schema (`config/mappings/mappings.schema.json`) documents the optional keys.
+
 Virtual mapping files (`*.virtual.json`) declare virtual fields that expand to query templates (with a `{{data}}` placeholder) via `VirtualFieldExpander`; `predicate`-typed virtual fields take no data.
 
 ### Search execution
 
 `SearchExecutionService` fans out to all configured backends in parallel using virtual threads, translates the query per backend's engine, resolves field projections, POSTs the JSON body, then merges and normalizes scores before returning sorted results.
 
-Backends are configured in `config/backends.json`. Each backend declares its `engine` (`ELASTICSEARCH` or `SOLR`), `url`, either `index` (ES) or `collection` (Solr), and an optional `defaultSize`. Each material type routes to its default backend from `catalog.json` unless a `routing` rule matches (e.g. `datetimeRangeWithin` sends recent-range queries elsewhere); `QueryAnalyzer` + `RoutingEngine` evaluate the rules per request.
+Backends are configured in `config/backends.json`. Each backend declares its `engine` (`ELASTICSEARCH` or `SOLR`), `url`, either `index` (ES) or `collection` (Solr), and an optional `defaultSize`. Optional indexer-side connection fields (`zk` / `chroot` for SolrCloud, `hosts` for an ES cluster) may also appear; monk3 ignores them. Each material type routes to its default backend from `catalog.json` unless a `routing` rule matches (e.g. `datetimeRangeWithin` sends recent-range queries elsewhere); `QueryAnalyzer` + `RoutingEngine` evaluate the rules per request.
 
 ### Testing
 

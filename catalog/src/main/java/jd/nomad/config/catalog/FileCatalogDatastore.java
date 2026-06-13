@@ -149,12 +149,20 @@ public class FileCatalogDatastore implements CatalogDatastore {
             backends = readBackends(backendsPath);
         }
 
+        Map<String, DatasourceDescriptor> datasources = Map.of();
+        if (indexerConfig.catalog().file().datasources().isPresent()) {
+            String datasourcesPath = indexerConfig.catalog().file().datasources().get();
+            outRefs.add(resolveLocation(datasourcesPath));
+            datasources = snapshotBuilder.parseDatasources(readJson(datasourcesPath));
+        }
+
         return new CatalogSnapshot(
                 Map.copyOf(mappings),
                 Map.copyOf(virtualMappings),
                 Map.copyOf(backendsByMaterialType),
                 Map.copyOf(routingRulesByMaterialType),
-                backends);
+                backends,
+                datasources);
     }
 
     private void reconcileWatchedFiles(Set<String> newRefs) throws FileSystemException {

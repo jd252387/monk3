@@ -154,12 +154,20 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             backends = readBackendsFromEtcd(backendsKey);
         }
 
+        Map<String, DatasourceDescriptor> datasources = Map.of();
+        if (indexerConfig.catalog().etcd().datasources().isPresent()) {
+            String datasourcesKey = indexerConfig.catalog().etcd().datasources().get();
+            outRefs.add(datasourcesKey);
+            datasources = snapshotBuilder.parseDatasources(readJsonFromEtcd(datasourcesKey));
+        }
+
         return new CatalogSnapshot(
                 Map.copyOf(mappings),
                 Map.copyOf(virtualMappings),
                 Map.copyOf(backendsByMaterialType),
                 Map.copyOf(routingRulesByMaterialType),
-                backends);
+                backends,
+                datasources);
     }
 
     private void registerWatcher(String key) {
