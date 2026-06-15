@@ -37,7 +37,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         return readNode(parser, mapper, mapper.readTree(parser));
     }
 
-    private static QueryNode readNode(JsonParser parser, ObjectMapper mapper, JsonNode node) throws IOException {
+    static QueryNode readNode(JsonParser parser, ObjectMapper mapper, JsonNode node) throws IOException {
         if (!(node instanceof ObjectNode objectNode)) {
             throw MismatchedInputException.from(parser, Object.class, "Query node must be an object");
         }

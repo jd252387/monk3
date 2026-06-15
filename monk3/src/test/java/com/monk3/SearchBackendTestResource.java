@@ -69,7 +69,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                             "lastWeek": { "doc_count": 2 },
                             "lastMonth": { "doc_count": 9 }
                           }
-                        }
+                        },
+                        "matchingDocs": { "doc_count": 4 }
                       }
                     }
                     """));
@@ -99,7 +100,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                           "count": 11,
                           "lastWeek": { "count": 2 },
                           "lastMonth": { "count": 9 }
-                        }
+                        },
+                        "matchingDocs": { "count": 4 }
                       }
                     }
                     """));

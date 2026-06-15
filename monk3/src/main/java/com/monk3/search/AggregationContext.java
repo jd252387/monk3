@@ -1,5 +1,7 @@
 package com.monk3.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 
@@ -8,7 +10,29 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public record AggregationContext(Map<String, QueryParseContext> contextsByMaterialType) {
+public record AggregationContext(
+        Map<String, QueryParseContext> contextsByMaterialType,
+        String aggregationName,
+        ObjectNode namedQueries) {
+
+    /**
+     * Context for translating a query that references its own fields (rather than a single facet
+     * field). All material types resolve to the same backend context today (see
+     * {@link QueryTranslationService#translateAggregations}), so any one is representative.
+     */
+    public QueryParseContext queryContext() {
+        return contextsByMaterialType.values().iterator().next();
+    }
+
+    /**
+     * Registers a query under a Solr root-level {@code queries} block and returns the local-params
+     * reference (e.g. {@code {!v=$agg_<name>}}) that a query facet's {@code q} should point at.
+     */
+    public String registerNamedQuery(JsonNode query) {
+        String key = "agg_" + aggregationName;
+        namedQueries.set(key, query);
+        return "{!v=$" + key + "}";
+    }
 
     public ResolvedFacetField requireFacetField(String logicalName, String aggType, Set<FieldType> supportedTypes) {
         Set<Resolution> resolutions = new LinkedHashSet<>();

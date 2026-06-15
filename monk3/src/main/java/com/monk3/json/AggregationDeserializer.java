@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.monk3.model.Aggregation;
+import com.monk3.model.FilterAggregation;
+import com.monk3.model.QueryNode;
 import com.monk3.model.QueryPayload;
 import com.monk3.model.RangeAggregation;
 import com.monk3.model.SubfacetsAggregation;
@@ -16,8 +18,10 @@ import com.monk3.model.UniqueAggregation;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,6 +33,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static final Set<String> UNIQUE_ARGS = Set.of("field");
     private static final Set<String> RANGE_ARGS = Set.of("field", "interval", "from", "to");
     private static final Set<String> SUBFACETS_ARGS = Set.of("field", "filters");
+    private static final Set<String> FILTER_ARGS = Set.of("query");
 
     @Override
     public Aggregation deserialize(JsonParser parser, DeserializationContext context) throws IOException {
@@ -55,6 +60,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
             case "unique" -> readUnique(parser, args);
             case "range" -> readRange(parser, args);
             case "subfacets" -> readSubfacets(parser, mapper, args);
+            case "filter" -> readFilter(parser, mapper, args);
             default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(aggTypeNode.textValue()));
         };
     }
@@ -111,6 +117,28 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
         return new SubfacetsAggregation(field, Collections.unmodifiableMap(filters));
     }
 
+    private static FilterAggregation readFilter(JsonParser parser, ObjectMapper mapper, JsonNode args)
+            throws IOException {
+        rejectUnknownFields(parser, args, FILTER_ARGS, "filter aggregation");
+        JsonNode queryNode = args.get("query");
+        if (queryNode == null || !queryNode.isArray()) {
+            throw MismatchedInputException.from(parser, Object.class, "Filter aggregation query must be an array");
+        }
+        if (queryNode.isEmpty()) {
+            throw MismatchedInputException.from(parser, Object.class, "Filter aggregation query must not be empty");
+        }
+        List<QueryNode> nodes = new ArrayList<>();
+        for (JsonNode element : queryNode) {
+            try {
+                nodes.add(QueryNodeDeserializer.readNode(parser, mapper, element));
+            } catch (JsonMappingException exception) {
+                exception.prependPath(FilterAggregation.class, "query");
+                throw exception;
+            }
+        }
+        return new FilterAggregation(List.copyOf(nodes));
+    }
+
     private static String readRequiredField(JsonParser parser, JsonNode args) throws JsonMappingException {
         JsonNode fieldNode = args.get("field");
         if (fieldNode == null || fieldNode.isNull()) {
@@ -136,6 +164,6 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
 
     private static String unsupportedTypeMessage(String aggType) {
         return "Unsupported aggregation type '" + aggType
-                + "'. Supported aggregation types are 'terms', 'unique', 'range', and 'subfacets'.";
+                + "'. Supported aggregation types are 'terms', 'unique', 'range', 'subfacets', and 'filter'.";
     }
 }

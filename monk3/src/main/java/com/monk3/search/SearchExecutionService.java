@@ -131,8 +131,12 @@ public class SearchExecutionService {
         body.set("query", queryTranslationService.translate(target));
         applyResultOptions(target, body, projections, request);
         if (hasAggregations(request)) {
-            body.set(target.engine().aggregationsRequestProperty(),
-                    queryTranslationService.translateAggregations(target, request.aggs()));
+            QueryTranslationService.AggregationTranslation translation =
+                    queryTranslationService.translateAggregations(target, request.aggs());
+            body.set(target.engine().aggregationsRequestProperty(), translation.aggregations());
+            if (!translation.namedQueries().isEmpty()) {
+                body.set("queries", translation.namedQueries());
+            }
         }
         return body;
     }

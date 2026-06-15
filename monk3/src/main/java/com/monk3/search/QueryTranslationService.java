@@ -88,14 +88,17 @@ public class QueryTranslationService {
                 .toList());
     }
 
-    public ObjectNode translateAggregations(BackendTarget target, Map<String, Aggregation> aggs) {
+    public AggregationTranslation translateAggregations(BackendTarget target, Map<String, Aggregation> aggs) {
         QueryParseContext context = contextForBackend(target.name());
-        AggregationContext aggContext = new AggregationContext(
-                target.materialTypes().stream()
-                        .collect(Collectors.toMap(mt -> mt, mt -> context)));
-        ObjectNode translated = JsonNodeFactory.instance.objectNode();
-        aggs.forEach((name, aggregation) -> translated.set(name, aggregation.translate(target.engine(), aggContext)));
-        return translated;
+        Map<String, QueryParseContext> contextsByMaterialType = target.materialTypes().stream()
+                .collect(Collectors.toMap(mt -> mt, mt -> context));
+        ObjectNode aggregations = JsonNodeFactory.instance.objectNode();
+        ObjectNode namedQueries = JsonNodeFactory.instance.objectNode();
+        aggs.forEach((name, aggregation) -> {
+            AggregationContext aggContext = new AggregationContext(contextsByMaterialType, name, namedQueries);
+            aggregations.set(name, aggregation.translate(target.engine(), aggContext));
+        });
+        return new AggregationTranslation(aggregations, namedQueries);
     }
 
     private QueryParseContext contextForBackend(String backend) {
@@ -112,5 +115,12 @@ public class QueryTranslationService {
             SearchEngine engine,
             QueryNode query
     ) {
+    }
+
+    /**
+     * Translated aggregations for a backend: the per-name facet/aggs node, plus any Solr root-level
+     * {@code queries} contributed by query-based aggregations (empty for Elasticsearch).
+     */
+    public record AggregationTranslation(ObjectNode aggregations, ObjectNode namedQueries) {
     }
 }

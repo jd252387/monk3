@@ -89,6 +89,9 @@
         },
         {
           "$ref": "#/$defs/SubfacetsAggregation"
+        },
+        {
+          "$ref": "#/$defs/FilterAggregation"
         }
       ]
     },
@@ -224,6 +227,37 @@
               "minProperties": 1,
               "additionalProperties": {
                 "$ref": "#/$defs/QueryPayload"
+              }
+            }
+          }
+        }
+      }
+    },
+    "FilterAggregation": {
+      "type": "object",
+      "description": "A single-bucket facet counting documents that match a query; the query nodes are combined with a must (AND) relationship.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "filter"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "array",
+              "description": "Query DSL nodes combined with a must (AND) relationship.",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/QueryNode"
               }
             }
           }

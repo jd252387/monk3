@@ -13,10 +13,11 @@ import java.util.List;
 import java.util.Set;
 
 @Schema(description = "A named facet/aggregation computed per backend over root document fields",
-        oneOf = {TermsAggregation.class, UniqueAggregation.class, RangeAggregation.class, SubfacetsAggregation.class})
+        oneOf = {TermsAggregation.class, UniqueAggregation.class, RangeAggregation.class, SubfacetsAggregation.class,
+                FilterAggregation.class})
 @JsonDeserialize(using = AggregationDeserializer.class)
 public sealed interface Aggregation
-        permits TermsAggregation, UniqueAggregation, RangeAggregation, SubfacetsAggregation {
+        permits TermsAggregation, UniqueAggregation, RangeAggregation, SubfacetsAggregation, FilterAggregation {
     Set<FieldType> SCALAR_FIELD_TYPES =
             Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
 

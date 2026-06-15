@@ -365,6 +365,125 @@ class QueryResourceTest {
     }
 
     @Test
+    void parseEmitsElasticsearchFilterAggregationCombiningQueryNodesWithMust() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Filter aggregation ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "matchingDocs": {
+                              "aggType": "filter",
+                              "args": {
+                                "query": [
+                                  { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } },
+                                  { "field": "title", "data": { "type": "text", "phrases": ["machine learning"] } }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.matchingDocs.filter.bool.must[0].range.book_year.gt", equalTo(2000))
+                .body("[0].body.aggs.matchingDocs.filter.bool.must[0].range.book_year.lt", equalTo(2020))
+                .body("[0].body.aggs.matchingDocs.filter.bool.must[1].match_phrase.book_title", equalTo("machine learning"))
+                .body("[0].body.queries", nullValue());
+    }
+
+    @Test
+    void parseEmitsSolrFilterAggregationReferencingTopLevelNamedQuery() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Filter aggregation Solr",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["solr"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "matchingDocs": {
+                              "aggType": "filter",
+                              "args": {
+                                "query": [
+                                  { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } },
+                                  { "field": "title", "data": { "type": "text", "phrases": ["machine learning"] } }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].body.facet.matchingDocs.type", equalTo("query"))
+                .body("[0].body.facet.matchingDocs.q", equalTo("{!v=$agg_matchingDocs}"))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[0].frange.query", equalTo("article_year"))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[0].frange.l", equalTo(2000))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[0].frange.incl", equalTo(false))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[0].frange.u", equalTo(2020))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[0].frange.incu", equalTo(false))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[1].field.f", equalTo("article_headline"))
+                .body("[0].body.queries.agg_matchingDocs.bool.must[1].field.query", equalTo("machine learning"));
+    }
+
+    @Test
+    void parseEmitsSingleNodeFilterAggregationWithoutMustWrapper() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Single-node filter aggregation",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "recentDocs": {
+                              "aggType": "filter",
+                              "args": {
+                                "query": [
+                                  { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.recentDocs.filter.range.book_year.gt", equalTo(2000))
+                .body("[0].body.aggs.recentDocs.filter.bool", nullValue());
+    }
+
+    @Test
     void executesQueryAcrossMultipleBackendsAndMergesNormalizedResults() {
         SearchBackendTestResource.reset();
         SearchBackendTestResource.requireParallelRequests(2);
@@ -716,6 +835,45 @@ class QueryResourceTest {
     }
 
     @Test
+    void filterAggregationCountIsParsedFromBothBackends() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Filter aggregation counts",
+                            "materialTypes": ["book", "article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": ["java"] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "matchingDocs": {
+                              "aggType": "filter",
+                              "args": {
+                                "query": [
+                                  { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } },
+                                  { "field": "title", "data": { "type": "text", "phrases": ["machine learning"] } }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.matchingDocs.value", equalTo(4))
+                .body("aggregations.'elastic-books'.matchingDocs.buckets", nullValue())
+                .body("aggregations.'solr-articles'.matchingDocs.value", equalTo(4));
+    }
+
+    @Test
     void searchWithoutAggregationsOmitsAggregationsInResponse() {
         given()
                 .contentType(ContentType.JSON)
@@ -854,6 +1012,18 @@ class QueryResourceTest {
         assertAggregationStructureError("""
                 {"bad": {"aggType": "subfacets", "args": {"field": "publishedAt", "filters": {}}}}
                 """, "Subfacets aggregation filters must not be empty");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "filter", "args": {"query": []}}}
+                """, "Filter aggregation query must not be empty");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "filter", "args": {}}}
+                """, "Filter aggregation query must be an array");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "filter", "args": {"query": [{"field": "year", "data": {"type": "range", "gt": 1}}], "foo": 1}}}
+                """, "Unknown filter aggregation property: foo");
     }
 
     @Test
@@ -1194,12 +1364,15 @@ class QueryResourceTest {
                         "#/$defs/TermsAggregation",
                         "#/$defs/UniqueAggregation",
                         "#/$defs/RangeAggregation",
-                        "#/$defs/SubfacetsAggregation"
+                        "#/$defs/SubfacetsAggregation",
+                        "#/$defs/FilterAggregation"
                 ))
                 .body("$defs.TermsAggregation.properties.aggType.const", equalTo("terms"))
                 .body("$defs.UniqueAggregation.properties.aggType.const", equalTo("unique"))
                 .body("$defs.RangeAggregation.properties.aggType.const", equalTo("range"))
                 .body("$defs.SubfacetsAggregation.properties.aggType.const", equalTo("subfacets"))
+                .body("$defs.FilterAggregation.properties.aggType.const", equalTo("filter"))
+                .body("$defs.FilterAggregation.properties.args.properties.query.items.$ref", equalTo("#/$defs/QueryNode"))
                 .body("$defs.RangeAggregation.properties.args.required", containsInAnyOrder("field", "interval", "from", "to"))
                 .body("$defs.SubfacetsAggregation.properties.args.properties.filters.additionalProperties.$ref",
                         equalTo("#/$defs/QueryPayload"))
