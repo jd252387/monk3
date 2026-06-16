@@ -20,14 +20,15 @@ public record QueryParseContext(
         Integer minimumMatch,
         VirtualMapping virtualMapping,
         VirtualFieldExpander expander,
-        String nestedPath
+        String nestedPath,
+        String solrNestPath
 ) {
     public static QueryParseContext root(
             SearchMapping mapping,
             VirtualMapping virtualMapping,
             VirtualFieldExpander expander
     ) {
-        return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null);
+        return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null, null);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -39,11 +40,17 @@ public record QueryParseContext(
     }
 
     public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
-        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path);
+        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path, solrNestPath);
+    }
+
+    public QueryParseContext withSolrNestedDocument(DocumentMapping documentMapping, String solrNestPath) {
+        // nestedPath stays null so Solr child leaf fields keep plain names; the nest path
+        // is expressed separately via the _nest_path_ field instead of a dotted prefix.
+        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, null, solrNestPath);
     }
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
-        return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander, nestedPath);
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander, nestedPath, solrNestPath);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {

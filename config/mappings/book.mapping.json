@@ -32,7 +32,6 @@
     }
   },
   "chapter": {
-    "block_mask": "*:* -_nest_path_:*",
     "title": {
       "type": "freetext"
     },

@@ -5,8 +5,7 @@ import java.util.Optional;
 
 public record DocumentMapping(
         String name,
-        Map<String, MappedField> fields,
-        Optional<String> blockMask
+        Map<String, MappedField> fields
 ) {
     public Optional<MappedField> field(String logicalName) {
         return Optional.ofNullable(fields.get(logicalName));

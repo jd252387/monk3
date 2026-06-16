@@ -197,7 +197,10 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("solr-books"))
                 .body("[0].engine", equalTo("SOLR"))
                 .body(containsString("\"*:* -_nest_path_:*\""))
-                .body(containsString("\"chapters.title\""))
+                .body(containsString("\"_nest_path_\""))
+                .body(containsString("\"/chapters\""))
+                .body(containsString("\"title\""))
+                .body(not(containsString("chapters.title")))
                 .body(containsString("\"introduction\""));
     }
 

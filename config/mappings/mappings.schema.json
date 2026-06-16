@@ -44,12 +44,6 @@
         },
         "documentSchema": {
             "type": "object",
-            "properties": {
-                "block_mask": {
-                    "description": "Solr parent block mask used as the 'which' filter in {!parent} queries on this subdocument type.",
-                    "type": "string"
-                }
-            },
             "additionalProperties": {
                 "type": "object",
                 "additionalProperties": false,

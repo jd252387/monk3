@@ -46,6 +46,8 @@ public record BooleanQueryData(
         @NotEmpty List<@NotEmpty List<@NotNull @Valid QueryNode>> clauses
 ) implements QueryData {
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+    private static final String SOLR_NEST_PATH_FIELD = "_nest_path_";
+    private static final String SOLR_PARENT_BLOCK_MASK = "*:* -_nest_path_:*";
 
     @JsonValue
     public List<List<QueryNode>> jsonValue() {
@@ -59,17 +61,29 @@ public record BooleanQueryData(
             return toBooleanQuery(engine, booleanContext);
         }
         NestedDocument nestedDocument = nestedDocument(context, node.field());
-        QueryParseContext nestedContext = booleanContext.withNestedDocument(nestedDocument.mapping(), nestedDocument.path());
         ObjectNode wrapper = JSON.objectNode();
         switch (engine) {
-            case ELASTICSEARCH -> wrapper.putObject("nested")
-                    .put("path", nestedDocument.path())
-                    .set("query", toBooleanQuery(engine, nestedContext));
-            case SOLR -> wrapper.putObject("parent")
-                    .put("which", nestedDocument.mapping().blockMask().orElseThrow(() ->
-                            new QueryTranslationException("Subdocument '" + nestedDocument.mapping().name()
-                                    + "' does not declare a 'block_mask', which is required for Solr nested queries")))
-                    .set("query", toBooleanQuery(engine, nestedContext));
+            case ELASTICSEARCH -> {
+                QueryParseContext nestedContext = booleanContext.withNestedDocument(
+                        nestedDocument.mapping(), nestedDocument.path());
+                wrapper.putObject("nested")
+                        .put("path", nestedDocument.path())
+                        .set("query", toBooleanQuery(engine, nestedContext));
+            }
+            case SOLR -> {
+                String parentNestPath = context.solrNestPath();
+                String nestPath = parentNestPath == null
+                        ? nestedDocument.path()
+                        : parentNestPath + "/" + nestedDocument.path();
+                QueryParseContext nestedContext = booleanContext.withSolrNestedDocument(
+                        nestedDocument.mapping(), nestPath);
+                JsonNode scopedQuery = QueryJson.boolMust(List.of(
+                        QueryJson.solrFieldQuery(SOLR_NEST_PATH_FIELD, "/" + nestPath),
+                        toBooleanQuery(engine, nestedContext)));
+                wrapper.putObject("parent")
+                        .put("which", SOLR_PARENT_BLOCK_MASK)
+                        .set("query", scopedQuery);
+            }
         }
         return wrapper;
     }
