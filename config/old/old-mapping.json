@@ -1,117 +1,116 @@
 {
-    "settings": {
-        "fields": {
-            "name": {
-                "mapping_name": {
-                    "filterType": "term",
-                    "path": "name_s"
-                }
-            },
-            "readers": {
-                "mapping_name": {
-                    "filterType": "term",
-                    "path": "readers_ss"
-                }
-            },
-            "writers": {
-                "mapping_name": {
-                    "filterType": "term",
-                    "path": "writers_ss"
-                }
-            },
-            "involved_people": {
-                "mapping_name": {
-                    "isMultipleLink": true,
-                    "fields": [
-                        {
-                            "linkedField": "readers",
-                            "bool": "should"
-                        },
-                        {
-                            "linkedField": "writers",
-                            "bool": "should"
-                        }
-                    ]
-                }
-            },
-            "writers_exists": {
-                "mapping_name": {
-                    "filterType": "exists",
-                    "path": "writers_ss"
-                }
-            },
-            "write_date": {
-                "mapping_name": {
-                    "filterType": "date",
-                    "path": "write_date_dt"
-                }
-            },
-            "number_of_writers": {
-                "mapping_name": {
-                    "filterType": "number",
-                    "path": "number_of_writers_i"
-                }
-            },
-            "is_original": {
-                "mapping_name": {
-                    "filterType": "number",
-                    "path": "is_original_b"
-                }
-            },
-            "duration_in_seconds": {
-                "mapping_name": {
-                    "filterType": "duration",
-                    "path": "write_date_dt"
-                }
-            },
-            "text_contents": {
-                "mapping_name": {
-                    "filterType": "term",
-                    "path": "text_contents_t"
-                }
-            },
-            "shakespear": {
-                "mapping_name": {
-                    "isDataFromFilter": true,
-                    "filters": [
-                        {
-                            "field": "",
-                            "data": [
-                                {
-                                    "field": "writers",
-                                    "data": "shakespear",
-                                    "bool": "must"
-                                },
-                                {
-                                    "field": "writers",
-                                    "data": "William",
-                                    "bool": "should"
-                                },
-                                {
-                                    "field": "writers",
-                                    "data": "bob",
-                                    "bool": "mustNot"
-                                },
-                                {
-                                    "field": "",
-                                    "data": [
-                                        {
-                                            "field": "text_contents",
-                                            "data": "Romeo",
-                                            "bool": "must"
-                                        },
-                                        {
-                                            "field": "text_contents",
-                                            "data": "Juliet",
-                                            "bool": "should"
-                                        }
-                                    ],
-                                    "bool": "should"
-                                }
-                            ]
-                        }
-                    ]
-                }
+    
+    "fields": {
+        "name": {
+            "mapping_name": {
+                "filterType": "term",
+                "path": "name_s"
+            }
+        },
+        "readers": {
+            "mapping_name": {
+                "filterType": "term",
+                "path": "readers_ss"
+            }
+        },
+        "writers": {
+            "mapping_name": {
+                "filterType": "term",
+                "path": "writers_ss"
+            }
+        },
+        "involved_people": {
+            "mapping_name": {
+                "isMultipleLink": true,
+                "fields": [
+                    {
+                        "linkedField": "readers",
+                        "bool": "should"
+                    },
+                    {
+                        "linkedField": "writers",
+                        "bool": "should"
+                    }
+                ]
+            }
+        },
+        "writers_exists": {
+            "mapping_name": {
+                "filterType": "exists",
+                "path": "writers_ss"
+            }
+        },
+        "write_date": {
+            "mapping_name": {
+                "filterType": "date",
+                "path": "write_date_dt"
+            }
+        },
+        "number_of_writers": {
+            "mapping_name": {
+                "filterType": "number",
+                "path": "number_of_writers_i"
+            }
+        },
+        "is_original": {
+            "mapping_name": {
+                "filterType": "number",
+                "path": "is_original_b"
+            }
+        },
+        "duration_in_seconds": {
+            "mapping_name": {
+                "filterType": "duration",
+                "path": "write_date_dt"
+            }
+        },
+        "text_contents": {
+            "mapping_name": {
+                "filterType": "term",
+                "path": "text_contents_t"
+            }
+        },
+        "shakespear": {
+            "mapping_name": {
+                "isDataFromFilter": true,
+                "filters": [
+                    {
+                        "field": "",
+                        "data": [
+                            {
+                                "field": "writers",
+                                "data": "shakespear",
+                                "bool": "must"
+                            },
+                            {
+                                "field": "writers",
+                                "data": "William",
+                                "bool": "should"
+                            },
+                            {
+                                "field": "writers",
+                                "data": "bob",
+                                "bool": "mustNot"
+                            },
+                            {
+                                "field": "",
+                                "data": [
+                                    {
+                                        "field": "text_contents",
+                                        "data": "Romeo",
+                                        "bool": "must"
+                                    },
+                                    {
+                                        "field": "text_contents",
+                                        "data": "Juliet",
+                                        "bool": "should"
+                                    }
+                                ],
+                                "bool": "should"
+                            }
+                        ]
+                    }
+                ]
             }
         }
     }

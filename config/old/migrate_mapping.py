@@ -7,31 +7,29 @@ two-file format:
   2. <name>.virtual.json  — virtual fields (expansion templates for link fields)
 
 Old format:
-  {
-    "settings": {
-      "fields": {
+{
+    "fields": {
         "<fieldName>": {
-          "filterType": "term",          // → physical field (type: "string")
-          "path": "<indexField>"         // → destinationField
+            "filterType": "term",          // → physical field (type: "string")
+            "path": "<indexField>"         // → destinationField
         },
         "<fieldName>": {
-          "isMultipleLink": true,        // → virtual field
-          "fields": [
+            "isMultipleLink": true,        // → virtual field
+            "fields": [
             { "linkedField": "<ref>", "bool": "should" },
             { "linkedField": "<ref>", "bool": "must"   }
-          ]
+            ]
         },
         "<fieldName>": {
-          "isDataFromFilter": true,      // → predicate virtual field
-          "filters": [                   //   (static, accepts no user data)
+            "isDataFromFilter": true,      // → predicate virtual field
+            "filters": [                   //   (static, accepts no user data)
             { "field": "", "data": [
-              { "field": "<ref>", "data": "<value>", "bool": "must" }
+                { "field": "<ref>", "data": "<value>", "bool": "must" }
             ] }
-          ]
+            ]
         }
-      }
     }
-  }
+}
 
 Usage:
   python migrate_mapping.py config/old/old-mapping.json -n mytype -o config/mappings
@@ -159,9 +157,9 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
     with open(old_path, "r", encoding="utf-8") as fh:
         old = json.load(fh)
 
-    fields: dict[str, Any] = old.get("settings", {}).get("fields", {})
+    fields: dict[str, Any] = old.get("fields", {})
     if not fields:
-        print("Warning: no fields found under settings.fields — output will be empty.")
+        print("Warning: no fields found under fields — output will be empty.")
 
     # Unwrap any arbitrary wrapper key (e.g. "mapping_name") around each field config.
     fields = {name: _unwrap_field(cfg) for name, cfg in fields.items()}
