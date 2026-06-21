@@ -128,15 +128,18 @@ public class SearchExecutionService {
             List<FieldProjection> projections
     ) {
         ObjectNode body = JsonNodeFactory.instance.objectNode();
-        body.set("query", queryTranslationService.translate(target));
+        QueryTranslationService.QueryTranslation queryTranslation = queryTranslationService.translate(target);
+        body.set("query", queryTranslation.query());
+        ObjectNode namedQueries = queryTranslation.namedQueries();
         applyResultOptions(target, body, projections, request);
         if (hasAggregations(request)) {
             QueryTranslationService.AggregationTranslation translation =
                     queryTranslationService.translateAggregations(target, request.aggs());
             body.set(target.engine().aggregationsRequestProperty(), translation.aggregations());
-            if (!translation.namedQueries().isEmpty()) {
-                body.set("queries", translation.namedQueries());
-            }
+            namedQueries.setAll(translation.namedQueries());
+        }
+        if (!namedQueries.isEmpty()) {
+            body.set("queries", namedQueries);
         }
         return body;
     }

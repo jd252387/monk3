@@ -1,6 +1,7 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -27,6 +28,7 @@ public class QueryTranslationService {
     private final SearchMappingConfig config;
     private final VirtualFieldExpander virtualFieldExpander;
     private final RoutingEngine routingEngine;
+    private final ObjectMapper objectMapper;
 
     /**
      * Routes each requested material type to a backend. Since a backend has exactly one mapping,
@@ -61,9 +63,13 @@ public class QueryTranslationService {
         return new BackendTarget(backendName, List.of(materialType), backendConfig, SearchEngine.of(backendConfig.engine()), query);
     }
 
-    public ObjectNode translate(BackendTarget target) {
+    public QueryTranslation translate(BackendTarget target) {
         SearchEngine engine = target.engine();
-        JsonNode query = target.query().translate(engine, contextForBackend(target.name()));
+        QueryParseContext context = contextForBackend(target.name());
+        if (engine == SearchEngine.SOLR) {
+            context = context.withSolrRootIdentifier(translateRootIdentifier(context, engine));
+        }
+        JsonNode query = target.query().translate(engine, context);
         List<String> materialTypes = target.materialTypes();
         JsonNode filter = engine == SearchEngine.ELASTICSEARCH
                 ? materialTypeTerms(materialTypes)
@@ -72,7 +78,17 @@ public class QueryTranslationService {
         ObjectNode bool = root.putObject("bool");
         bool.putArray("filter").add(filter);
         bool.putArray("must").add(query);
-        return root;
+        return new QueryTranslation(root, context.solrNamedQueries());
+    }
+
+    /**
+     * Translates the root document's optional {@code identifier} DSL query into engine JSON, used as the
+     * Solr {@code {!parent}} block mask for root-level nested queries. Returns {@code null} when none is declared.
+     */
+    private JsonNode translateRootIdentifier(QueryParseContext context, SearchEngine engine) {
+        return context.mapping().root().identifier()
+                .map(identifier -> objectMapper.convertValue(identifier, QueryNode.class).translate(engine, context))
+                .orElse(null);
     }
 
     private ObjectNode materialTypeTerms(List<String> materialTypes) {
@@ -122,5 +138,12 @@ public class QueryTranslationService {
      * {@code queries} contributed by query-based aggregations (empty for Elasticsearch).
      */
     public record AggregationTranslation(ObjectNode aggregations, ObjectNode namedQueries) {
+    }
+
+    /**
+     * Translated main query for a backend: the query node, plus any Solr root-level {@code queries}
+     * contributed by block-mask root identifiers (empty for Elasticsearch).
+     */
+    public record QueryTranslation(ObjectNode query, ObjectNode namedQueries) {
     }
 }

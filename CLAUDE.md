@@ -63,10 +63,12 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 Configuration is loaded (and hot-reloaded) by the `catalog` subproject, selected via `indexer.catalog.source` (`FILE` or `etcd`) in `application.yaml`. For the file source, `indexer.catalog.file.config` points at `config/catalog.json` (per material type: a default `backend` and optional `routing` rules) and `indexer.catalog.file.backends` points at `config/backends.json` (per backend: connection details plus the `physical` mapping file, optional `virtual` mapping file, and `primaryKey`). Mappings are loaded from each backend's `physical` file; `catalog.json` only routes material types to backends, so the snapshot keys mappings by backend (`mappingsByBackend`).
 
 Each mapping file (`config/mappings/*.mapping.json`) declares:
-- `root` — root-level fields
+- `root` — root-level fields, plus an optional `identifier` (a query-DSL query that matches documents of this material type)
 - Additional named blocks for subdocument types
 
 Each field entry has a `type` (`string`, `freetext`, `number`, `datetime`, `boolean`, `subdocument`) and optionally a `destinationField` (the actual field name sent to the search engine). Subdocument fields also declare `subdocumentType` referencing another block in the same file.
+
+The root `identifier` is used as the Solr `{!parent}` block mask (the `which` local param) for root-level nested queries: it is translated to engine JSON and referenced via a root-level `queries` block (`{!v=$root_identifier}`). Intermediate block joins instead derive their mask from the parent hierarchy's nest path (e.g. `_nest_path_:/chapters`). A root `identifier` is required whenever a Solr-backed mapping is queried with a subdocument node.
 
 Field entries may also carry **indexer-only** keys (parsed by the shared `CatalogSnapshotBuilder` but ignored by monk3): `sourcing` (per-datasource value extraction — a bare jq string, or an object with exactly one of `jq`/`jsonPointer` plus optional `partialUpdate`/`required`), and on subdocument fields `primaryKey` (per-datasource child-id extraction) and `partialUpdate` (per-datasource array op). The per-field maps fall back `<datasource>` → `default` → `*`. The nomad indexer also reads a `config/datasources.json` (selected via `indexer.catalog.file.datasources` / etcd `…datasources`) and the optional `BackendConfig` connection fields `zk` / `chroot` / `hosts` from `backends.json`. All of these are optional, so monk3 mappings/backends that omit them still validate. The mapping JSON Schema (`config/mappings/mappings.schema.json`) documents the optional keys.
 

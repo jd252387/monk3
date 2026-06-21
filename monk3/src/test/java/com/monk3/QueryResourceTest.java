@@ -52,6 +52,86 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesTextQueryWithMorphologyToConfiguredMorphologyFieldForElasticsearch() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Elasticsearch morphology text query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "morphology": "english",
+                              "phrases": ["java records"]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].match_phrase", hasKey("book_title_en"))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title_en", equalTo("java records"));
+    }
+
+    @Test
+    void parsesTextQueryWithMorphologyToConfiguredMorphologyFieldForSolr() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Solr morphology text query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "morphology": "english",
+                              "phrases": ["history"]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].field.f", equalTo("article_headline_en"))
+                .body("[0].body.query.bool.must[0].field.query", equalTo("history"));
+    }
+
+    @Test
+    void textQueryWithUnconfiguredMorphologyReturnsStructuredBadRequest() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Unknown morphology",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "morphology": "french",
+                              "phrases": ["x"]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Morphology 'french' is not configured for field 'title'"));
+    }
+
+    @Test
     void parsesRangeQueryToSolrJsonDslUsingConfiguredMapping() {
         given()
                 .contentType(ContentType.JSON)
@@ -196,12 +276,75 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("solr-books"))
                 .body("[0].engine", equalTo("SOLR"))
-                .body(containsString("\"*:* -_nest_path_:*\""))
+                // root -> chapters join masks against the configured root identifier, not a hardcoded mask
+                .body(containsString("\"{!v=$root_identifier}\""))
+                .body("[0].body.queries.root_identifier.field.f", equalTo("material_type"))
+                .body("[0].body.queries.root_identifier.field.query", equalTo("book"))
                 .body(containsString("\"_nest_path_\""))
                 .body(containsString("\"/chapters\""))
                 .body(containsString("\"title\""))
                 .body(not(containsString("chapters.title")))
-                .body(containsString("\"introduction\""));
+                .body(containsString("\"introduction\""))
+                .body(not(containsString("*:* -_nest_path_:*")));
+    }
+
+    @Test
+    void parsesDeeplyNestedSubdocumentQueryToSolrBlockJoinDsl() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Deep nested chapter/page query Solr",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "",
+                            "data": [
+                              [
+                                {
+                                  "field": "publishedAt",
+                                  "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                                },
+                                {
+                                  "field": "chapters",
+                                  "data": [
+                                    [
+                                      {
+                                        "field": "pages",
+                                        "data": [
+                                          [
+                                            {
+                                              "field": "content",
+                                              "data": { "type": "text", "phrases": ["ew"] }
+                                            }
+                                          ]
+                                        ]
+                                      }
+                                    ]
+                                  ]
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                        """.formatted(recentRange())))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].engine", equalTo("SOLR"))
+                // outer join (root -> chapters) masks against the configured root identifier
+                .body(containsString("\"{!v=$root_identifier}\""))
+                .body("[0].body.queries.root_identifier.field.f", equalTo("material_type"))
+                .body("[0].body.queries.root_identifier.field.query", equalTo("book"))
+                // inner join (chapters -> pages) masks against the parent chapters' nest path
+                .body(containsString("\"_nest_path_:/chapters\""))
+                // child queries are scoped to their own full nest paths
+                .body(containsString("\"/chapters\""))
+                .body(containsString("\"/chapters/pages\""))
+                .body(containsString("\"content\""))
+                .body(containsString("\"ew\""))
+                .body(not(containsString("*:* -_nest_path_:*")));
     }
 
     @Test

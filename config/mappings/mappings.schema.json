@@ -44,6 +44,12 @@
         },
         "documentSchema": {
             "type": "object",
+            "properties": {
+                "identifier": {
+                    "description": "A monk3 DSL query that identifies documents of this type. Used as the Solr root block mask ('which' local param) for root-level nested queries. Only meaningful on the 'root' document.",
+                    "type": "object"
+                }
+            },
             "additionalProperties": {
                 "type": "object",
                 "additionalProperties": false,
@@ -59,6 +65,11 @@
                     "destinationField": {
                         "description": "Physical field name that is stored in the search engine for this field.",
                         "type": "string"
+                    },
+                    "morphologies": {
+                        "description": "Query-side alternate destination fields keyed by morphology name (e.g. 'english'). Routes morphology-tagged queries to these fields. Ignored by the indexer.",
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
                     },
                     "sourcing": {
                         "description": "Indexer-side leaf value extraction, keyed by datasource. Ignored by the query side.",

@@ -303,29 +303,39 @@
             "$comment": "Boolean query - contains an array of arrays representing a boolean sub-query. Each direct array under 'data' represents a 'should' clause, and within each sub-array, there are sub-query nodes which are treated with a 'must' relationship, i.e. every query node within a single sub-array should match.",
             "properties": {
               "data": {
-                "type": "array",
-                "description": "Child 'should' clauses for this boolean query.",
-                "items": {
-                  "type": "array",
-                  "description": "Child 'must' clauses, under this 'should' clause.",
-                  "items": {
-                    "$ref": "#/$defs/QueryNode"
-                  }
-                }
+                "$ref": "#/$defs/BooleanQueryData"
               }
             }
           },
           "else": {
-            "$comment": "Leaf query - contains an object representing the query to match on the specified field.",
+            "$comment": "Leaf query when 'field' names a leaf field, or a boolean/nested sub-query when 'field' names a subdocument type.",
             "properties": {
               "data": {
-                "$ref": "#/$defs/QueryPayload",
-                "description": "Payload for the field query."
+                "description": "Payload for the field query, or an array of arrays representing a boolean/nested sub-query when 'field' names a subdocument type.",
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/QueryPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/BooleanQueryData"
+                  }
+                ]
               }
             }
           }
         }
       ]
+    },
+    "BooleanQueryData": {
+      "type": "array",
+      "description": "Child 'should' clauses for this boolean query.",
+      "items": {
+        "type": "array",
+        "description": "Child 'must' clauses, under this 'should' clause.",
+        "items": {
+          "$ref": "#/$defs/QueryNode"
+        }
+      }
     },
     "QueryPayload": {
       "description": "Payload for a leaf field query.",
@@ -356,6 +366,10 @@
         "phrases": {
           "type": "array",
           "description": "Text values to match. Always treated as phrases - if the text is analyzed to multiple tokens, the resulting query is a phrase query."
+        },
+        "morphology": {
+          "type": "string",
+          "description": "Optional morphology name; routes the query to the field's configured morphology destination field instead of its default destinationField."
         }
       }
     },

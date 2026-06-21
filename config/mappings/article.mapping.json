@@ -7,7 +7,10 @@
     },
     "title": {
       "type": "freetext",
-      "destinationField": "article_headline"
+      "destinationField": "article_headline",
+      "morphologies": {
+        "english": "article_headline_en"
+      }
     },
     "body": {
       "type": "freetext",

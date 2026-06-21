@@ -15,12 +15,14 @@ import jd.nomad.mapping.VirtualMapping;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @ApplicationScoped
 public class CatalogSnapshotBuilder {
     private static final Set<String> RESERVED_PROPERTIES = Set.of("$schema", "root");
     private static final Set<String> VIRTUAL_RESERVED_PROPERTIES = Set.of("$schema");
+    private static final Set<String> DOCUMENT_RESERVED_PROPERTIES = Set.of("identifier");
 
     public SearchMapping parseMapping(String materialType, JsonNode root) {
         ObjectNode mappingRoot = requireObject(root, "mapping for material type '" + materialType + "'");
@@ -73,9 +75,12 @@ public class CatalogSnapshotBuilder {
 
     private DocumentMapping parseDocument(String documentName, ObjectNode documentNode) {
         Map<String, MappedField> fields = new LinkedHashMap<>();
-        documentNode.properties()
+        documentNode.properties().stream()
+                .filter(entry -> !DOCUMENT_RESERVED_PROPERTIES.contains(entry.getKey()))
                 .forEach(entry -> fields.put(entry.getKey(), parseField(entry.getKey(), entry.getValue())));
-        return new DocumentMapping(documentName, Map.copyOf(fields));
+        JsonNode identifier = documentNode.get("identifier");
+        return new DocumentMapping(documentName, Map.copyOf(fields),
+                Optional.ofNullable(identifier).filter(node -> !node.isNull()));
     }
 
     private MappedField parseField(String logicalName, JsonNode fieldNode) {
@@ -97,6 +102,9 @@ public class CatalogSnapshotBuilder {
             subdocumentPartialUpdate = parsePartialUpdate(fieldObject.get("partialUpdate"), logicalName);
         }
 
+        Map<String, String> morphologies = parseStringMap(fieldObject.get("morphologies"),
+                "field '" + logicalName + "' morphologies");
+
         return new MappedField(
                 logicalName,
                 type,
@@ -104,7 +112,8 @@ public class CatalogSnapshotBuilder {
                 optionalText(fieldObject, "destinationField"),
                 sourcing,
                 primaryKeySourcing,
-                subdocumentPartialUpdate);
+                subdocumentPartialUpdate,
+                morphologies);
     }
 
     /**
@@ -149,14 +158,18 @@ public class CatalogSnapshotBuilder {
     }
 
     private Map<String, String> parsePartialUpdate(JsonNode node, String logicalName) {
+        return parseStringMap(node, "subdocument field '" + logicalName + "' partialUpdate");
+    }
+
+    /** Parses a flat {@code key -> string} object (e.g. partialUpdate ops, morphology destination fields). */
+    private Map<String, String> parseStringMap(JsonNode node, String location) {
         if (node == null || node.isNull()) {
             return Map.of();
         }
-        ObjectNode object = requireObject(node,
-                "subdocument field '" + logicalName + "' partialUpdate");
-        Map<String, String> byDatasource = new LinkedHashMap<>();
-        object.properties().forEach(entry -> byDatasource.put(entry.getKey(), entry.getValue().asText()));
-        return Map.copyOf(byDatasource);
+        ObjectNode object = requireObject(node, location);
+        Map<String, String> values = new LinkedHashMap<>();
+        object.properties().forEach(entry -> values.put(entry.getKey(), entry.getValue().asText()));
+        return Map.copyOf(values);
     }
 
     /**

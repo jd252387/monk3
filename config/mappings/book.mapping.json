@@ -1,13 +1,20 @@
 {
   "$schema": "./mappings.schema.json",
   "root": {
+    "identifier": {
+      "field": "materialType",
+      "data": { "type": "text", "phrases": ["book"] }
+    },
     "materialType": {
       "type": "string",
       "destinationField": "material_type"
     },
     "title": {
       "type": "freetext",
-      "destinationField": "book_title"
+      "destinationField": "book_title",
+      "morphologies": {
+        "english": "book_title_en"
+      }
     },
     "author": {
       "type": "string",
@@ -38,6 +45,21 @@
     "pageCount": {
       "type": "number",
       "destinationField": "page_count"
+    }, 
+    "pages": {
+      "type": "subdocument",
+      "subdocumentType": "page",
+      "destinationField": "pages"
+    }
+  }, 
+  "page": {
+    "content": {
+      "type": "freetext",
+      "destinationField": "content"
+    },
+    "num_words": {
+      "type": "number",
+      "destinationField": "num_words"
     }
   }
 }

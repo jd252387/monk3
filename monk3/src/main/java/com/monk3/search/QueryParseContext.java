@@ -1,6 +1,8 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.model.QueryData;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
@@ -21,14 +23,20 @@ public record QueryParseContext(
         VirtualMapping virtualMapping,
         VirtualFieldExpander expander,
         String nestedPath,
-        String solrNestPath
+        String solrNestPath,
+        JsonNode solrRootIdentifier,
+        ObjectNode solrNamedQueries
 ) {
+    /** Key under the Solr root-level {@code queries} block holding the translated root identifier query. */
+    private static final String ROOT_IDENTIFIER_KEY = "root_identifier";
+
     public static QueryParseContext root(
             SearchMapping mapping,
             VirtualMapping virtualMapping,
             VirtualFieldExpander expander
     ) {
-        return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null, null);
+        return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null, null,
+                null, JsonNodeFactory.instance.objectNode());
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -40,17 +48,35 @@ public record QueryParseContext(
     }
 
     public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
-        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path, solrNestPath);
+        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path,
+                solrNestPath, solrRootIdentifier, solrNamedQueries);
     }
 
     public QueryParseContext withSolrNestedDocument(DocumentMapping documentMapping, String solrNestPath) {
         // nestedPath stays null so Solr child leaf fields keep plain names; the nest path
         // is expressed separately via the _nest_path_ field instead of a dotted prefix.
-        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, null, solrNestPath);
+        return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, null,
+                solrNestPath, solrRootIdentifier, solrNamedQueries);
+    }
+
+    /** Stores the root identifier query already translated to engine JSON, used as the root block mask. */
+    public QueryParseContext withSolrRootIdentifier(JsonNode translatedIdentifier) {
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
+                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries);
+    }
+
+    /**
+     * Registers the translated root identifier under the Solr {@code queries} block and returns the
+     * local-params reference (e.g. {@code {!v=$root_identifier}}) to use as a {@code {!parent}} block mask.
+     */
+    public String registerSolrRootBlockMask() {
+        solrNamedQueries.set(ROOT_IDENTIFIER_KEY, solrRootIdentifier);
+        return "{!v=$" + ROOT_IDENTIFIER_KEY + "}";
     }
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
-        return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander, nestedPath, solrNestPath);
+        return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
+                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {
@@ -86,6 +112,10 @@ public record QueryParseContext(
     }
 
     public String requireSearchField(String queryType, Set<FieldType> supportedTypes) {
+        return requireSearchField(queryType, supportedTypes, null);
+    }
+
+    public String requireSearchField(String queryType, Set<FieldType> supportedTypes, String morphology) {
         if (currentField == null) {
             throw new QueryTranslationException("No mapped field is available for " + queryType + " query conversion");
         }
@@ -94,7 +124,7 @@ public record QueryParseContext(
                     "Query type '" + queryType + "' is not supported for field '" + currentField.logicalName()
                             + "' with mapping type '" + typeName(currentField.type()) + "'");
         }
-        String fieldName = currentField.searchField();
+        String fieldName = MorphologyResolver.resolveSearchField(currentField, morphology);
         return nestedPath != null ? nestedPath + "." + fieldName : fieldName;
     }
 

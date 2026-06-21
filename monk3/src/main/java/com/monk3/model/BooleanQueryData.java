@@ -47,7 +47,6 @@ public record BooleanQueryData(
 ) implements QueryData {
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final String SOLR_NEST_PATH_FIELD = "_nest_path_";
-    private static final String SOLR_PARENT_BLOCK_MASK = "*:* -_nest_path_:*";
 
     @JsonValue
     public List<List<QueryNode>> jsonValue() {
@@ -75,13 +74,18 @@ public record BooleanQueryData(
                 String nestPath = parentNestPath == null
                         ? nestedDocument.path()
                         : parentNestPath + "/" + nestedDocument.path();
+                // The block mask ('which') must match the set of parent documents at this join level:
+                // the previous hierarchy's nest path, or the configured root identifier at the top level.
+                String which = parentNestPath == null
+                        ? rootBlockMask(context)
+                        : SOLR_NEST_PATH_FIELD + ":/" + parentNestPath;
                 QueryParseContext nestedContext = booleanContext.withSolrNestedDocument(
                         nestedDocument.mapping(), nestPath);
                 JsonNode scopedQuery = QueryJson.boolMust(List.of(
                         QueryJson.solrFieldQuery(SOLR_NEST_PATH_FIELD, "/" + nestPath),
                         toBooleanQuery(engine, nestedContext)));
                 wrapper.putObject("parent")
-                        .put("which", SOLR_PARENT_BLOCK_MASK)
+                        .put("which", which)
                         .set("query", scopedQuery);
             }
         }
@@ -98,6 +102,14 @@ public record BooleanQueryData(
         return clause.size() == 1
                 ? clause.getFirst().translate(engine, context)
                 : QueryJson.boolMust(clause.stream().map(node -> node.translate(engine, context)).toList());
+    }
+
+    private static String rootBlockMask(QueryParseContext context) {
+        if (context.solrRootIdentifier() == null) {
+            throw new QueryTranslationException("Root document for material type '" + context.mapping().materialType()
+                    + "' does not declare an 'identifier', which is required as the Solr block mask for root-level nested queries");
+        }
+        return context.registerSolrRootBlockMask();
     }
 
     private static NestedDocument nestedDocument(QueryParseContext context, String field) {

@@ -21,14 +21,16 @@ import java.util.Set;
         """)
 public record TextQuery(
         @NotBlank String type,
-        @NotEmpty List<@NotBlank String> phrases
+        @NotEmpty List<@NotBlank String> phrases,
+        @Schema(description = "Optional morphology name; routes to the field's configured morphology destination field")
+        String morphology
 ) implements QueryPayload {
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.STRING, FieldType.FREETEXT);
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @Override
     public JsonNode toElasticsearch(QueryParseContext context) {
-        String field = context.requireSearchField("text", SUPPORTED_FIELD_TYPES);
+        String field = context.requireSearchField("text", SUPPORTED_FIELD_TYPES, morphology);
         return QueryJson.shouldOrSingle(SearchEngine.ELASTICSEARCH, phrases.stream()
                 .<JsonNode>map(phrase -> JSON.objectNode().set("match_phrase", JSON.objectNode().put(field, phrase)))
                 .toList());
@@ -36,7 +38,7 @@ public record TextQuery(
 
     @Override
     public JsonNode toSolr(QueryParseContext context) {
-        String field = context.requireSearchField("text", SUPPORTED_FIELD_TYPES);
+        String field = context.requireSearchField("text", SUPPORTED_FIELD_TYPES, morphology);
         return QueryJson.shouldOrSingle(SearchEngine.SOLR, phrases.stream()
                 .<JsonNode>map(phrase -> QueryJson.solrFieldQuery(field, phrase))
                 .toList());

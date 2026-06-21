@@ -10,7 +10,8 @@ public record MappedField(
         String destinationField,
         Map<String, SourceExpression> sourcing,
         Map<String, SourceExpression> primaryKeySourcing,
-        Map<String, String> subdocumentPartialUpdate
+        Map<String, String> subdocumentPartialUpdate,
+        Map<String, String> morphologies
 ) {
     private static final String DEFAULT_DATASOURCE = "default";
     private static final String WILDCARD_DATASOURCE = "*";
@@ -19,17 +20,23 @@ public record MappedField(
         sourcing = sourcing == null ? Map.of() : Map.copyOf(sourcing);
         primaryKeySourcing = primaryKeySourcing == null ? Map.of() : Map.copyOf(primaryKeySourcing);
         subdocumentPartialUpdate = subdocumentPartialUpdate == null ? Map.of() : Map.copyOf(subdocumentPartialUpdate);
+        morphologies = morphologies == null ? Map.of() : Map.copyOf(morphologies);
     }
 
     /**
      * Compact constructor used by query-side callers (and existing tests) that carry no indexing sourcing.
      */
     public MappedField(String logicalName, FieldType type, String subdocumentType, String destinationField) {
-        this(logicalName, type, subdocumentType, destinationField, Map.of(), Map.of(), Map.of());
+        this(logicalName, type, subdocumentType, destinationField, Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public String searchField() {
         return destinationField == null || destinationField.isBlank() ? logicalName : destinationField;
+    }
+
+    /** Destination field for the given morphology (e.g. {@code english}), if one is configured. */
+    public Optional<String> morphologyField(String morphology) {
+        return Optional.ofNullable(morphologies.get(morphology));
     }
 
     public boolean isSubdocument() {
