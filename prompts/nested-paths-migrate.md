@@ -1,21 +1,4 @@
-The @config/old/migrate_mapping.py script should support a type of field in @config/old/old-mapping.json called "isLink". For example, given this "example_field" in @config/old/old-mapping.json: 
-
-{
-    "settings": {
-        "fields": {
-            "example_field_empty_linkedField": {
-                "mapping_name": {
-                    "isLink": true,
-                    "linkedField": "", 
-                    "nestedPaths": ["chapter", "page"]
-                }
-            }
-        }
-    }
-}
-
-It will be parsed to this virtual query: 
-
+I want you to add a new type of virtual query in @
 {
   "$schema": "./virtual-mapping.schema.json",
   "root": {
