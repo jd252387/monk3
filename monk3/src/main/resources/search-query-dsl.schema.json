@@ -365,23 +365,48 @@
         },
         "phrases": {
           "type": "array",
-          "description": "Text values to match. Always treated as phrases - if the text is analyzed to multiple tokens, the resulting query is a phrase query.",
+          "description": "Phrases to match. Each item is discriminated by 'type': a 'phrase' is matched with the field query parser; a 'capsule' is a Solr-only value resolved to an external krembox endpoint.",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "value"
-            ],
-            "properties": {
-              "value": {
-                "type": "string",
-                "description": "The phrase to match."
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "phrase"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "The phrase to match."
+                  },
+                  "isExact": {
+                    "type": "boolean",
+                    "description": "When true, morphology is not applied to this phrase even if the query specifies a morphology."
+                  }
+                }
               },
-              "isExact": {
-                "type": "boolean",
-                "description": "When true, morphology is not applied to this phrase even if the query specifies a morphology."
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "capsule"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "A Solr-only capsule value of the form '{endpointType}_{id}'. The endpointType is resolved to a krembox URL via configuration."
+                  }
+                }
               }
-            }
+            ]
           }
         },
         "morphology": {

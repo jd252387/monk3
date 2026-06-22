@@ -19,7 +19,7 @@ dest="extracted"
     --ext yaml,java,kts,json,gradle \
     --dest "$dest" \
     --exclude bin,build,.vscode,.quarkus,docker,extracted \
-    "$@"
+    ".."
 
 # Nothing was actually copied on a dry run, so there's nothing to zip.
 for arg in "$@"; do

@@ -12,6 +12,7 @@ import jd.nomad.mapping.VirtualField;
 import jd.nomad.mapping.VirtualMapping;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -25,7 +26,8 @@ public record QueryParseContext(
         String nestedPath,
         String solrNestPath,
         JsonNode solrRootIdentifier,
-        ObjectNode solrNamedQueries
+        ObjectNode solrNamedQueries,
+        Map<String, String> vapiEndpoints
 ) {
     /** Key under the Solr root-level {@code queries} block holding the translated root identifier query. */
     private static final String ROOT_IDENTIFIER_KEY = "root_identifier";
@@ -33,10 +35,11 @@ public record QueryParseContext(
     public static QueryParseContext root(
             SearchMapping mapping,
             VirtualMapping virtualMapping,
-            VirtualFieldExpander expander
+            VirtualFieldExpander expander,
+            Map<String, String> vapiEndpoints
     ) {
         return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null, null,
-                null, JsonNodeFactory.instance.objectNode());
+                null, JsonNodeFactory.instance.objectNode(), vapiEndpoints);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -49,20 +52,20 @@ public record QueryParseContext(
 
     public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
         return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path,
-                solrNestPath, solrRootIdentifier, solrNamedQueries);
+                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints);
     }
 
     public QueryParseContext withSolrNestedDocument(DocumentMapping documentMapping, String solrNestPath) {
         // nestedPath stays null so Solr child leaf fields keep plain names; the nest path
         // is expressed separately via the _nest_path_ field instead of a dotted prefix.
         return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, null,
-                solrNestPath, solrRootIdentifier, solrNamedQueries);
+                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints);
     }
 
     /** Stores the root identifier query already translated to engine JSON, used as the root block mask. */
     public QueryParseContext withSolrRootIdentifier(JsonNode translatedIdentifier) {
         return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
-                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries);
+                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries, vapiEndpoints);
     }
 
     /**
@@ -76,7 +79,7 @@ public record QueryParseContext(
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
         return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
-                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries);
+                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {

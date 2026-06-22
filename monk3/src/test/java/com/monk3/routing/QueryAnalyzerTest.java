@@ -17,7 +17,7 @@ class QueryAnalyzerTest {
 
     @Test
     void collectsFieldFromLeafTextQuery() {
-        QueryNode node = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.Phrase("hello", null)), null));
+        QueryNode node = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.StandardPhrase("hello", null)), null));
         QueryAnalysis analysis = QueryAnalyzer.analyze(node);
         assertTrue(analysis.queriedFields().contains("title"));
         assertTrue(analysis.datetimeRanges().isEmpty());
@@ -55,7 +55,7 @@ class QueryAnalyzerTest {
     void traversesBooleanNodeClauses() {
         Instant lower = Instant.parse("2025-05-01T00:00:00Z");
         Instant upper = Instant.parse("2025-05-27T00:00:00Z");
-        QueryNode titleNode = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.Phrase("java", null)), null));
+        QueryNode titleNode = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.StandardPhrase("java", null)), null));
         QueryNode dateNode = new QueryNode("publishedAt", null, null,
                 new RangeQuery.Datetime(lower, null, upper, null));
         QueryNode boolNode = new QueryNode("", null, null,
@@ -69,7 +69,7 @@ class QueryAnalyzerTest {
 
     @Test
     void traversesNestedSubdocumentBooleanData() {
-        QueryNode innerLeaf = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.Phrase("intro", null)), null));
+        QueryNode innerLeaf = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.StandardPhrase("intro", null)), null));
         QueryNode subdocNode = new QueryNode("chapters", null, null,
                 new BooleanQueryData(List.of(List.of(innerLeaf))));
 

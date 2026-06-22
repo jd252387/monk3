@@ -26,7 +26,7 @@ import java.util.List;
           [
             {
               "field": "title",
-              "data": { "type": "text", "phrases": [{ "value": "history" }] }
+              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "history" }] }
             },
             {
               "field": "year",
@@ -37,7 +37,7 @@ import java.util.List;
           [
             {
               "field": "title",
-              "data": { "type": "text", "phrases": [{ "value": "science" }] }
+              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "science" }] }
             }
           ]
         ]

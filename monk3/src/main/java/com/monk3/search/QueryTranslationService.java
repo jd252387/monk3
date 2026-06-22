@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.SearchMappingConfig;
+import com.monk3.mapping.VapiConfig;
 import com.monk3.model.Aggregation;
 import com.monk3.model.QueryNode;
 import com.monk3.model.SearchQueryRequest;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 public class QueryTranslationService {
     private final ConfigurationCatalogService catalogService;
     private final SearchMappingConfig config;
+    private final VapiConfig vapiConfig;
     private final VirtualFieldExpander virtualFieldExpander;
     private final RoutingEngine routingEngine;
     private final ObjectMapper objectMapper;
@@ -121,7 +123,8 @@ public class QueryTranslationService {
         return QueryParseContext.root(
                 catalogService.mappingForBackend(backend),
                 catalogService.virtualMappingForBackend(backend).orElse(null),
-                virtualFieldExpander);
+                virtualFieldExpander,
+                vapiConfig.vapi());
     }
 
     public record BackendTarget(

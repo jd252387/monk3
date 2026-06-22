@@ -36,7 +36,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "text",
-                              "phrases": [{ "value": "java records" }]
+                              "phrases": [{ "type": "phrase", "value": "java records" }]
                             }
                           }
                         }
@@ -64,7 +64,7 @@ class QueryResourceTest {
                             "data": {
                               "type": "text",
                               "morphology": "english",
-                              "phrases": [{ "value": "java records" }]
+                              "phrases": [{ "type": "phrase", "value": "java records" }]
                             }
                           }
                         }
@@ -91,7 +91,7 @@ class QueryResourceTest {
                             "data": {
                               "type": "text",
                               "morphology": "english",
-                              "phrases": [{ "value": "history" }]
+                              "phrases": [{ "type": "phrase", "value": "history" }]
                             }
                           }
                         }
@@ -103,6 +103,159 @@ class QueryResourceTest {
                 .body("[0].engine", equalTo("SOLR"))
                 .body("[0].body.query.bool.must[0].field.f", equalTo("article_headline_en"))
                 .body("[0].body.query.bool.must[0].field.query", equalTo("history"));
+    }
+
+    @Test
+    void parsesCapsulePhraseToSolrEdismaxUsingMorphologyAltField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Solr capsule with morphology",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "morphology": "english",
+                              "phrases": [{ "type": "capsule", "value": "endpointName_1234" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].edismax.query", equalTo(
+                        "article_headline:{\"id\":\"1234\",\"altField\":\"article_headline_en\",\"kremboxUrl\":\"https://example.endpoint.com/capsules/fetch\"}"));
+    }
+
+    @Test
+    void parsesCapsulePhraseToSolrEdismaxDuplicatingFieldWhenNoMorphology() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Solr capsule without morphology",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "capsule", "value": "endpointName_1234" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].edismax.query", equalTo(
+                        "article_headline:{\"id\":\"1234\",\"altField\":\"article_headline\",\"kremboxUrl\":\"https://example.endpoint.com/capsules/fetch\"}"));
+    }
+
+    @Test
+    void capsulePhraseIsRejectedForElasticsearch() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Capsule on Elasticsearch",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "capsule", "value": "endpointName_1234" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Capsule phrases are only supported on Solr backends"));
+    }
+
+    @Test
+    void capsulePhraseWithUnknownEndpointTypeReturnsTranslationError() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Capsule with unknown endpoint type",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "capsule", "value": "unknownType_1234" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("No krembox endpoint configured for capsule endpoint type 'unknownType'"));
+    }
+
+    @Test
+    void capsulePhraseRejectsIsExact() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Capsule with isExact",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "capsule", "value": "endpointName_1234", "isExact": true }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("Unknown phrase property: isExact"));
+    }
+
+    @Test
+    void phraseObjectMissingTypeIsRejected() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Phrase without type",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "value": "history" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("Phrase type is required"));
     }
 
     @Test
@@ -118,7 +271,7 @@ class QueryResourceTest {
                             "data": {
                               "type": "text",
                               "morphology": "french",
-                              "phrases": [{ "value": "x" }]
+                              "phrases": [{ "type": "phrase", "value": "x" }]
                             }
                           }
                         }
@@ -144,7 +297,7 @@ class QueryResourceTest {
                             "data": {
                               "type": "text",
                               "morphology": "english",
-                              "phrases": [{ "value": "java records", "isExact": true }]
+                              "phrases": [{ "type": "phrase", "value": "java records", "isExact": true }]
                             }
                           }
                         }
@@ -172,7 +325,7 @@ class QueryResourceTest {
                             "data": {
                               "type": "text",
                               "morphology": "english",
-                              "phrases": [{ "value": "history", "isExact": true }]
+                              "phrases": [{ "type": "phrase", "value": "history", "isExact": true }]
                             }
                           }
                         }
@@ -200,8 +353,8 @@ class QueryResourceTest {
                               "type": "text",
                               "morphology": "english",
                               "phrases": [
-                                { "value": "java", "isExact": true },
-                                { "value": "records" }
+                                { "type": "phrase", "value": "java", "isExact": true },
+                                { "type": "phrase", "value": "records" }
                               ]
                             }
                           }
@@ -229,7 +382,7 @@ class QueryResourceTest {
                             "data": {
                               "type": "text",
                               "morphology": "french",
-                              "phrases": [{ "value": "x", "isExact": true }]
+                              "phrases": [{ "type": "phrase", "value": "x", "isExact": true }]
                             }
                           }
                         }
@@ -287,7 +440,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "text",
-                              "phrases": [{ "value": "history" }]
+                              "phrases": [{ "type": "phrase", "value": "history" }]
                             }
                           }
                         }
@@ -327,7 +480,7 @@ class QueryResourceTest {
                                   "field": "title",
                                   "data": {
                                     "type": "text",
-                                    "phrases": [{ "value": "introduction" }]
+                                    "phrases": [{ "type": "phrase", "value": "introduction" }]
                                   }
                                 }
                               ]
@@ -370,7 +523,7 @@ class QueryResourceTest {
                                         "field": "title",
                                         "data": {
                                           "type": "text",
-                                          "phrases": [{ "value": "introduction" }]
+                                          "phrases": [{ "type": "phrase", "value": "introduction" }]
                                         }
                                       }
                                     ]
@@ -425,7 +578,7 @@ class QueryResourceTest {
                                           [
                                             {
                                               "field": "content",
-                                              "data": { "type": "text", "phrases": [{ "value": "ew" }] }
+                                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "ew" }] }
                                             }
                                           ]
                                         ]
@@ -469,7 +622,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title", "year"],
@@ -502,7 +655,7 @@ class QueryResourceTest {
                           "materialTypes": ["book"],
                           "query": {
                             "field": "title",
-                            "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                            "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                           }
                         }
                         """))
@@ -525,7 +678,7 @@ class QueryResourceTest {
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "solr" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
                           },
                           "fields": ["title", "year"],
@@ -560,7 +713,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -592,7 +745,7 @@ class QueryResourceTest {
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "solr" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
                           },
                           "fields": ["title"],
@@ -632,7 +785,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -642,7 +795,7 @@ class QueryResourceTest {
                               "args": {
                                 "query": [
                                   { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } },
-                                  { "field": "title", "data": { "type": "text", "phrases": [{ "value": "machine learning" }] } }
+                                  { "field": "title", "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] } }
                                 ]
                               }
                             }
@@ -671,7 +824,7 @@ class QueryResourceTest {
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "solr" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
                           },
                           "fields": ["title"],
@@ -681,7 +834,7 @@ class QueryResourceTest {
                               "args": {
                                 "query": [
                                   { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } },
-                                  { "field": "title", "data": { "type": "text", "phrases": [{ "value": "machine learning" }] } }
+                                  { "field": "title", "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] } }
                                 ]
                               }
                             }
@@ -715,7 +868,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -757,7 +910,7 @@ class QueryResourceTest {
                                   "field": "title",
                                   "data": {
                                     "type": "text",
-                                    "phrases": [{ "value": "java" }]
+                                    "phrases": [{ "type": "phrase", "value": "java" }]
                                   }
                                 }
                               },
@@ -822,7 +975,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -863,7 +1016,7 @@ class QueryResourceTest {
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "solr" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
                           },
                           "fields": ["title"],
@@ -904,7 +1057,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -942,7 +1095,7 @@ class QueryResourceTest {
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "solr" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
                           },
                           "fields": ["title"],
@@ -977,7 +1130,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -1025,7 +1178,7 @@ class QueryResourceTest {
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "solr" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
                           },
                           "fields": ["title"],
@@ -1072,7 +1225,7 @@ class QueryResourceTest {
                             "materialTypes": ["book", "article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -1104,7 +1257,7 @@ class QueryResourceTest {
                             "materialTypes": ["book", "article"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -1114,7 +1267,7 @@ class QueryResourceTest {
                               "args": {
                                 "query": [
                                   { "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } },
-                                  { "field": "title", "data": { "type": "text", "phrases": [{ "value": "machine learning" }] } }
+                                  { "field": "title", "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] } }
                                 ]
                               }
                             }
@@ -1141,7 +1294,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"]
@@ -1165,7 +1318,7 @@ class QueryResourceTest {
                             "materialTypes": ["emptyset"],
                             "query": {
                               "field": "ds",
-                              "data": { "type": "text", "phrases": [{ "value": "nonexistent" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "nonexistent" }] }
                             }
                           },
                           "fields": ["ds"]
@@ -1294,7 +1447,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -1338,7 +1491,7 @@ class QueryResourceTest {
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
-                              "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
                           },
                           "fields": ["title"],
@@ -1363,7 +1516,7 @@ class QueryResourceTest {
                           "materialTypes": ["book"],
                           "query": {
                             "field": "missing",
-                            "data": {"type": "text", "phrases": [{ "value": "x" }]}
+                            "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "x" }]}
                           }
                         }
                         """))
@@ -1382,7 +1535,7 @@ class QueryResourceTest {
                   "materialTypes": ["book"],
                   "query": {
                     "field": "title",
-                    "data": {"type": "text", "phrases": [{ "value": "x" }]}
+                    "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "x" }]}
                   }
                 }
                 """);
@@ -1393,7 +1546,7 @@ class QueryResourceTest {
                   "materialTypes": [],
                   "query": {
                     "field": "title",
-                    "data": {"type": "text", "phrases": [{ "value": "x" }]}
+                    "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "x" }]}
                   }
                 }
                 """);
@@ -1405,7 +1558,7 @@ class QueryResourceTest {
                   "extra": true,
                   "query": {
                     "field": "title",
-                    "data": {"type": "text", "phrases": [{ "value": "x" }]}
+                    "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "x" }]}
                   }
                 }
                 """);
@@ -1416,7 +1569,7 @@ class QueryResourceTest {
                   "materialTypes": ["book"],
                   "query": {
                     "field": "title",
-                    "data": {"type": "geo", "phrases": [{ "value": "x" }]}
+                    "data": {"type": "geo", "phrases": [{ "type": "phrase", "value": "x" }]}
                   }
                 }
                 """);
@@ -1511,7 +1664,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "text",
-                              "phrases": [{ "value": "java records" }],
+                              "phrases": [{ "type": "phrase", "value": "java records" }],
                               "textType": true
                             }
                           }
@@ -1538,7 +1691,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "geo",
-                              "phrases": [{ "value": "java records" }]
+                              "phrases": [{ "type": "phrase", "value": "java records" }]
                             }
                           }
                         }
@@ -1673,7 +1826,7 @@ class QueryResourceTest {
                           "materialTypes": ["book"],
                           "query": {
                             "field": "recentBook",
-                            "data": {"type": "text", "phrases": [{ "value": "java" }]}
+                            "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "java" }]}
                           }
                         }
                         """))
@@ -1701,7 +1854,7 @@ class QueryResourceTest {
                             "field": "",
                             "data": [
                               [
-                                { "field": "recentBook", "data": {"type": "text", "phrases": [{ "value": "java" }]} },
+                                { "field": "recentBook", "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "java" }]} },
                                 { "field": "publishedAt", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
                               ]
                             ]
@@ -1791,7 +1944,7 @@ class QueryResourceTest {
                               [
                                 {
                                   "field": "title",
-                                  "data": {"type": "text", "phrases": [{ "value": "introduction" }]}
+                                  "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
                                 }
                               ]
                             ]
@@ -1831,7 +1984,7 @@ class QueryResourceTest {
                                     [
                                       {
                                         "field": "title",
-                                        "data": {"type": "text", "phrases": [{ "value": "introduction" }]}
+                                        "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
                                       }
                                     ]
                                   ]
@@ -1865,7 +2018,7 @@ class QueryResourceTest {
                           "materialTypes": ["book"],
                           "query": {
                             "field": "chapterSubquery",
-                            "data": {"type": "text", "phrases": [{ "value": "introduction" }]}
+                            "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
                           }
                         }
                         """))
@@ -1961,7 +2114,7 @@ class QueryResourceTest {
                           "materialTypes": ["book"],
                           "query": {
                             "field": "twentyFirstCentury",
-                            "data": {"type": "text", "phrases": [{ "value": "java" }]}
+                            "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "java" }]}
                           }
                         }
                         """))
@@ -2053,7 +2206,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "text",
-                              "phrases": [{ "value": "java records" }]
+                              "phrases": [{ "type": "phrase", "value": "java records" }]
                             }
                           }
                         }
@@ -2082,7 +2235,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "text",
-                              "phrases": [{ "value": "solr search" }]
+                              "phrases": [{ "type": "phrase", "value": "solr search" }]
                             }
                           }
                         }
@@ -2121,7 +2274,7 @@ class QueryResourceTest {
                                   "field": "title",
                                   "data": {
                                     "type": "text",
-                                    "phrases": [{ "value": "java" }]
+                                    "phrases": [{ "type": "phrase", "value": "java" }]
                                   }
                                 }
                               },
@@ -2163,7 +2316,7 @@ class QueryResourceTest {
                             "field": "title",
                             "data": {
                               "type": "text",
-                              "phrases": [{ "value": "history" }]
+                              "phrases": [{ "type": "phrase", "value": "history" }]
                             }
                           }
                         }

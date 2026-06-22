@@ -23,7 +23,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
           "field": "title",
           "data": {
             "type": "text",
-            "phrases": [{ "value": "machine learning" }]
+            "phrases": [{ "type": "phrase", "value": "machine learning" }]
           }
         }
         """)

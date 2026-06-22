@@ -24,4 +24,5 @@ reasonix.toml
 # OS
 .DS_Store
 
-extracted 
+scripts/extracted
+.offline-gradle-home

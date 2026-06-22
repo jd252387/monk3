@@ -55,7 +55,7 @@ public class QueryResource {
                                   "field": "title",
                                   "data": {
                                     "type": "text",
-                                    "phrases": [{ "value": "java records" }]
+                                    "phrases": [{ "type": "phrase", "value": "java records" }]
                                   }
                                 }
                               },
@@ -119,7 +119,7 @@ public class QueryResource {
                                     [
                                       {
                                         "field": "title",
-                                        "data": { "type": "text", "phrases": [{ "value": "introduction" }] }
+                                        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }] }
                                       }
                                     ]
                                   ]
@@ -164,7 +164,7 @@ public class QueryResource {
                                     [
                                       {
                                         "field": "title",
-                                        "data": { "type": "text", "phrases": [{ "value": "machine learning" }] }
+                                        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] }
                                       }
                                     ],
                                     [
@@ -204,7 +204,7 @@ public class QueryResource {
                                 "materialTypes": ["book"],
                                 "query": {
                                   "field": "title",
-                                  "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                                  "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                                 }
                               },
                               "fields": ["title", "year"],
@@ -226,7 +226,7 @@ public class QueryResource {
                                 "materialTypes": ["book"],
                                 "query": {
                                   "field": "title",
-                                  "data": { "type": "text", "phrases": [{ "value": "java" }] }
+                                  "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                                 }
                               },
                               "fields": ["title", "year"],

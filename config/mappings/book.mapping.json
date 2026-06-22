@@ -3,7 +3,7 @@
   "root": {
     "identifier": {
       "field": "materialType",
-      "data": { "type": "text", "phrases": ["book"] }
+      "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "book" }] }
     },
     "materialType": {
       "type": "string",
