@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import com.monk3.model.BooleanQueryData;
 import com.monk3.model.ExactQuery;
 import com.monk3.model.QueryData;
 import com.monk3.model.QueryNode;
@@ -59,6 +60,14 @@ public class VirtualFieldExpander {
             // be rejected by substitute().
             return Map.of();
         }
+        if (virtualField.type() == FieldType.SUBQUERY) {
+            if (!(data instanceof BooleanQueryData booleanData)) {
+                throw new QueryTranslationException(
+                        "Subquery virtual field '" + virtualField.logicalName()
+                                + "' requires boolean query data (an array of clause arrays)");
+            }
+            return Map.of("data", objectMapper.valueToTree(booleanData));
+        }
         if (!(data instanceof QueryPayload payload)) {
             throw new QueryTranslationException(
                     "Virtual field '" + virtualField.logicalName() + "' requires a query payload");
@@ -73,7 +82,7 @@ public class VirtualFieldExpander {
             case NUMBER -> payload instanceof RangeQuery.Numeric || payload instanceof ExactQuery.Numeric;
             case DATETIME -> payload instanceof RangeQuery.Datetime || payload instanceof ExactQuery.Datetime;
             case BOOLEAN -> payload instanceof ExactQuery.BooleanValues;
-            case SUBDOCUMENT, PREDICATE -> false;
+            case SUBDOCUMENT, PREDICATE, SUBQUERY -> false;
         };
         if (!compatible) {
             throw new QueryTranslationException(

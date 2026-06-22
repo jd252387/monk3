@@ -11,7 +11,8 @@ public enum FieldType {
     NUMBER,
     BOOLEAN,
     SUBDOCUMENT,
-    PREDICATE;
+    PREDICATE,
+    SUBQUERY;
 
     @JsonCreator
     public static FieldType fromJson(String value) {

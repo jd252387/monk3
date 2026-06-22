@@ -19,6 +19,13 @@
         "field": "year",
         "data": {"type": "range", "gte": 2000}
       }
+    },
+    "chapterSubquery": {
+      "type": "subquery",
+      "expansion": {
+        "field": "chapters",
+        "data": "{{data}}"
+      }
     }
   },
   "chapter": {

@@ -22,7 +22,7 @@ import java.util.Map;
                 [
                   {
                     "field": "title",
-                    "data": { "type": "text", "phrases": ["machine learning"] }
+                    "data": { "type": "text", "phrases": [{ "value": "machine learning" }] }
                   }
                 ],
                 [

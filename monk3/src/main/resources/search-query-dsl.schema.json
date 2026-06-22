@@ -365,7 +365,24 @@
         },
         "phrases": {
           "type": "array",
-          "description": "Text values to match. Always treated as phrases - if the text is analyzed to multiple tokens, the resulting query is a phrase query."
+          "description": "Text values to match. Always treated as phrases - if the text is analyzed to multiple tokens, the resulting query is a phrase query.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "The phrase to match."
+              },
+              "isExact": {
+                "type": "boolean",
+                "description": "When true, morphology is not applied to this phrase even if the query specifies a morphology."
+              }
+            }
+          }
         },
         "morphology": {
           "type": "string",

@@ -1,7 +1,7 @@
 {
   "mappings": {
     "book": {
-      "backend": "elastic-books",
+      "backend": "solr-books",
       "routing": [
         {
           "conditions": [

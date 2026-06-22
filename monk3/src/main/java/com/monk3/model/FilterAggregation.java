@@ -22,7 +22,7 @@ import java.util.List;
           "args": {
             "query": [
               { "field": "numValue", "data": { "type": "range", "gt": 0.6, "lt": 1.0 } },
-              { "field": "termValue", "data": { "type": "text", "phrases": ["machine learning"] } }
+              { "field": "termValue", "data": { "type": "text", "phrases": [{ "value": "machine learning" }] } }
             ]
           }
         }

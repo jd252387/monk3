@@ -17,7 +17,7 @@ import java.util.List;
             "field": "title",
             "data": {
               "type": "text",
-              "phrases": ["java records"]
+              "phrases": [{ "value": "java records" }]
             }
           }
         }

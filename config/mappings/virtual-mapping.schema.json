@@ -29,9 +29,9 @@
       "required": ["type", "expansion"],
       "properties": {
         "type": {
-          "description": "Accepted QueryPayload type for this virtual field, determining which query payload types the API consumer may pass when querying it. The special 'predicate' type accepts NO data — it is queried by field name alone and expands statically.",
+          "description": "Accepted data type for this virtual field, determining what the API consumer may pass when querying it. The 'string'/'freetext'/'number'/'datetime'/'boolean' types each accept a single leaf QueryPayload. The special 'predicate' type accepts NO data — it is queried by field name alone and expands statically. The 'subquery' type accepts a boolean query (an array of clause arrays, the BooleanQueryData structure) — typically substituted into an expansion that targets a subdocument field.",
           "type": "string",
-          "enum": ["string", "freetext", "number", "datetime", "boolean", "predicate"]
+          "enum": ["string", "freetext", "number", "datetime", "boolean", "predicate", "subquery"]
         },
         "expansion": {
           "description": "A monk3 QueryNode template (same structure as the 'query' field in SearchQueryRequest). String values may contain '{{data}}' as a whole-string placeholder, replaced at query time with the entire incoming QueryPayload JSON object. Only whole-string placeholders are supported (e.g. \"{{data}}\", not \"prefix-{{data}}\"). For 'predicate' fields the expansion is fully static and must NOT contain '{{data}}'. Expansion templates may only reference real mapped fields — not other virtual fields.",
