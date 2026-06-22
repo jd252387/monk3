@@ -1,0 +1,18 @@
+{
+  "mappings": {
+    "book": {
+      "backend": "solr-books",
+      "routing": [
+        {
+          "conditions": [
+            { "type": "datetimeRangeWithin", "field": "publishedAt", "period": "P30D" }
+          ],
+          "backend": "solr-books"
+        }
+      ]
+    },
+    "article": { "backend": "solr-articles" },
+    "ds":      { "backend": "elastic-datasets" },
+    "document": { "backend": "solr-collection-text" }
+  }
+}

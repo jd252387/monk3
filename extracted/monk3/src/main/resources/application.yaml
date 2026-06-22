@@ -1,0 +1,17 @@
+quarkus:
+  http:
+    port: 8080
+  swagger-ui:
+    always-include: true
+
+indexer:
+  catalog:
+    source: FILE
+    file:
+      backends: "./config/backends.json"
+      config: "./config/catalog.json"
+      datasources: "./config/datasources.json"
+
+monk3:
+  search:
+    material-type-field: material_type

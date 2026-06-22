@@ -1,0 +1,21 @@
+{
+  "$schema": "./mappings.schema.json",
+  "root": {
+    "materialType": {
+      "type": "string",
+      "destinationField": "material_type"
+    },
+    "ds": {
+      "type": "freetext",
+      "destinationField": "dataset_name"
+    },
+    "createdAt": {
+      "type": "datetime",
+      "destinationField": "dataset_created_at"
+    },
+    "recordCount": {
+      "type": "number",
+      "destinationField": "dataset_record_count"
+    }
+  }
+}

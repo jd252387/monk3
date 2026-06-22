@@ -1,0 +1,65 @@
+{
+  "$schema": "./mappings.schema.json",
+  "root": {
+    "identifier": {
+      "field": "materialType",
+      "data": { "type": "text", "phrases": ["book"] }
+    },
+    "materialType": {
+      "type": "string",
+      "destinationField": "material_type"
+    },
+    "title": {
+      "type": "freetext",
+      "destinationField": "book_title",
+      "morphologies": {
+        "english": "book_title_en"
+      }
+    },
+    "author": {
+      "type": "string",
+      "destinationField": "book_author"
+    },
+    "year": {
+      "type": "number",
+      "destinationField": "book_year"
+    },
+    "publishedAt": {
+      "type": "datetime",
+      "destinationField": "book_published_at"
+    },
+    "inPrint": {
+      "type": "boolean",
+      "destinationField": "book_in_print"
+    },
+    "chapters": {
+      "type": "subdocument",
+      "subdocumentType": "chapter",
+      "destinationField": "chapters"
+    }
+  },
+  "chapter": {
+    "title": {
+      "type": "freetext"
+    },
+    "pageCount": {
+      "type": "number",
+      "destinationField": "page_count"
+    }, 
+    "pages": {
+      "type": "subdocument",
+      "subdocumentType": "page",
+      "destinationField": "pages"
+    }
+  }, 
+  "page": {
+    "content": {
+      "type": "freetext",
+      "destinationField": "content"
+    },
+    "num_words": {
+      "type": "number",
+      "destinationField": "num_words"
+    }
+  }
+}

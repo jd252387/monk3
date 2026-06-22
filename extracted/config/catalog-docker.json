@@ -1,0 +1,10 @@
+{
+  "mappings": {
+    "product": {
+      "backend": "solr-sample"
+    },
+    "product_elastic": {
+      "backend": "elastic-sample"
+    }
+  }
+}

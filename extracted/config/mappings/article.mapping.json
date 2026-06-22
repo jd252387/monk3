@@ -1,0 +1,36 @@
+{
+  "$schema": "./mappings.schema.json",
+  "root": {
+    "materialType": {
+      "type": "string",
+      "destinationField": "material_type"
+    },
+    "title": {
+      "type": "freetext",
+      "destinationField": "article_headline",
+      "morphologies": {
+        "english": "article_headline_en"
+      }
+    },
+    "body": {
+      "type": "freetext",
+      "destinationField": "article_body"
+    },
+    "year": {
+      "type": "number",
+      "destinationField": "article_year"
+    },
+    "publishedAt": {
+      "type": "datetime",
+      "destinationField": "article_published_at"
+    },
+    "citationCount": {
+      "type": "number",
+      "destinationField": "article_citation_count"
+    },
+    "openAccess": {
+      "type": "boolean",
+      "destinationField": "article_open_access"
+    }
+  }
+}

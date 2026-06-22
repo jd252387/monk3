@@ -1,0 +1,52 @@
+{
+  "datasources": {
+    "default-datasource": {
+      "type": "kafka-inline"
+    },
+    "s3-audio": {
+      "type": "s3",
+      "s3": {
+        "access-key": "minio",
+        "secret-key": "minio123",
+        "override-endpoint": true,
+        "uri-endpoint-override": "http://localhost:9000",
+        "region": "us-east-1",
+        "bucket": "documents",
+        "key-template": "{id}.json"
+      }
+    },
+    "hbase": {
+      "type": "hbase",
+      "hbase": {
+        "table": "documents",
+        "zookeeper-quorum": "zookeeper",
+        "zookeeper-node-parent": "/hbase",
+        "username": "localuser"
+      }
+    },
+    "mongo": {
+      "type": "mongodb",
+      "mongodb": {
+        "database": "documents",
+        "collection": "documents"
+      }
+    },
+    "rest": {
+      "type": "rest-api",
+      "rest-api": {
+        "url": "http://localhost:3000/documents/{id}?fields={fields}",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json"
+        },
+        "query": {
+          "locale": "en_US"
+        },
+        "basic-auth": {
+          "username": "username",
+          "password": "password"
+        }
+      }
+    }
+  }
+}
