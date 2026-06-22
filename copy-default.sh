@@ -13,7 +13,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 exec "$script_dir/copy-by-ext.sh" \
-    --ext yaml,java,kts,json \
+    --ext yaml,java,kts,json,gradle \
     --dest extracted \
     --exclude bin,build,.vscode,.quarkus,docker,extracted \
     "$@"
