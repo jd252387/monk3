@@ -52,11 +52,12 @@ FILTER_TYPE_MAP: dict[str, str] = {
     "contentNew": "freetext",
 }
 
-# filterTypes that become virtual delegation fields (type → new virtual field type)
+# filterTypes that become virtual delegation fields (type → new virtual field type).
 # These do NOT produce physical fields; instead they delegate to a sibling physical
-# field that shares the same `path`.
+# field that shares the same `path`. "duration" forwards the user's data to that
+# field; "exists" expands statically to an exists query (a predicate accepting no data).
 DELEGATING_FILTER_TYPES: dict[str, str] = {
-    "exists":   "boolean",
+    "exists":   "predicate",
     "duration": "number",
 }
 
@@ -96,8 +97,54 @@ def _leaf_expansion(delegated_field: str) -> dict[str, Any]:
     return {"field": delegated_field, "data": "{{data}}"}
 
 
+def _exists_expansion(delegated_field: str) -> dict[str, Any]:
+    """Static expansion matching documents where the delegated field has any value."""
+    return {"field": delegated_field, "data": {"type": "exists"}}
+
+
 def _boolean_expansion(data: list[list[dict[str, Any]]]) -> dict[str, Any]:
     return {"field": "", "data": data}
+
+
+def _is_exact_leaf(node: dict[str, Any]) -> bool:
+    """True if `node` is a positive leaf clause carrying an `exact` query payload.
+
+    Such clauses are the only ones eligible for same-field value merging: boolean
+    sub-nodes (empty field), negated clauses (`isNot`), and `text`/freetext
+    payloads are excluded.
+    """
+    data = node.get("data")
+    return (
+        node.get("field", "") != ""
+        and not node.get("isNot")
+        and isinstance(data, dict)
+        and data.get("type") == "exact"
+    )
+
+
+def _merge_should_exact_branches(branches: list[list[dict[str, Any]]]) -> list[list[dict[str, Any]]]:
+    """Collapse OR branches that are a single same-field `exact` leaf.
+
+    Multiple OR'd single-value exact matches on one field are equivalent to one
+    exact query holding all the values. For each field, the first such branch is
+    kept and later same-field branches have their values appended to it (in
+    first-occurrence order) and are dropped. All other branches keep their place.
+    """
+    merged: list[list[dict[str, Any]]] = []
+    first_by_field: dict[str, dict[str, Any]] = {}
+
+    for branch in branches:
+        node = branch[0] if len(branch) == 1 else None
+        if node is not None and _is_exact_leaf(node):
+            field = node["field"]
+            existing = first_by_field.get(field)
+            if existing is not None:
+                existing["data"]["values"].extend(node["data"]["values"])
+                continue
+            first_by_field[field] = node
+        merged.append(branch)
+
+    return merged
 
 
 def _value_to_payload(ref_field: str, value: Any, all_fields: dict[str, Any]) -> dict[str, Any]:
@@ -114,11 +161,16 @@ def _convert_filter_node(node: dict[str, Any], all_fields: dict[str, Any]) -> tu
 
     The node's own `bool` is returned separately so the parent can place it; it is
     consumed here and not emitted on the new node (negation is applied by the parent).
+
+    A leaf node carrying no `data` becomes an `exists` query (matches documents where
+    the field has any value).
     """
     bool_kind = node.get("bool", "should")
     field = node.get("field", "")
     if field == "":
         new_node = {"field": "", "data": _build_bool_data(node.get("data", []), all_fields)}
+    elif "data" not in node:
+        new_node = {"field": field, "data": {"type": "exists"}}
     else:
         new_node = {"field": field, "data": _value_to_payload(field, node.get("data"), all_fields)}
     return new_node, bool_kind
@@ -146,7 +198,7 @@ def _build_bool_data(children: list[dict[str, Any]], all_fields: dict[str, Any])
     data: list[list[dict[str, Any]]] = []
     if and_clauses:
         data.append(and_clauses)
-    data.extend(should_branches)
+    data.extend(_merge_should_exact_branches(should_branches))
     return data
 
 
@@ -226,9 +278,10 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
                 f"no matching physical field — skipping."
             )
             continue
+        expansion = _exists_expansion(delegated) if ft == "exists" else _leaf_expansion(delegated)
         virtual[field_name] = {
             "type": DELEGATING_FILTER_TYPES[ft],
-            "expansion": _leaf_expansion(delegated),
+            "expansion": expansion,
         }
 
     # Boolean-link virtuals (isMultipleLink)
@@ -269,10 +322,10 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
         if len(filters) == 1:
             expansion, _ = _convert_filter_node(filters[0], fields)
         else:
-            # Multiple top-level filters → OR them under a boolean root.
-            expansion = _boolean_expansion(
-                [[_convert_filter_node(f, fields)[0]] for f in filters]
-            )
+            # Multiple top-level filters → OR them under a boolean root,
+            # merging same-field exact `should` filters into one query.
+            branches = [[_convert_filter_node(f, fields)[0]] for f in filters]
+            expansion = _boolean_expansion(_merge_should_exact_branches(branches))
 
         virtual[field_name] = {
             "type": "predicate",

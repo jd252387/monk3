@@ -354,8 +354,24 @@
         },
         {
           "$ref": "#/$defs/ExactQuery"
+        },
+        {
+          "$ref": "#/$defs/ExistsQuery"
         }
       ]
+    },
+    "ExistsQuery": {
+      "type": "object",
+      "description": "Exists query payload matching documents where the field has any value.",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "exists"
+        }
+      }
     },
     "TextQuery": {
       "type": "object",

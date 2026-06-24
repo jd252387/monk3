@@ -1371,6 +1371,69 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesExistsQueryForElasticsearchAndSolr() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Exists query (ES)",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "exists" }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].exists.field", equalTo("book_title"));
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Exists query (Solr)",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "openAccess",
+                            "data": { "type": "exists" }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0]", equalTo("article_open_access:[* TO *]"));
+    }
+
+    @Test
+    void existsQueryRejectsUnknownProperties() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Exists query with extra property",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "exists", "extra": 1 }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("Unknown exists query property: extra"));
+    }
+
+    @Test
     void aggregationTranslationFailuresReturnStructuredBadRequest() {
         assertAggregationTranslationError("""
                 {"missing": {"aggType": "terms", "args": {"field": "missing"}}}
@@ -1698,7 +1761,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
                 .body("error.message", containsString("Unsupported query data type 'geo'"))
-                .body("error.message", containsString("Supported query data types are 'text', 'range', and 'exact'"));
+                .body("error.message", containsString("Supported query data types are 'text', 'range', 'exact', and 'exists'"));
     }
 
     @Test
@@ -1785,8 +1848,10 @@ class QueryResourceTest {
                 .body("$defs.QueryPayload.oneOf.$ref", containsInAnyOrder(
                         "#/$defs/TextQuery",
                         "#/$defs/RangeQuery",
-                        "#/$defs/ExactQuery"
+                        "#/$defs/ExactQuery",
+                        "#/$defs/ExistsQuery"
                 ))
+                .body("$defs.ExistsQuery.properties.type.const", equalTo("exists"))
                 .body("$defs.TextQuery.properties.type.const", equalTo("text"))
                 .body("$defs.RangeQuery.oneOf.$ref", containsInAnyOrder(
                         "#/$defs/NumericRangeQuery",

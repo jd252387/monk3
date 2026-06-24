@@ -35,7 +35,7 @@
         },
         "expansion": {
           "description": "A monk3 QueryNode template (same structure as the 'query' field in SearchQueryRequest). String values may contain '{{data}}' as a whole-string placeholder, replaced at query time with the entire incoming QueryPayload JSON object. Only whole-string placeholders are supported (e.g. \"{{data}}\", not \"prefix-{{data}}\"). For 'predicate' fields the expansion is fully static and must NOT contain '{{data}}'. Expansion templates may only reference real mapped fields — not other virtual fields.",
-          "type": "object"
+          "$ref": "../../monk3/src/main/resources/search-query-dsl.schema.json#/$defs/QueryNode"
         }
       }
     }
