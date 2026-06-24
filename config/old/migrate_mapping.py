@@ -41,9 +41,18 @@ import sys
 from typing import Any
 
 
-# Map old filterType values to new mapping type enum values
+# Map old filterType values to new mapping type enum values.
+#
+# "prefix" becomes a plain "string" physical field. In the old format the
+# filterType pinned the query behavior to the field; the new model expresses
+# that at request time via the query payload instead, so a prefix field is just
+# a string field that callers target with a PrefixQuery ({"type": "prefix",
+# "prefix": "<value>"}). Prefix matching cannot be delegated to a virtual field:
+# the expander forwards the whole user payload as {{data}} and rejects
+# PrefixQuery for every virtual field type, so a prefix field must be physical.
 FILTER_TYPE_MAP: dict[str, str] = {
     "term":       "string",
+    "prefix":     "string",
     "freetext":   "freetext",
     "number":     "number",
     "datetime":   "datetime",
@@ -202,7 +211,7 @@ def _build_bool_data(children: list[dict[str, Any]], all_fields: dict[str, Any])
     return data
 
 
-def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str = "id") -> None:
+def migrate(old_path: str, output_dir: str, material_type: str) -> None:
     """Convert an old mapping file into .mapping.json + .virtual.json."""
 
     # ── 1. Load old file ──────────────────────────────────────────────
@@ -350,7 +359,6 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
 
     mapping_doc: dict[str, Any] = {
         "$schema":    "../../mappings.schema.json",
-        "primaryKey": primary_key,
         "root":       physical,
     }
 
@@ -403,11 +411,6 @@ if __name__ == "__main__":
         default="migrated",
         help="Material-type name stem for output files (default: migrated)",
     )
-    parser.add_argument(
-        "-k", "--primary-key",
-        default="id",
-        help="Primary-key field name (default: id)",
-    )
 
     args = parser.parse_args()
 
@@ -415,4 +418,4 @@ if __name__ == "__main__":
         print(f"Error: input file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    migrate(args.input, args.output_dir, args.name, args.primary_key)
+    migrate(args.input, args.output_dir, args.name)

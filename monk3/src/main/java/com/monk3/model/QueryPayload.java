@@ -6,7 +6,7 @@ import com.monk3.search.QueryParseContext;
 import com.monk3.search.QueryTranslationException;
 import com.monk3.search.SearchEngine;
 
-public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQuery, ExactQuery, ExistsQuery {
+public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQuery, ExactQuery, ExistsQuery, PrefixQuery {
     JsonNode toElasticsearch(QueryParseContext context);
 
     JsonNode toSolr(QueryParseContext context);

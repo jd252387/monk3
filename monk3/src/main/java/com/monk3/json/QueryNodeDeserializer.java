@@ -12,6 +12,7 @@ import com.monk3.model.BooleanOccur;
 import com.monk3.model.BooleanQueryData;
 import com.monk3.model.ExactQuery;
 import com.monk3.model.ExistsQuery;
+import com.monk3.model.PrefixQuery;
 import com.monk3.model.QueryData;
 import com.monk3.model.QueryNode;
 import com.monk3.model.QueryPayload;
@@ -31,6 +32,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
     private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "bool", "data");
     private static final Set<String> EXACT_FIELDS = Set.of("type", "values");
     private static final Set<String> EXISTS_FIELDS = Set.of("type");
+    private static final Set<String> PREFIX_FIELDS = Set.of("type", "prefix");
     private static final Set<String> RANGE_FIELDS = Set.of("type", "gte", "gt", "lte", "lt");
     private static final Set<String> RANGE_BOUND_FIELDS = Set.of("gte", "gt", "lte", "lt");
 
@@ -128,6 +130,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             case "range" -> readRange(parser, node);
             case "exact" -> readExact(parser, node);
             case "exists" -> readExists(parser, node);
+            case "prefix" -> readPrefix(parser, node);
             default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(typeNode.textValue()));
         };
     }
@@ -216,6 +219,15 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         return new ExistsQuery();
     }
 
+    private static PrefixQuery readPrefix(JsonParser parser, JsonNode node) throws JsonMappingException {
+        rejectUnknownFields(parser, node, PREFIX_FIELDS, "prefix query");
+        JsonNode prefix = node.get("prefix");
+        if (prefix == null || prefix.isNull() || !prefix.isTextual() || prefix.textValue().isBlank()) {
+            throw MismatchedInputException.from(parser, Object.class, "Prefix query requires a non-empty 'prefix' string");
+        }
+        return new PrefixQuery(prefix.textValue());
+    }
+
     private static BigDecimal parseDecimal(JsonNode node) {
         return node == null || node.isNull() ? null : new BigDecimal(node.asText());
     }
@@ -230,7 +242,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
     }
 
     private static String unsupportedTypeMessage(String type) {
-        return "Unsupported query data type '" + type + "'. Supported query data types are 'text', 'range', 'exact', and 'exists'.";
+        return "Unsupported query data type '" + type + "'. Supported query data types are 'text', 'range', 'exact', 'exists', and 'prefix'.";
     }
 
     static void rejectUnknownFields(JsonParser parser, JsonNode node, Set<String> allowed, String label)

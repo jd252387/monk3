@@ -357,8 +357,29 @@
         },
         {
           "$ref": "#/$defs/ExistsQuery"
+        },
+        {
+          "$ref": "#/$defs/PrefixQuery"
         }
       ]
+    },
+    "PrefixQuery": {
+      "type": "object",
+      "description": "Prefix query payload matching documents whose field value starts with the given prefix.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "prefix"
+      ],
+      "properties": {
+        "type": {
+          "const": "prefix"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "The prefix the field value must start with."
+        }
+      }
     },
     "ExistsQuery": {
       "type": "object",

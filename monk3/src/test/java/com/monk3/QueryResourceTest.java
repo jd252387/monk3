@@ -1434,6 +1434,92 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesPrefixQueryForElasticsearchAndSolr() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Prefix query (ES)",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "prefix", "prefix": "mach" }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].prefix.book_title", equalTo("mach"));
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Prefix query (Solr)",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "prefix", "prefix": "mach" }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].prefixanalyzed.f", equalTo("article_headline"))
+                .body("[0].body.query.bool.must[0].prefixanalyzed.v", equalTo("mach"));
+    }
+
+    @Test
+    void prefixQueryRejectsUnknownProperties() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Prefix query with extra property",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "prefix", "prefix": "mach", "extra": 1 }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("Unknown prefix query property: extra"));
+    }
+
+    @Test
+    void prefixQueryRequiresNonEmptyPrefix() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Prefix query with blank prefix",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "prefix", "prefix": "" }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("invalid_query_structure"))
+                .body("error.message", containsString("Prefix query requires a non-empty 'prefix' string"));
+    }
+
+    @Test
     void aggregationTranslationFailuresReturnStructuredBadRequest() {
         assertAggregationTranslationError("""
                 {"missing": {"aggType": "terms", "args": {"field": "missing"}}}
@@ -1761,7 +1847,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
                 .body("error.message", containsString("Unsupported query data type 'geo'"))
-                .body("error.message", containsString("Supported query data types are 'text', 'range', 'exact', and 'exists'"));
+                .body("error.message", containsString("Supported query data types are 'text', 'range', 'exact', 'exists', and 'prefix'"));
     }
 
     @Test
@@ -1849,9 +1935,11 @@ class QueryResourceTest {
                         "#/$defs/TextQuery",
                         "#/$defs/RangeQuery",
                         "#/$defs/ExactQuery",
-                        "#/$defs/ExistsQuery"
+                        "#/$defs/ExistsQuery",
+                        "#/$defs/PrefixQuery"
                 ))
                 .body("$defs.ExistsQuery.properties.type.const", equalTo("exists"))
+                .body("$defs.PrefixQuery.properties.type.const", equalTo("prefix"))
                 .body("$defs.TextQuery.properties.type.const", equalTo("text"))
                 .body("$defs.RangeQuery.oneOf.$ref", containsInAnyOrder(
                         "#/$defs/NumericRangeQuery",
