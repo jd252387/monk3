@@ -221,9 +221,10 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
 
     # ── 2. Pass 1 — collect physical fields, build path → logical-name index ──
     path_to_logical: dict[str, str] = {}
-    delegating: list[tuple[str, dict[str, Any]]] = []     # deferred for pass 2
-    link_fields: list[tuple[str, dict[str, Any]]] = []    # deferred for pass 2
-    filter_fields: list[tuple[str, dict[str, Any]]] = []  # deferred for pass 2
+    delegating: list[tuple[str, dict[str, Any]]] = []        # deferred for pass 2
+    link_fields: list[tuple[str, dict[str, Any]]] = []       # deferred for pass 2
+    filter_fields: list[tuple[str, dict[str, Any]]] = []     # deferred for pass 2
+    duplicate_path_fields: list[tuple[str, str, str]] = []   # (name, path, type) for pass 2
 
     for field_name, cfg in fields.items():
         if cfg.get("isDataFromFilter"):
@@ -253,19 +254,31 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
             new_type = "boolean"
 
         if path in path_to_logical:
+            # A later field sharing an existing physical path is not duplicated in
+            # the physical mapping; it becomes a virtual field delegating to the
+            # first field declared for that path (built in pass 2).
             print(
                 f"Warning: fields '{field_name}' and '{path_to_logical[path]}' share path '{path}' "
-                f"— keeping '{path_to_logical[path]}'."
+                f"— delegating '{field_name}' to a virtual field against '{path_to_logical[path]}'."
             )
-        else:
-            path_to_logical[path] = field_name
+            duplicate_path_fields.append((field_name, path, new_type))
+            continue
 
+        path_to_logical[path] = field_name
         physical[field_name] = {
             "type": new_type,
             "destinationField": path,
         }
 
     # ── 3. Pass 2 — build virtual fields ─────────────────────────────
+
+    # Duplicate-path virtuals — a field sharing an existing physical path delegates
+    # to the first field declared for that path, forwarding the user's data.
+    for field_name, path, new_type in duplicate_path_fields:
+        virtual[field_name] = {
+            "type": new_type,
+            "expansion": _leaf_expansion(path_to_logical[path]),
+        }
 
     # Delegating virtuals (exists, duration)
     for field_name, cfg in delegating:
@@ -360,10 +373,12 @@ def migrate(old_path: str, output_dir: str, material_type: str, primary_key: str
     n_links = len(link_fields)
     n_delegating = len([f for f, _ in delegating if f in virtual])
     n_predicates = len([f for f, _ in filter_fields if f in virtual])
+    n_duplicates = len(duplicate_path_fields)
     print(f"✔  {mapping_path}  ({len(physical)} physical field(s))")
     print(
         f"✔  {virtual_path}  ({len(virtual)} virtual field(s) — "
-        f"{n_links} from links, {n_delegating} delegating, {n_predicates} predicate)"
+        f"{n_links} from links, {n_delegating} delegating, "
+        f"{n_duplicates} duplicate-path, {n_predicates} predicate)"
     )
 
 
