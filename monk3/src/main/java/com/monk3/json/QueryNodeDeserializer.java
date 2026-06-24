@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk3.model.BooleanOccur;
 import com.monk3.model.BooleanQueryData;
 import com.monk3.model.ExactQuery;
 import com.monk3.model.QueryData;
@@ -26,7 +27,7 @@ import java.util.List;
 import java.util.Set;
 
 public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
-    private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "isNot", "data");
+    private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "bool", "data");
     private static final Set<String> EXACT_FIELDS = Set.of("type", "values");
     private static final Set<String> RANGE_FIELDS = Set.of("type", "gte", "gt", "lte", "lt");
     private static final Set<String> RANGE_BOUND_FIELDS = Set.of("gte", "gt", "lte", "lt");
@@ -57,14 +58,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             minimumMatch = minimumMatchNode.intValue();
         }
 
-        JsonNode isNotNode = objectNode.get("isNot");
-        Boolean isNot = null;
-        if (isNotNode != null && !isNotNode.isNull()) {
-            if (!isNotNode.isBoolean()) {
-                throw MismatchedInputException.from(parser, Object.class, "isNot must be a boolean");
-            }
-            isNot = isNotNode.booleanValue();
-        }
+        BooleanOccur bool = readBool(parser, objectNode.get("bool"));
 
         rejectUnknownFields(parser, objectNode, NODE_FIELDS, "query node");
 
@@ -75,11 +69,27 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             }
             // A leaf node without data is only valid for predicate virtual fields; whether
             // the field actually resolves to a predicate is checked at translation time.
-            return new QueryNode(field, minimumMatch, isNot, null);
+            return new QueryNode(field, minimumMatch, bool, null);
         }
 
         QueryData data = readData(parser, mapper, field, dataNode);
-        return new QueryNode(field, minimumMatch, isNot, data);
+        return new QueryNode(field, minimumMatch, bool, data);
+    }
+
+    private static BooleanOccur readBool(JsonParser parser, JsonNode boolNode) throws JsonMappingException {
+        if (boolNode == null || boolNode.isNull()) {
+            return null;
+        }
+        if (!boolNode.isTextual()) {
+            throw MismatchedInputException.from(parser, Object.class, "bool must be a string");
+        }
+        return switch (boolNode.textValue()) {
+            case "should" -> BooleanOccur.SHOULD;
+            case "must" -> BooleanOccur.MUST;
+            case "mustNot" -> BooleanOccur.MUST_NOT;
+            default -> throw MismatchedInputException.from(parser, Object.class,
+                    "bool must be one of 'should', 'must', or 'mustNot'");
+        };
     }
 
     private static QueryData readData(
@@ -125,18 +135,16 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             throw MismatchedInputException.from(parser, Object.class, "Boolean query node data must be an array");
         }
 
-        List<List<QueryNode>> shouldClauses = new ArrayList<>();
-        for (JsonNode shouldClauseNode : dataNode) {
-            if (!shouldClauseNode.isArray()) {
-                throw MismatchedInputException.from(parser, Object.class, "Boolean query should clauses must be arrays");
+        List<QueryNode> clauses = new ArrayList<>();
+        for (JsonNode clauseNode : dataNode) {
+            QueryNode clause = readNode(parser, mapper, clauseNode);
+            if (clause.bool() == null) {
+                throw MismatchedInputException.from(parser, Object.class,
+                        "Each boolean query clause requires a 'bool' of 'should', 'must', or 'mustNot'");
             }
-            List<QueryNode> mustClauses = new ArrayList<>();
-            for (JsonNode mustClauseNode : shouldClauseNode) {
-                mustClauses.add(readNode(parser, mapper, mustClauseNode));
-            }
-            shouldClauses.add(List.copyOf(mustClauses));
+            clauses.add(clause);
         }
-        return new BooleanQueryData(List.copyOf(shouldClauses));
+        return new BooleanQueryData(List.copyOf(clauses));
     }
 
     private static RangeQuery<?> readRange(JsonParser parser, JsonNode node) throws JsonMappingException {

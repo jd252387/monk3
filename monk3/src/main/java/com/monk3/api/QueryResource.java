@@ -116,12 +116,11 @@ public class QueryResource {
                                 "query": {
                                   "field": "chapters",
                                   "data": [
-                                    [
-                                      {
-                                        "field": "title",
-                                        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }] }
-                                      }
-                                    ]
+                                    {
+                                      "field": "title",
+                                      "bool": "must",
+                                      "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }] }
+                                    }
                                   ]
                                 }
                               },
@@ -161,18 +160,16 @@ public class QueryResource {
                                 "query": {
                                   "field": "",
                                   "data": [
-                                    [
-                                      {
-                                        "field": "title",
-                                        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] }
-                                      }
-                                    ],
-                                    [
-                                      {
-                                        "field": "year",
-                                        "data": { "type": "range", "gte": 2020, "lte": 2025 }
-                                      }
-                                    ]
+                                    {
+                                      "field": "title",
+                                      "bool": "should",
+                                      "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] }
+                                    },
+                                    {
+                                      "field": "year",
+                                      "bool": "should",
+                                      "data": { "type": "range", "gte": 2020, "lte": 2025 }
+                                    }
                                   ]
                                 }
                               },

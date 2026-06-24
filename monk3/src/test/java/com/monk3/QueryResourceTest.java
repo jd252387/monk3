@@ -475,15 +475,14 @@ class QueryResourceTest {
                           "query": {
                             "field": "chapters",
                             "data": [
-                              [
-                                {
-                                  "field": "title",
-                                  "data": {
-                                    "type": "text",
-                                    "phrases": [{ "type": "phrase", "value": "introduction" }]
-                                  }
+                              {
+                                "field": "title",
+                                "bool": "must",
+                                "data": {
+                                  "type": "text",
+                                  "phrases": [{ "type": "phrase", "value": "introduction" }]
                                 }
-                              ]
+                              }
                             ]
                           }
                         }
@@ -510,26 +509,25 @@ class QueryResourceTest {
                           "query": {
                             "field": "",
                             "data": [
-                              [
-                                {
-                                  "field": "publishedAt",
-                                  "data": { "type": "range", "gte": "%s", "lte": "%s" }
-                                },
-                                {
-                                  "field": "chapters",
-                                  "data": [
-                                    [
-                                      {
-                                        "field": "title",
-                                        "data": {
-                                          "type": "text",
-                                          "phrases": [{ "type": "phrase", "value": "introduction" }]
-                                        }
-                                      }
-                                    ]
-                                  ]
-                                }
-                              ]
+                              {
+                                "field": "publishedAt",
+                                "bool": "must",
+                                "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                              },
+                              {
+                                "field": "chapters",
+                                "bool": "must",
+                                "data": [
+                                  {
+                                    "field": "title",
+                                    "bool": "must",
+                                    "data": {
+                                      "type": "text",
+                                      "phrases": [{ "type": "phrase", "value": "introduction" }]
+                                    }
+                                  }
+                                ]
+                              }
                             ]
                           }
                         }
@@ -563,30 +561,28 @@ class QueryResourceTest {
                           "query": {
                             "field": "",
                             "data": [
-                              [
-                                {
-                                  "field": "publishedAt",
-                                  "data": { "type": "range", "gte": "%s", "lte": "%s" }
-                                },
-                                {
-                                  "field": "chapters",
-                                  "data": [
-                                    [
+                              {
+                                "field": "publishedAt",
+                                "bool": "must",
+                                "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                              },
+                              {
+                                "field": "chapters",
+                                "bool": "must",
+                                "data": [
+                                  {
+                                    "field": "pages",
+                                    "bool": "must",
+                                    "data": [
                                       {
-                                        "field": "pages",
-                                        "data": [
-                                          [
-                                            {
-                                              "field": "content",
-                                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "ew" }] }
-                                            }
-                                          ]
-                                        ]
+                                        "field": "content",
+                                        "bool": "must",
+                                        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "ew" }] }
                                       }
                                     ]
-                                  ]
-                                }
-                              ]
+                                  }
+                                ]
+                              }
                             ]
                           }
                         }
@@ -1837,9 +1833,9 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
                 .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
-                .body("[0].body.query.bool.must[0].bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
-                .body("[0].body.query.bool.must[0].bool.should[0].bool.must[1].range.book_year.gte", equalTo(2010))
-                .body("[0].body.query.bool.must[0].bool.should[0].bool.must[1].range.book_year.lte", equalTo(2025));
+                .body("[0].body.query.bool.must[0].bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[0].body.query.bool.must[0].bool.must[1].range.book_year.gte", equalTo(2010))
+                .body("[0].body.query.bool.must[0].bool.must[1].range.book_year.lte", equalTo(2025));
     }
 
     @Test
@@ -1853,10 +1849,8 @@ class QueryResourceTest {
                           "query": {
                             "field": "",
                             "data": [
-                              [
-                                { "field": "recentBook", "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "java" }]} },
-                                { "field": "publishedAt", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
-                              ]
+                              { "field": "recentBook", "bool": "must", "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "java" }]} },
+                              { "field": "publishedAt", "bool": "must", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
                             ]
                           }
                         }
@@ -1885,12 +1879,11 @@ class QueryResourceTest {
                           "query": {
                             "field": "chapters",
                             "data": [
-                              [
-                                {
-                                  "field": "shortChapter",
-                                  "data": {"type": "range", "gte": 5, "lte": 20}
-                                }
-                              ]
+                              {
+                                "field": "shortChapter",
+                                "bool": "must",
+                                "data": {"type": "range", "gte": 5, "lte": 20}
+                              }
                             ]
                           }
                         }
@@ -1941,12 +1934,11 @@ class QueryResourceTest {
                           "query": {
                             "field": "chapterSubquery",
                             "data": [
-                              [
-                                {
-                                  "field": "title",
-                                  "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
-                                }
-                              ]
+                              {
+                                "field": "title",
+                                "bool": "must",
+                                "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
+                              }
                             ]
                           }
                         }
@@ -1973,23 +1965,22 @@ class QueryResourceTest {
                           "query": {
                             "field": "",
                             "data": [
-                              [
-                                {
-                                  "field": "publishedAt",
-                                  "data": { "type": "range", "gte": "%s", "lte": "%s" }
-                                },
-                                {
-                                  "field": "chapterSubquery",
-                                  "data": [
-                                    [
-                                      {
-                                        "field": "title",
-                                        "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
-                                      }
-                                    ]
-                                  ]
-                                }
-                              ]
+                              {
+                                "field": "publishedAt",
+                                "bool": "must",
+                                "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                              },
+                              {
+                                "field": "chapterSubquery",
+                                "bool": "must",
+                                "data": [
+                                  {
+                                    "field": "title",
+                                    "bool": "must",
+                                    "data": {"type": "text", "phrases": [{ "type": "phrase", "value": "introduction" }]}
+                                  }
+                                ]
+                              }
                             ]
                           }
                         }
@@ -2064,10 +2055,8 @@ class QueryResourceTest {
                           "query": {
                             "field": "",
                             "data": [
-                              [
-                                { "field": "twentyFirstCentury" },
-                                { "field": "publishedAt", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
-                              ]
+                              { "field": "twentyFirstCentury", "bool": "must" },
+                              { "field": "publishedAt", "bool": "must", "data": {"type": "range", "gte": "%s", "lte": "%s"} }
                             ]
                           }
                         }
@@ -2091,8 +2080,10 @@ class QueryResourceTest {
                           "name": "Negated predicate virtual field",
                           "materialTypes": ["book"],
                           "query": {
-                            "field": "twentyFirstCentury",
-                            "isNot": true
+                            "field": "",
+                            "data": [
+                              { "field": "twentyFirstCentury", "bool": "mustNot" }
+                            ]
                           }
                         }
                         """))

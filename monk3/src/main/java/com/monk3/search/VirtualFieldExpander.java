@@ -64,7 +64,7 @@ public class VirtualFieldExpander {
             if (!(data instanceof BooleanQueryData booleanData)) {
                 throw new QueryTranslationException(
                         "Subquery virtual field '" + virtualField.logicalName()
-                                + "' requires boolean query data (an array of clause arrays)");
+                                + "' requires boolean query data (an array of clause objects)");
             }
             return Map.of("data", objectMapper.valueToTree(booleanData));
         }

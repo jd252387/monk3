@@ -59,7 +59,7 @@ class QueryAnalyzerTest {
         QueryNode dateNode = new QueryNode("publishedAt", null, null,
                 new RangeQuery.Datetime(lower, null, upper, null));
         QueryNode boolNode = new QueryNode("", null, null,
-                new BooleanQueryData(List.of(List.of(titleNode, dateNode))));
+                new BooleanQueryData(List.of(titleNode, dateNode)));
 
         QueryAnalysis analysis = QueryAnalyzer.analyze(boolNode);
         assertTrue(analysis.queriedFields().contains("title"));
@@ -71,7 +71,7 @@ class QueryAnalyzerTest {
     void traversesNestedSubdocumentBooleanData() {
         QueryNode innerLeaf = new QueryNode("title", null, null, new TextQuery("text", List.of(new TextQuery.StandardPhrase("intro", null)), null));
         QueryNode subdocNode = new QueryNode("chapters", null, null,
-                new BooleanQueryData(List.of(List.of(innerLeaf))));
+                new BooleanQueryData(List.of(innerLeaf)));
 
         QueryAnalysis analysis = QueryAnalyzer.analyze(subdocNode);
         assertTrue(analysis.queriedFields().contains("chapters"));
@@ -89,7 +89,7 @@ class QueryAnalyzerTest {
         QueryNode node2 = new QueryNode("publishedAt", null, null,
                 new RangeQuery.Datetime(lower2, null, upper2, null));
         QueryNode boolNode = new QueryNode("", null, null,
-                new BooleanQueryData(List.of(List.of(node1), List.of(node2))));
+                new BooleanQueryData(List.of(node1, node2)));
 
         QueryAnalysis analysis = QueryAnalyzer.analyze(boolNode);
         assertEquals(2, analysis.datetimeRanges().get("publishedAt").size());

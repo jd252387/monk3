@@ -50,17 +50,42 @@ public final class QueryJson {
         return root;
     }
 
-    public static ObjectNode mustNot(SearchEngine engine, JsonNode query) {
+    /**
+     * Builds a single {@code bool} query from pre-translated should/must/must_not clauses.
+     * {@code minimumShouldMatch} is emitted only when there are should clauses. When the query is
+     * purely negative (must_not only), an engine match-all clause is added to {@code must} so the
+     * bool matches every document before excluding.
+     */
+    public static ObjectNode bool(
+            SearchEngine engine,
+            int minimumShouldMatch,
+            List<JsonNode> should,
+            List<JsonNode> must,
+            List<JsonNode> mustNot) {
         ObjectNode root = JSON.objectNode();
         ObjectNode bool = root.putObject("bool");
-        ArrayNode must = bool.putArray("must");
-        if (engine == SearchEngine.ELASTICSEARCH) {
-            must.add(JSON.objectNode().set("match_all", JSON.objectNode()));
-        } else {
-            must.add("*:*");
+        if (!should.isEmpty()) {
+            ArrayNode shouldArray = bool.putArray("should");
+            should.forEach(shouldArray::add);
+            bool.put(engine.minimumShouldMatchProperty(), minimumShouldMatch);
         }
-        bool.putArray("must_not").add(query);
+        if (!mustNot.isEmpty() && should.isEmpty() && must.isEmpty()) {
+            bool.putArray("must").add(matchAll(engine));
+        } else if (!must.isEmpty()) {
+            ArrayNode mustArray = bool.putArray("must");
+            must.forEach(mustArray::add);
+        }
+        if (!mustNot.isEmpty()) {
+            ArrayNode mustNotArray = bool.putArray("must_not");
+            mustNot.forEach(mustNotArray::add);
+        }
         return root;
+    }
+
+    private static JsonNode matchAll(SearchEngine engine) {
+        return engine == SearchEngine.ELASTICSEARCH
+                ? JSON.objectNode().set("match_all", JSON.objectNode())
+                : JSON.textNode("*:*");
     }
 
     public static ObjectNode solrFieldQuery(String field, Object value) {

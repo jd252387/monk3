@@ -6,18 +6,16 @@
       "expansion": {
         "field": "",
         "data": [
-          [
-            {
-              "field": "readers",
-              "data": "{{data}}"
-            }
-          ],
-          [
-            {
-              "field": "writers",
-              "data": "{{data}}"
-            }
-          ]
+          {
+            "field": "readers",
+            "bool": "should",
+            "data": "{{data}}"
+          },
+          {
+            "field": "writers",
+            "bool": "should",
+            "data": "{{data}}"
+          }
         ]
       }
     }

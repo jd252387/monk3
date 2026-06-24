@@ -16,40 +16,39 @@ import jakarta.validation.constraints.NotNull;
 
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Schema(description = """
-        A boolean combination of clauses. The outer list is OR'd (should clauses);
-        each inner list is AND'd (must clauses).
+        A boolean combination of clauses. Each clause is a QueryNode tagged with a 'bool'
+        of should (OR), must (AND), or mustNot (negation); clauses are grouped by that tag.
         """, example = """
         [
-          [
-            {
-              "field": "title",
-              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "history" }] }
-            },
-            {
-              "field": "year",
-              "isNot": true,
-              "data": { "type": "range", "gt": 1800, "lte": 1900 }
-            }
-          ],
-          [
-            {
-              "field": "title",
-              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "science" }] }
-            }
-          ]
+          {
+            "field": "title",
+            "bool": "should",
+            "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "history" }] }
+          },
+          {
+            "field": "title",
+            "bool": "should",
+            "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "science" }] }
+          },
+          {
+            "field": "year",
+            "bool": "mustNot",
+            "data": { "type": "range", "gt": 1800, "lte": 1900 }
+          }
         ]
         """)
 public record BooleanQueryData(
-        @NotEmpty List<@NotEmpty List<@NotNull @Valid QueryNode>> clauses
+        @NotEmpty List<@NotNull @Valid QueryNode> clauses
 ) implements QueryData {
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
     private static final String SOLR_NEST_PATH_FIELD = "_nest_path_";
 
     @JsonValue
-    public List<List<QueryNode>> jsonValue() {
+    public List<QueryNode> jsonValue() {
         return clauses;
     }
 
@@ -93,15 +92,18 @@ public record BooleanQueryData(
     }
 
     private JsonNode toBooleanQuery(SearchEngine engine, QueryParseContext context) {
-        return QueryJson.boolShould(engine, context.minimumMatchOrOne(), clauses.stream()
-                .map(clause -> toMustClause(engine, context, clause))
-                .toList());
-    }
-
-    private static JsonNode toMustClause(SearchEngine engine, QueryParseContext context, List<QueryNode> clause) {
-        return clause.size() == 1
-                ? clause.getFirst().translate(engine, context)
-                : QueryJson.boolMust(clause.stream().map(node -> node.translate(engine, context)).toList());
+        List<JsonNode> should = new ArrayList<>();
+        List<JsonNode> must = new ArrayList<>();
+        List<JsonNode> mustNot = new ArrayList<>();
+        for (QueryNode clause : clauses) {
+            JsonNode translated = clause.translate(engine, context);
+            switch (clause.bool()) {
+                case SHOULD -> should.add(translated);
+                case MUST -> must.add(translated);
+                case MUST_NOT -> mustNot.add(translated);
+            }
+        }
+        return QueryJson.bool(engine, context.minimumMatchOrOne(), should, must, mustNot);
     }
 
     private static String rootBlockMask(QueryParseContext context) {

@@ -54,8 +54,9 @@ A `SearchQueryRequest` carries a list of `materialTypes` and a root `QueryNode`.
 has a `field` and `data`:
 
 - **Leaf node** — non-empty `field` with a `TextQuery`, `RangeQuery`, or `ExactQuery` payload.
-- **Boolean node** — empty `field` with `BooleanQueryData` (list-of-lists; outer = OR/should,
-  inner = AND/must). The `minimumMatch` and `isNot` fields are meaningful only on boolean nodes.
+- **Boolean node** — empty `field` with `BooleanQueryData` (a flat array of clauses, each a
+  `QueryNode` with a required `bool` of `should`/`must`/`mustNot`). `minimumMatch` is meaningful only
+  on boolean nodes; a clause's `bool` is meaningful only within its parent boolean node.
 - **Subdocument node** — `field` pointing at a subdocument type with `BooleanQueryData`; translates
   to an Elasticsearch `nested` or Solr `{!parent}` query.
 

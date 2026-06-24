@@ -32,10 +32,8 @@ public final class QueryAnalyzer {
         }
 
         if (node.data() instanceof BooleanQueryData booleanData) {
-            for (List<QueryNode> clause : booleanData.clauses()) {
-                for (QueryNode child : clause) {
-                    collect(child, queriedFields, datetimeRanges);
-                }
+            for (QueryNode child : booleanData.clauses()) {
+                collect(child, queriedFields, datetimeRanges);
             }
         } else if (!node.field().isBlank() && node.data() instanceof RangeQuery.Datetime datetimeRange) {
             datetimeRanges.computeIfAbsent(node.field(), k -> new ArrayList<>())

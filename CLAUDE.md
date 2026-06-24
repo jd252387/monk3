@@ -53,10 +53,10 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 `SearchQueryRequest` carries a list of `materialTypes` and a root `QueryNode`. A `QueryNode` has a `field` and `data`:
 
 - **Leaf node**: non-empty `field` with `QueryPayload` data — one of `TextQuery`, `RangeQuery` (`Numeric` / `Datetime`), or `ExactQuery` (`Numeric` / `Datetime` / `BooleanValues`).
-- **Boolean node**: empty `field` with `BooleanQueryData` (a list-of-lists of `QueryNode`s, outer = OR/should clauses, inner = AND/must clauses).
+- **Boolean node**: empty `field` with `BooleanQueryData` (a flat array of `QueryNode` clauses, each carrying a required `bool` of `should` (OR), `must` (AND), or `mustNot` (negation); clauses are grouped by that tag).
 - **Subdocument node**: non-empty `field` pointing to a subdocument type, with `BooleanQueryData` — translates to ES `nested` or Solr `{!parent}` queries.
 
-`QueryNode` fields `minimumMatch` and `isNot` are only meaningful on boolean nodes.
+A `QueryNode`'s `minimumMatch` is only meaningful on boolean nodes (it sets minimum-should-match over the `should` clauses); its `bool` is only meaningful when the node is itself a clause of a boolean node.
 
 ### Configuration catalog and field mapping
 

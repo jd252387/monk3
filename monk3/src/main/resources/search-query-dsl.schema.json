@@ -267,7 +267,7 @@
     "QueryNode": {
       "type": "object",
       "description": "A recursive query node. A node with an empty field is a boolean/group node; if the field is equal to the name of a document type in the mapping, then the sub-queries in 'data' query the fields in the specified document type; if 'field' is empty, then the node is a leaf field query.",
-      "$comment": "The field value determines the shape of data and whether occur/mm are allowed.",
+      "$comment": "The field value determines the shape of data and whether bool/mm are allowed.",
       "additionalProperties": false,
       "required": [
         "field",
@@ -276,18 +276,19 @@
       "properties": {
         "field": {
           "type": "string",
-          "description": "Field to query. If empty or equal to the name of a document type, then the 'data' field is expected to be an array of arrays, representing a boolean relationship of sub-queries or a nested query."
+          "description": "Field to query. If empty or equal to the name of a document type, then the 'data' field is expected to be an array of clause objects, representing a boolean relationship of sub-queries or a nested query."
         },
         "minimumMatch": {
           "type": "integer",
           "description": "Required amount of 'should' clauses that should match. Only allowed when 'field' is empty or equal to a document type name."
         },
-        "isNot": {
-          "type": "boolean",
-          "description": "If true, then perform negation on this clause, i.e. require this query node to NOT match."
+        "bool": {
+          "type": "string",
+          "enum": ["should", "must", "mustNot"],
+          "description": "How this node combines with its sibling clauses inside a boolean 'data' array: 'should' (OR), 'must' (AND), or 'mustNot' (negation). Required on every clause of a boolean node; ignored on the root node."
         },
         "data": {
-          "description": "When 'field' is not empty, contains an object representing the query payload to match on the specified field. When 'field' is empty or equal to the name of a document type, contains an array of arrays representing a boolean sub-query. Each direct array under 'data' represents a 'should' clause, and within each sub-array, there are sub-query nodes which are treated with a 'must' relationship, i.e. every query node within a single sub-array should match. In the case of a nested query (when 'field' is equal to the name of a document type), all clauses under each sub-array must match on the same child document. "
+          "description": "When 'field' is not empty, contains an object representing the query payload to match on the specified field. When 'field' is empty or equal to the name of a document type, contains an array of clause objects representing a boolean sub-query. Each clause is a query node tagged with a 'bool' of 'should', 'must', or 'mustNot', and the clauses are grouped by that tag. In the case of a nested query (when 'field' is equal to the name of a document type), the grouped clauses must match on the same child document."
         }
       },
       "allOf": [
@@ -300,7 +301,7 @@
             }
           },
           "then": {
-            "$comment": "Boolean query - contains an array of arrays representing a boolean sub-query. Each direct array under 'data' represents a 'should' clause, and within each sub-array, there are sub-query nodes which are treated with a 'must' relationship, i.e. every query node within a single sub-array should match.",
+            "$comment": "Boolean query - contains an array of clause objects, each a query node tagged with a 'bool' of 'should', 'must', or 'mustNot'.",
             "properties": {
               "data": {
                 "$ref": "#/$defs/BooleanQueryData"
@@ -311,7 +312,7 @@
             "$comment": "Leaf query when 'field' names a leaf field, or a boolean/nested sub-query when 'field' names a subdocument type.",
             "properties": {
               "data": {
-                "description": "Payload for the field query, or an array of arrays representing a boolean/nested sub-query when 'field' names a subdocument type.",
+                "description": "Payload for the field query, or an array of clause objects representing a boolean/nested sub-query when 'field' names a subdocument type.",
                 "oneOf": [
                   {
                     "$ref": "#/$defs/QueryPayload"
@@ -328,13 +329,18 @@
     },
     "BooleanQueryData": {
       "type": "array",
-      "description": "Child 'should' clauses for this boolean query.",
+      "description": "Clauses for this boolean query; each is a query node tagged with a 'bool' of 'should', 'must', or 'mustNot'.",
       "items": {
-        "type": "array",
-        "description": "Child 'must' clauses, under this 'should' clause.",
-        "items": {
-          "$ref": "#/$defs/QueryNode"
-        }
+        "allOf": [
+          {
+            "$ref": "#/$defs/QueryNode"
+          },
+          {
+            "required": [
+              "bool"
+            ]
+          }
+        ]
       }
     },
     "QueryPayload": {

@@ -29,7 +29,7 @@
       "required": ["type", "expansion"],
       "properties": {
         "type": {
-          "description": "Accepted data type for this virtual field, determining what the API consumer may pass when querying it. The 'string'/'freetext'/'number'/'datetime'/'boolean' types each accept a single leaf QueryPayload. The special 'predicate' type accepts NO data — it is queried by field name alone and expands statically. The 'subquery' type accepts a boolean query (an array of clause arrays, the BooleanQueryData structure) — typically substituted into an expansion that targets a subdocument field.",
+          "description": "Accepted data type for this virtual field, determining what the API consumer may pass when querying it. The 'string'/'freetext'/'number'/'datetime'/'boolean' types each accept a single leaf QueryPayload. The special 'predicate' type accepts NO data — it is queried by field name alone and expands statically. The 'subquery' type accepts a boolean query (an array of clause objects, the BooleanQueryData structure) — typically substituted into an expansion that targets a subdocument field.",
           "type": "string",
           "enum": ["string", "freetext", "number", "datetime", "boolean", "predicate", "subquery"]
         },

@@ -6,10 +6,8 @@
       "expansion": {
         "field": "",
         "data": [
-          [
-            {"field": "title", "data": "{{data}}"},
-            {"field": "year", "data": {"type": "range", "gte": 2010, "lte": 2025}}
-          ]
+          {"field": "title", "bool": "must", "data": "{{data}}"},
+          {"field": "year", "bool": "must", "data": {"type": "range", "gte": 2010, "lte": 2025}}
         ]
       }
     },

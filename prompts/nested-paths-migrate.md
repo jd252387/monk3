@@ -14,4 +14,4 @@ For example,
   }
 }
 
-Note that in the example, "chapters" is a subdocument field, so the templated {{data}} given by the user is expected to be an array of arrays (the structure of @monk3/src/main/java/com/monk3/model/BooleanQueryData.java). 
+Note that in the example, "chapters" is a subdocument field, so the templated {{data}} given by the user is expected to be an array of clause objects, each tagged with a "bool" of should/must/mustNot (the structure of @monk3/src/main/java/com/monk3/model/BooleanQueryData.java). 
