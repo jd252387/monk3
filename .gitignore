@@ -26,3 +26,5 @@ reasonix.toml
 
 scripts/extracted
 .offline-gradle-home
+scripts/zipper/extracted
+scripts/zipper/extracted.zip
