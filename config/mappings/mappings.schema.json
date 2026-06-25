@@ -56,15 +56,23 @@
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["string", "freetext", "boolean", "datetime", "number", "subdocument"]
+                        "enum": ["string", "freetext", "boolean", "datetime", "number", "subdocument", "vector"]
                     },
                     "subdocumentType": {
                         "description": "Equal to the name of another document type (a property under the root of this schema with the documentSchema definition).",
                         "type": "string"
                     },
                     "destinationField": {
-                        "description": "Physical field name that is stored in the search engine for this field.",
+                        "description": "Physical field name that is stored in the search engine for this field. For 'vector' fields it must contain the '%i' placeholder, expanded over start..end (inclusive) into the family of physical vector fields searched together.",
                         "type": "string"
+                    },
+                    "start": {
+                        "description": "First index (inclusive) substituted for '%i' in a 'vector' field's destinationField. Only valid on vector fields.",
+                        "type": "integer"
+                    },
+                    "end": {
+                        "description": "Last index (inclusive) substituted for '%i' in a 'vector' field's destinationField. Only valid on vector fields.",
+                        "type": "integer"
                     },
                     "morphologies": {
                         "description": "Query-side alternate destination fields keyed by morphology name (e.g. 'english'). Routes morphology-tagged queries to these fields. Ignored by the indexer.",
@@ -97,6 +105,19 @@
                         },
                         "then": {
                             "required": ["subdocumentType"]
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "vector"
+                                }
+                            },
+                            "required": ["type"]
+                        },
+                        "then": {
+                            "required": ["destinationField", "start", "end"]
                         }
                     }
                 ]

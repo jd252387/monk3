@@ -17,3 +17,5 @@ monk3:
     material-type-field: material_type
   vapi:
     endpointName: "https://example.endpoint.com/capsules/fetch"
+  embedding:
+    url: "https://example.embedding.com/embed"

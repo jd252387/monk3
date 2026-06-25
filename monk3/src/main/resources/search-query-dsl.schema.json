@@ -360,8 +360,34 @@
         },
         {
           "$ref": "#/$defs/PrefixQuery"
+        },
+        {
+          "$ref": "#/$defs/KnnFlatQuery"
         }
       ]
+    },
+    "KnnFlatQuery": {
+      "type": "object",
+      "description": "Vector (kNN) query payload. Embeds 'text' via the embedding API and searches a 'vector' mapping field's physical fields, combined as a max-score query.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "const": "knnFlat"
+        },
+        "text": {
+          "type": "string",
+          "description": "Free text embedded into a query vector by the embedding API."
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of nearest neighbours per field; defaults to 10 when omitted."
+        }
+      }
     },
     "PrefixQuery": {
       "type": "object",

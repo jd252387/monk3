@@ -47,7 +47,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].match_phrase.material_type", equalTo("book"))
                 .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java records"));
     }
 
@@ -453,7 +453,7 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
                 .body("[0].materialTypes[0]", equalTo("book"))
-                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].match_phrase.material_type", equalTo("book"))
                 .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("history"))
                 .body("[1].backend", equalTo("solr-articles"))
                 .body("[1].engine", equalTo("SOLR"))
@@ -1847,7 +1847,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
                 .body("error.message", containsString("Unsupported query data type 'geo'"))
-                .body("error.message", containsString("Supported query data types are 'text', 'range', 'exact', 'exists', and 'prefix'"));
+                .body("error.message", containsString("Supported query data types are 'text', 'range', 'exact', 'exists', 'prefix', and 'knnFlat'"));
     }
 
     @Test
@@ -1936,10 +1936,12 @@ class QueryResourceTest {
                         "#/$defs/RangeQuery",
                         "#/$defs/ExactQuery",
                         "#/$defs/ExistsQuery",
-                        "#/$defs/PrefixQuery"
+                        "#/$defs/PrefixQuery",
+                        "#/$defs/KnnFlatQuery"
                 ))
                 .body("$defs.ExistsQuery.properties.type.const", equalTo("exists"))
                 .body("$defs.PrefixQuery.properties.type.const", equalTo("prefix"))
+                .body("$defs.KnnFlatQuery.properties.type.const", equalTo("knnFlat"))
                 .body("$defs.TextQuery.properties.type.const", equalTo("text"))
                 .body("$defs.RangeQuery.oneOf.$ref", containsInAnyOrder(
                         "#/$defs/NumericRangeQuery",
@@ -1985,7 +1987,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].match_phrase.material_type", equalTo("book"))
                 .body("[0].body.query.bool.must[0].bool.must[0].match_phrase.book_title", equalTo("java"))
                 .body("[0].body.query.bool.must[0].bool.must[1].range.book_year.gte", equalTo(2010))
                 .body("[0].body.query.bool.must[0].bool.must[1].range.book_year.lte", equalTo(2025));
@@ -2047,7 +2049,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].match_phrase.material_type", equalTo("book"))
                 .body("[0].body.query.bool.must[0].nested.path", equalTo("chapters"))
                 .body(containsString("\"chapters.page_count\""))
                 .body(containsString("\"gte\""))
@@ -2193,7 +2195,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
-                .body("[0].body.query.bool.filter[0].terms.material_type[0]", equalTo("book"))
+                .body("[0].body.query.bool.filter[0].match_phrase.material_type", equalTo("book"))
                 .body("[0].body.query.bool.must[0].range.book_year.gte", equalTo(2000));
     }
 
@@ -2363,7 +2365,8 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("elastic-books"))
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
                 .body("[0].materialTypes", containsInAnyOrder("book", "book_elastic"))
-                .body("[0].body.query.bool.filter[0].terms.material_type", containsInAnyOrder("book", "book_elastic"))
+                .body("[0].body.query.bool.filter[0].bool.should.match_phrase.material_type", containsInAnyOrder("book", "book_elastic"))
+                .body("[0].body.query.bool.filter[0].bool.minimum_should_match", equalTo(1))
                 .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java records"));
     }
 
@@ -2445,7 +2448,8 @@ class QueryResourceTest {
         assertThat(requests.getFirst().path(), equalTo("/es/books/_search"));
         assertThat(
                 requests.getFirst().body(),
-                containsString("\"terms\":{\"material_type\":[\"book\",\"book_elastic\"]}"));
+                containsString("\"should\":[{\"match_phrase\":{\"material_type\":\"book\"}},"
+                        + "{\"match_phrase\":{\"material_type\":\"book_elastic\"}}]"));
     }
 
     @Test
@@ -2474,6 +2478,81 @@ class QueryResourceTest {
                 .body("[0].materialTypes[0]", equalTo("book"))
                 .body("[1].backend", equalTo("solr-articles"))
                 .body("[1].materialTypes[0]", equalTo("article"));
+    }
+
+    @Test
+    void parsesKnnFlatQueryToElasticsearchDisMaxOverVectorFields() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Elasticsearch vector query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "embedding",
+                            "data": { "type": "knnFlat", "text": "machine learning" }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].dis_max.queries.size()", equalTo(3))
+                .body("[0].body.query.bool.must[0].dis_max.queries[0].knn.field", equalTo("vector_1"))
+                .body("[0].body.query.bool.must[0].dis_max.queries[1].knn.field", equalTo("vector_2"))
+                .body("[0].body.query.bool.must[0].dis_max.queries[2].knn.field", equalTo("vector_3"))
+                .body("[0].body.query.bool.must[0].dis_max.queries[0].knn.k", equalTo(10))
+                .body("[0].body.query.bool.must[0].dis_max.queries[0].knn.query_vector[0]", equalTo(0.1f))
+                .body("[0].body.query.bool.must[0].dis_max.queries[0].knn.query_vector[2]", equalTo(0.3f));
+
+        SearchBackendTestResource.RecordedRequest embeddingRequest = SearchBackendTestResource.requests().stream()
+                .filter(request -> request.path().equals("/embedding/embed"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(embeddingRequest.body(), equalTo("{\"texts\":[\"machine learning\"]}"));
+    }
+
+    @Test
+    void parsesKnnFlatQueryToSolrMaxScoreOverVectorFields() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Solr vector query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "embedding",
+                            "data": { "type": "knnFlat", "text": "machine learning", "k": 5 }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].maxscore.query", equalTo(
+                        "({!knn f=article_vector_1 topK=5}[0.1,0.2,0.3]) ({!knn f=article_vector_2 topK=5}[0.1,0.2,0.3])"));
+    }
+
+    @Test
+    void rejectsKnnFlatQueryWithBlankText() {
+        assertBadRequest("""
+                {
+                  "name": "Invalid vector query",
+                  "materialTypes": ["book"],
+                  "query": {
+                    "field": "embedding",
+                    "data": { "type": "knnFlat", "text": "" }
+                  }
+                }
+                """);
     }
 
     /** Lower (7 days ago) and upper (now) bounds for a "recently published" range, for use with formatted(). */

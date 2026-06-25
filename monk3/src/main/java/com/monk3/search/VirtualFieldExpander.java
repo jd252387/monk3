@@ -82,7 +82,7 @@ public class VirtualFieldExpander {
             case NUMBER -> payload instanceof RangeQuery.Numeric || payload instanceof ExactQuery.Numeric;
             case DATETIME -> payload instanceof RangeQuery.Datetime || payload instanceof ExactQuery.Datetime;
             case BOOLEAN -> payload instanceof ExactQuery.BooleanValues;
-            case SUBDOCUMENT, PREDICATE, SUBQUERY -> false;
+            case VECTOR, SUBDOCUMENT, PREDICATE, SUBQUERY -> false;
         };
         if (!compatible) {
             throw new QueryTranslationException(

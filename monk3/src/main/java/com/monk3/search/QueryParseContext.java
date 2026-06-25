@@ -27,7 +27,8 @@ public record QueryParseContext(
         String solrNestPath,
         JsonNode solrRootIdentifier,
         ObjectNode solrNamedQueries,
-        Map<String, String> vapiEndpoints
+        Map<String, String> vapiEndpoints,
+        EmbeddingClient embeddingClient
 ) {
     /** Key under the Solr root-level {@code queries} block holding the translated root identifier query. */
     private static final String ROOT_IDENTIFIER_KEY = "root_identifier";
@@ -36,10 +37,11 @@ public record QueryParseContext(
             SearchMapping mapping,
             VirtualMapping virtualMapping,
             VirtualFieldExpander expander,
-            Map<String, String> vapiEndpoints
+            Map<String, String> vapiEndpoints,
+            EmbeddingClient embeddingClient
     ) {
         return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null, null,
-                null, JsonNodeFactory.instance.objectNode(), vapiEndpoints);
+                null, JsonNodeFactory.instance.objectNode(), vapiEndpoints, embeddingClient);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -52,20 +54,20 @@ public record QueryParseContext(
 
     public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
         return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path,
-                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints);
+                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
     }
 
     public QueryParseContext withSolrNestedDocument(DocumentMapping documentMapping, String solrNestPath) {
         // nestedPath stays null so Solr child leaf fields keep plain names; the nest path
         // is expressed separately via the _nest_path_ field instead of a dotted prefix.
         return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, null,
-                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints);
+                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
     }
 
     /** Stores the root identifier query already translated to engine JSON, used as the root block mask. */
     public QueryParseContext withSolrRootIdentifier(JsonNode translatedIdentifier) {
         return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
-                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries, vapiEndpoints);
+                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
     }
 
     /**
@@ -79,7 +81,7 @@ public record QueryParseContext(
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
         return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
-                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints);
+                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {
@@ -112,6 +114,23 @@ public record QueryParseContext(
         return mapping.document(documentName)
                 .orElseThrow(() -> new QueryTranslationException(
                         "Document type '" + documentName + "' is not defined for material type '" + mapping.materialType() + "'"));
+    }
+
+    /**
+     * Returns the current field, requiring it to be a {@link FieldType#VECTOR} field. Unlike
+     * {@link #requireSearchField}, a vector field expands to a family of physical fields (via
+     * {@link MappedField#vectorFields()}) rather than a single search field.
+     */
+    public MappedField requireVectorField(String queryType) {
+        if (currentField == null) {
+            throw new QueryTranslationException("No mapped field is available for " + queryType + " query conversion");
+        }
+        if (!currentField.isVector()) {
+            throw new QueryTranslationException(
+                    "Query type '" + queryType + "' is not supported for field '" + currentField.logicalName()
+                            + "' with mapping type '" + typeName(currentField.type()) + "'");
+        }
+        return currentField;
     }
 
     public String requireSearchField(String queryType, Set<FieldType> supportedTypes) {

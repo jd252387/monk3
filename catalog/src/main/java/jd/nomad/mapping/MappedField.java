@@ -1,7 +1,9 @@
 package jd.nomad.mapping;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 public record MappedField(
         String logicalName,
@@ -11,10 +13,13 @@ public record MappedField(
         Map<String, SourceExpression> sourcing,
         Map<String, SourceExpression> primaryKeySourcing,
         Map<String, String> subdocumentPartialUpdate,
-        Map<String, String> morphologies
+        Map<String, String> morphologies,
+        VectorSpec vectorSpec
 ) {
     private static final String DEFAULT_DATASOURCE = "default";
     private static final String WILDCARD_DATASOURCE = "*";
+    /** Placeholder in a {@link FieldType#VECTOR} {@code destinationField} replaced by each field index. */
+    public static final String VECTOR_INDEX_PLACEHOLDER = "%i";
 
     public MappedField {
         sourcing = sourcing == null ? Map.of() : Map.copyOf(sourcing);
@@ -27,7 +32,7 @@ public record MappedField(
      * Compact constructor used by query-side callers (and existing tests) that carry no indexing sourcing.
      */
     public MappedField(String logicalName, FieldType type, String subdocumentType, String destinationField) {
-        this(logicalName, type, subdocumentType, destinationField, Map.of(), Map.of(), Map.of(), Map.of());
+        this(logicalName, type, subdocumentType, destinationField, Map.of(), Map.of(), Map.of(), Map.of(), null);
     }
 
     public String searchField() {
@@ -41,6 +46,24 @@ public record MappedField(
 
     public boolean isSubdocument() {
         return type == FieldType.SUBDOCUMENT;
+    }
+
+    public boolean isVector() {
+        return type == FieldType.VECTOR;
+    }
+
+    /**
+     * Expands the {@code %i} placeholder in {@link #searchField()} over the inclusive range declared by
+     * {@link #vectorSpec()} (e.g. {@code vector_%i}, 1..3 → {@code vector_1, vector_2, vector_3}).
+     */
+    public List<String> vectorFields() {
+        if (vectorSpec == null) {
+            throw new IllegalStateException("Field '" + logicalName + "' is not a vector field");
+        }
+        String template = searchField();
+        return IntStream.rangeClosed(vectorSpec.start(), vectorSpec.end())
+                .mapToObj(index -> template.replace(VECTOR_INDEX_PLACEHOLDER, Integer.toString(index)))
+                .toList();
     }
 
     /** Leaf value extraction for the given datasource, falling back to {@code default} then {@code *}. */

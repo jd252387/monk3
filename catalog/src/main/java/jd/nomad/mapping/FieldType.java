@@ -10,6 +10,7 @@ public enum FieldType {
     DATETIME,
     NUMBER,
     BOOLEAN,
+    VECTOR,
     SUBDOCUMENT,
     PREDICATE,
     SUBQUERY;

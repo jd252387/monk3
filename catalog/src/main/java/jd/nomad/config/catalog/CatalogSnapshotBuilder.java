@@ -9,6 +9,7 @@ import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.MappingParseException;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.SourceExpression;
+import jd.nomad.mapping.VectorSpec;
 import jd.nomad.mapping.VirtualDocumentMapping;
 import jd.nomad.mapping.VirtualField;
 import jd.nomad.mapping.VirtualMapping;
@@ -105,15 +106,47 @@ public class CatalogSnapshotBuilder {
         Map<String, String> morphologies = parseStringMap(fieldObject.get("morphologies"),
                 "field '" + logicalName + "' morphologies");
 
+        String destinationField = optionalText(fieldObject, "destinationField");
+        VectorSpec vectorSpec = type == FieldType.VECTOR
+                ? parseVectorSpec(fieldObject, logicalName, destinationField)
+                : null;
+
         return new MappedField(
                 logicalName,
                 type,
                 subdocumentType,
-                optionalText(fieldObject, "destinationField"),
+                destinationField,
                 sourcing,
                 primaryKeySourcing,
                 subdocumentPartialUpdate,
-                morphologies);
+                morphologies,
+                vectorSpec);
+    }
+
+    /**
+     * Parses the {@code start}/{@code end} index range for a {@link FieldType#VECTOR} field and enforces that its
+     * {@code destinationField} carries the {@code %i} placeholder expanded over that range.
+     */
+    private VectorSpec parseVectorSpec(ObjectNode fieldObject, String logicalName, String destinationField) {
+        if (destinationField == null || !destinationField.contains(MappedField.VECTOR_INDEX_PLACEHOLDER)) {
+            throw new MappingParseException("Vector field '" + logicalName + "' must declare a destinationField containing the '"
+                    + MappedField.VECTOR_INDEX_PLACEHOLDER + "' placeholder");
+        }
+        int start = requireInt(fieldObject, "start", logicalName);
+        int end = requireInt(fieldObject, "end", logicalName);
+        if (end < start) {
+            throw new MappingParseException("Vector field '" + logicalName + "' must declare 'end' >= 'start'");
+        }
+        return new VectorSpec(start, end);
+    }
+
+    private static int requireInt(ObjectNode node, String property, String logicalName) {
+        JsonNode value = node.get(property);
+        if (value == null || value.isNull() || !value.canConvertToInt()) {
+            throw new MappingParseException(
+                    "Vector field '" + logicalName + "' must declare an integer '" + property + "'");
+        }
+        return value.intValue();
     }
 
     /**

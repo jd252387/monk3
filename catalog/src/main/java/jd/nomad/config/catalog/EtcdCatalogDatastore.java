@@ -125,6 +125,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
 
         Map<String, String> backendsByMaterialType = new LinkedHashMap<>();
         Map<String, List<RoutingRule>> routingRulesByMaterialType = new LinkedHashMap<>();
+        Map<String, JsonNode> filtersByMaterialType = new LinkedHashMap<>();
         Map<String, String> materialTypeByBackend = new LinkedHashMap<>();
         for (Map.Entry<String, CatalogConfig.MappingEntry> entry : catalogConfig.mappings().entrySet()) {
             String materialType = entry.getKey();
@@ -136,6 +137,9 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
             List<RoutingRule> rules = mappingEntry.routing() != null ? List.copyOf(mappingEntry.routing()) : List.of();
             backendsByMaterialType.put(materialType, mappingEntry.backend());
             routingRulesByMaterialType.put(materialType, rules);
+            if (mappingEntry.filter() != null && !mappingEntry.filter().isNull()) {
+                filtersByMaterialType.put(materialType, mappingEntry.filter());
+            }
             materialTypeByBackend.put(mappingEntry.backend(), materialType);
             rules.forEach(rule -> materialTypeByBackend.put(rule.backend(), materialType));
         }
@@ -185,6 +189,7 @@ public class EtcdCatalogDatastore implements CatalogDatastore {
                 Map.copyOf(virtualMappingsByBackend),
                 Map.copyOf(backendsByMaterialType),
                 Map.copyOf(routingRulesByMaterialType),
+                Map.copyOf(filtersByMaterialType),
                 backends,
                 datasources);
     }

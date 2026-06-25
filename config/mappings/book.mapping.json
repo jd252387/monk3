@@ -32,6 +32,12 @@
       "type": "boolean",
       "destinationField": "book_in_print"
     },
+    "embedding": {
+      "type": "vector",
+      "destinationField": "vector_%i",
+      "start": 1,
+      "end": 3
+    },
     "chapters": {
       "type": "subdocument",
       "subdocumentType": "chapter",

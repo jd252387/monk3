@@ -70,11 +70,18 @@ DELEGATING_FILTER_TYPES: dict[str, str] = {
     "duration": "number",
 }
 
-# Solr dynamic-field suffix marking a boolean field. A physical field whose `path`
-# ends with this is forced to type "boolean" regardless of its old filterType, which
-# is frequently mislabeled (e.g. "is_original" carries filterType "number" but its
-# path "is_original_b" is a Solr boolean field).
-BOOLEAN_PATH_SUFFIX = "_b"
+# Solr dynamic-field suffixes marking a boolean field ("_b" single-valued, "_bs"
+# multi-valued). A physical field whose `path` ends with one of these is forced to
+# type "boolean" regardless of its old filterType, which is frequently mislabeled
+# (e.g. "is_original" carries filterType "number" but its path "is_original_b" is a
+# Solr boolean field).
+BOOLEAN_PATH_SUFFIX = ("_b", "_bs")
+
+# Solr dynamic-field suffixes marking an integer field ("_i" single-valued, "_is"
+# multi-valued). A physical field whose `path` ends with one of these is forced to
+# type "number" regardless of its old filterType, which is frequently mislabeled
+# (e.g. a "term" filterType on a path like "year_i").
+NUMBER_PATH_SUFFIX = ("_i", "_is")
 
 # Keys that identify a real field-config object. If a field's value is a dict
 # lacking all of these, it is assumed to be wrapped under an arbitrary key
@@ -111,8 +118,45 @@ def _exists_expansion(delegated_field: str) -> dict[str, Any]:
     return {"field": delegated_field, "data": {"type": "exists"}}
 
 
-def _boolean_expansion(data: list[list[dict[str, Any]]]) -> dict[str, Any]:
-    return {"field": "", "data": data}
+def _clause_with_bool(node: dict[str, Any], occur: str) -> dict[str, Any]:
+    """Copy a node and tag it with the new-model `bool`.
+
+    The legacy `isNot` flag is dropped: a negated clause is expressed as bool
+    'mustNot' regardless of the requested `occur`.
+    """
+    clause: dict[str, Any] = {"field": node.get("field", "")}
+    clause["bool"] = "mustNot" if node.get("isNot") else occur
+    for key, value in node.items():
+        if key not in ("field", "bool", "isNot"):
+            clause[key] = value
+    return clause
+
+
+def _flatten_bool_data(branches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Flatten the intermediate list-of-lists (outer OR, inner AND) into the new
+    flat clause list, where each clause carries its own `bool` tag.
+
+    A single AND group is emitted directly as must/mustNot clauses (no OR wrap).
+    With several groups the groups are OR'd: a single-clause group becomes one
+    `should` clause, while a multi-clause group becomes a nested boolean node
+    (its members must/mustNot-combined) tagged `should`.
+    """
+    if len(branches) == 1:
+        return [_clause_with_bool(node, "must") for node in branches[0]]
+
+    clauses: list[dict[str, Any]] = []
+    for branch in branches:
+        if len(branch) == 1 and not branch[0].get("isNot"):
+            clauses.append(_clause_with_bool(branch[0], "should"))
+        else:
+            inner = [_clause_with_bool(node, "must") for node in branch]
+            clauses.append({"field": "", "bool": "should", "data": inner})
+    return clauses
+
+
+def _boolean_expansion(branches: list[list[dict[str, Any]]]) -> dict[str, Any]:
+    """Wrap an intermediate list-of-lists into a new-model boolean QueryNode."""
+    return {"field": "", "data": _flatten_bool_data(branches)}
 
 
 def _is_exact_leaf(node: dict[str, Any]) -> bool:
@@ -177,7 +221,7 @@ def _convert_filter_node(node: dict[str, Any], all_fields: dict[str, Any]) -> tu
     bool_kind = node.get("bool", "should")
     field = node.get("field", "")
     if field == "":
-        new_node = {"field": "", "data": _build_bool_data(node.get("data", []), all_fields)}
+        new_node = _boolean_expansion(_build_bool_data(node.get("data", []), all_fields))
     elif "data" not in node:
         new_node = {"field": field, "data": {"type": "exists"}}
     else:
@@ -186,7 +230,8 @@ def _convert_filter_node(node: dict[str, Any], all_fields: dict[str, Any]) -> tu
 
 
 def _build_bool_data(children: list[dict[str, Any]], all_fields: dict[str, Any]) -> list[list[dict[str, Any]]]:
-    """Group old filter children into the new list-of-lists (outer OR, inner AND).
+    """Group old filter children into the intermediate list-of-lists (outer OR,
+    inner AND) later flattened by `_flatten_bool_data` into new-model clauses.
 
     must     → single inner AND group
     mustNot  → same AND group, negated via isNot
@@ -261,6 +306,11 @@ def migrate(old_path: str, output_dir: str, material_type: str) -> None:
         # filterType says otherwise (e.g. "is_original" → number/is_original_b).
         if path.endswith(BOOLEAN_PATH_SUFFIX):
             new_type = "boolean"
+
+        # An "_i"-suffixed Solr path is physically an integer even if the old
+        # filterType says otherwise (e.g. "term" on a path like "year_i").
+        elif path.endswith(NUMBER_PATH_SUFFIX):
+            new_type = "number"
 
         if path in path_to_logical:
             # A later field sharing an existing physical path is not duplicated in

@@ -2,6 +2,10 @@
   "mappings": {
     "book": {
       "backend": "solr-books",
+      "filter": {
+        "field": "materialType",
+        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "book" }] }
+      },
       "routing": [
         {
           "conditions": [
@@ -11,8 +15,20 @@
         }
       ]
     },
-    "article": { "backend": "solr-articles" },
-    "ds":      { "backend": "elastic-datasets" },
+    "article": {
+      "backend": "solr-articles",
+      "filter": {
+        "field": "materialType",
+        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "article" }] }
+      }
+    },
+    "ds": {
+      "backend": "elastic-datasets",
+      "filter": {
+        "field": "materialType",
+        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "ds" }] }
+      }
+    },
     "document": { "backend": "solr-collection-text" }
   }
 }

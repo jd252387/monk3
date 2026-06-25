@@ -1,5 +1,6 @@
 package jd.nomad.config.catalog;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -60,6 +61,11 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
     public List<RoutingRule> routingRulesForMaterialType(String materialType) {
         List<RoutingRule> rules = snapshot.get().routingRulesByMaterialType().get(materialType);
         return rules != null ? rules : List.of();
+    }
+
+    /** Optional filter (a monk3 DSL {@code QueryNode}) restricting results for a material type. */
+    public Optional<JsonNode> filterForMaterialType(String materialType) {
+        return Optional.ofNullable(snapshot.get().filtersByMaterialType().get(materialType));
     }
 
     public BackendConfig backendConfig(String name) {

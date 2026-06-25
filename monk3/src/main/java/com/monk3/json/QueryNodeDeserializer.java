@@ -12,6 +12,7 @@ import com.monk3.model.BooleanOccur;
 import com.monk3.model.BooleanQueryData;
 import com.monk3.model.ExactQuery;
 import com.monk3.model.ExistsQuery;
+import com.monk3.model.KnnFlatQuery;
 import com.monk3.model.PrefixQuery;
 import com.monk3.model.QueryData;
 import com.monk3.model.QueryNode;
@@ -33,6 +34,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
     private static final Set<String> EXACT_FIELDS = Set.of("type", "values");
     private static final Set<String> EXISTS_FIELDS = Set.of("type");
     private static final Set<String> PREFIX_FIELDS = Set.of("type", "prefix");
+    private static final Set<String> KNN_FLAT_FIELDS = Set.of("type", "text", "k");
     private static final Set<String> RANGE_FIELDS = Set.of("type", "gte", "gt", "lte", "lt");
     private static final Set<String> RANGE_BOUND_FIELDS = Set.of("gte", "gt", "lte", "lt");
 
@@ -131,6 +133,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             case "exact" -> readExact(parser, node);
             case "exists" -> readExists(parser, node);
             case "prefix" -> readPrefix(parser, node);
+            case "knnFlat" -> readKnnFlat(parser, node);
             default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(typeNode.textValue()));
         };
     }
@@ -228,6 +231,23 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
         return new PrefixQuery(prefix.textValue());
     }
 
+    private static KnnFlatQuery readKnnFlat(JsonParser parser, JsonNode node) throws JsonMappingException {
+        rejectUnknownFields(parser, node, KNN_FLAT_FIELDS, "knnFlat query");
+        JsonNode text = node.get("text");
+        if (text == null || text.isNull() || !text.isTextual() || text.textValue().isBlank()) {
+            throw MismatchedInputException.from(parser, Object.class, "knnFlat query requires a non-empty 'text' string");
+        }
+        JsonNode kNode = node.get("k");
+        Integer k = null;
+        if (kNode != null && !kNode.isNull()) {
+            if (!kNode.canConvertToInt() || kNode.intValue() < 1) {
+                throw MismatchedInputException.from(parser, Object.class, "knnFlat query 'k' must be a positive integer");
+            }
+            k = kNode.intValue();
+        }
+        return new KnnFlatQuery(text.textValue(), k);
+    }
+
     private static BigDecimal parseDecimal(JsonNode node) {
         return node == null || node.isNull() ? null : new BigDecimal(node.asText());
     }
@@ -242,7 +262,7 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
     }
 
     private static String unsupportedTypeMessage(String type) {
-        return "Unsupported query data type '" + type + "'. Supported query data types are 'text', 'range', 'exact', 'exists', and 'prefix'.";
+        return "Unsupported query data type '" + type + "'. Supported query data types are 'text', 'range', 'exact', 'exists', 'prefix', and 'knnFlat'.";
     }
 
     static void rejectUnknownFields(JsonParser parser, JsonNode node, Set<String> allowed, String label)

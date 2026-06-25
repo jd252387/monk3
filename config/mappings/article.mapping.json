@@ -31,6 +31,12 @@
     "openAccess": {
       "type": "boolean",
       "destinationField": "article_open_access"
+    },
+    "embedding": {
+      "type": "vector",
+      "destinationField": "article_vector_%i",
+      "start": 1,
+      "end": 2
     }
   }
 }

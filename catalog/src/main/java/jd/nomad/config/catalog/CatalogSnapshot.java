@@ -1,5 +1,6 @@
 package jd.nomad.config.catalog;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.SearchMapping;
 import jd.nomad.mapping.VirtualMapping;
@@ -13,6 +14,7 @@ public record CatalogSnapshot(
         Map<String, VirtualMapping> virtualMappingsByBackend,
         Map<String, String> backendsByMaterialType,
         Map<String, List<RoutingRule>> routingRulesByMaterialType,
+        Map<String, JsonNode> filtersByMaterialType,
         Map<String, BackendConfig> backends,
         Map<String, DatasourceDescriptor> datasources
 ) {

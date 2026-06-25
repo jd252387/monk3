@@ -2,10 +2,8 @@ package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.mapping.VapiConfig;
 import com.monk3.model.Aggregation;
 import com.monk3.model.QueryNode;
@@ -20,17 +18,18 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 @RequiredArgsConstructor
 public class QueryTranslationService {
     private final ConfigurationCatalogService catalogService;
-    private final SearchMappingConfig config;
     private final VapiConfig vapiConfig;
     private final VirtualFieldExpander virtualFieldExpander;
     private final RoutingEngine routingEngine;
     private final ObjectMapper objectMapper;
+    private final EmbeddingClient embeddingClient;
 
     /**
      * Routes each requested material type to a backend. Since a backend has exactly one mapping,
@@ -72,15 +71,27 @@ public class QueryTranslationService {
             context = context.withSolrRootIdentifier(translateRootIdentifier(context, engine));
         }
         JsonNode query = target.query().translate(engine, context);
-        List<String> materialTypes = target.materialTypes();
-        JsonNode filter = engine == SearchEngine.ELASTICSEARCH
-                ? materialTypeTerms(materialTypes)
-                : materialTypeSolrFilter(materialTypes);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode bool = root.putObject("bool");
-        bool.putArray("filter").add(filter);
+        List<JsonNode> filters = translateMappingFilters(target, engine, context);
+        if (!filters.isEmpty()) {
+            bool.putArray("filter").add(QueryJson.shouldOrSingle(engine, filters));
+        }
         bool.putArray("must").add(query);
         return new QueryTranslation(root, context.solrNamedQueries());
+    }
+
+    /**
+     * Translates each requested material type's optional {@code filter} (a DSL {@code QueryNode} declared
+     * in {@code catalog.json}) into engine JSON. Material types declaring no filter contribute nothing; all
+     * material types in a target share one backend, so the single per-backend {@code context} applies to each.
+     */
+    private List<JsonNode> translateMappingFilters(BackendTarget target, SearchEngine engine, QueryParseContext context) {
+        return target.materialTypes().stream()
+                .map(catalogService::filterForMaterialType)
+                .flatMap(Optional::stream)
+                .<JsonNode>map(filter -> objectMapper.convertValue(filter, QueryNode.class).translate(engine, context))
+                .toList();
     }
 
     /**
@@ -91,19 +102,6 @@ public class QueryTranslationService {
         return context.mapping().root().identifier()
                 .map(identifier -> objectMapper.convertValue(identifier, QueryNode.class).translate(engine, context))
                 .orElse(null);
-    }
-
-    private ObjectNode materialTypeTerms(List<String> materialTypes) {
-        ObjectNode termNode = JsonNodeFactory.instance.objectNode();
-        ArrayNode values = termNode.putObject("terms").putArray(config.materialTypeField());
-        materialTypes.forEach(values::add);
-        return termNode;
-    }
-
-    private JsonNode materialTypeSolrFilter(List<String> materialTypes) {
-        return QueryJson.shouldOrSingle(SearchEngine.SOLR, materialTypes.stream()
-                .<JsonNode>map(materialType -> QueryJson.solrFieldQuery(config.materialTypeField(), materialType))
-                .toList());
     }
 
     public AggregationTranslation translateAggregations(BackendTarget target, Map<String, Aggregation> aggs) {
@@ -124,7 +122,8 @@ public class QueryTranslationService {
                 catalogService.mappingForBackend(backend),
                 catalogService.virtualMappingForBackend(backend).orElse(null),
                 virtualFieldExpander,
-                vapiConfig.vapi());
+                vapiConfig.vapi(),
+                embeddingClient);
     }
 
     public record BackendTarget(

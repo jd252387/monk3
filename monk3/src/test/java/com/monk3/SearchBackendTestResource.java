@@ -128,6 +128,13 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       }
                     }
                     """));
+            server.createContext("/embedding/embed", exchange -> respond(exchange, """
+                    {
+                      "result": [
+                        { "embedding_vector": [0.1, 0.2, 0.3] }
+                      ]
+                    }
+                    """));
             executor = Executors.newVirtualThreadPerTaskExecutor();
             server.setExecutor(executor);
             server.start();
@@ -146,6 +153,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                     {"mappings":{
                       "book": {
                         "backend":  "elastic-books",
+                        "filter": {"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"book"}]}},
                         "routing": [
                           {
                             "conditions": [
@@ -155,10 +163,10 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                           }
                         ]
                       },
-                      "book_elastic": {"backend":"elastic-books"},
-                      "article": {"backend":"solr-articles"},
-                      "article_solr": {"backend":"solr-articles"},
-                      "emptyset":{"backend":"elastic-empty"}
+                      "book_elastic": {"backend":"elastic-books","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"book_elastic"}]}}},
+                      "article": {"backend":"solr-articles","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"article"}]}}},
+                      "article_solr": {"backend":"solr-articles","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"article_solr"}]}}},
+                      "emptyset":{"backend":"elastic-empty","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"emptyset"}]}}}
                     }}""";
             catalogFile = Files.createTempFile("monk3-test-catalog", ".json");
             Files.writeString(catalogFile, catalogJson);
@@ -166,7 +174,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             return Map.of(
                     "indexer.catalog.source", "FILE",
                     "indexer.catalog.file.backends", backendsFile.toAbsolutePath().toString(),
-                    "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString());
+                    "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString(),
+                    "monk3.embedding.url", baseUrl + "/embedding/embed");
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to start search backend test server", exception);
         }
