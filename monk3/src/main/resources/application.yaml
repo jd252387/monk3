@@ -13,8 +13,6 @@ indexer:
       datasources: "./config/datasources.json"
 
 monk3:
-  search:
-    material-type-field: material_type
   vapi:
     endpointName: "https://example.endpoint.com/capsules/fetch"
   embedding:

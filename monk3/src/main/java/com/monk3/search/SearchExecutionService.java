@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk3.mapping.SearchMappingConfig;
 import com.monk3.model.Aggregation;
 import com.monk3.model.AggregationResult;
 import com.monk3.model.BackendQuery;
@@ -49,7 +48,6 @@ public class SearchExecutionService {
     private final ObjectMapper objectMapper;
     private final QueryTranslationService queryTranslationService;
     private final ConfigurationCatalogService catalogService;
-    private final SearchMappingConfig config;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
@@ -197,7 +195,7 @@ public class SearchExecutionService {
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new SearchExecutionException(
-                        "Search backend '" + backendName + "' returned HTTP " + response.statusCode());
+                        "Search backend '" + backendName + "' returned HTTP " + response.statusCode() + " - " + new String(response.body()));
             }
             return objectMapper.readTree(response.body());
         } catch (IOException exception) {
@@ -231,7 +229,6 @@ public class SearchExecutionService {
         return new SearchResult(
                 target.name(),
                 target.engine(),
-                materialType(document, null),
                 id(document, target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_id").asText(null) : null, target.backend().primaryKey()),
                 score,
                 normalizedScore(score, maxScore),
@@ -263,7 +260,6 @@ public class SearchExecutionService {
 
     private Set<String> storedFields(String primaryKey, List<FieldProjection> projections) {
         Set<String> fields = new LinkedHashSet<>();
-        fields.add(config.materialTypeField());
         fields.add(primaryKey);
         projections.stream()
                 .map(FieldProjection::storedField)
@@ -285,11 +281,6 @@ public class SearchExecutionService {
     private static String id(JsonNode document, String fallback, String primaryKey) {
         JsonNode value = document.get(primaryKey);
         return present(value) ? value.asText() : fallback;
-    }
-
-    private String materialType(JsonNode document, String materialType) {
-        JsonNode value = document.get(config.materialTypeField());
-        return present(value) ? value.asText() : materialType;
     }
 
     private static ArrayNode arrayAt(JsonNode node) {

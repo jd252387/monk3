@@ -10,7 +10,6 @@ import java.util.Map;
         {
           "backend": "elastic-books",
           "engine": "ELASTICSEARCH",
-          "materialType": "book",
           "id": "book-1",
           "score": 10.0,
           "normalizedScore": 1.0,
@@ -24,7 +23,6 @@ import java.util.Map;
 public record SearchResult(
         String backend,
         SearchEngine engine,
-        String materialType,
         String id,
         double score,
         double normalizedScore,

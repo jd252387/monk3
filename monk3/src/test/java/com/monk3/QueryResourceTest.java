@@ -636,7 +636,7 @@ class QueryResourceTest {
                 .body("[0].engine", equalTo("ELASTICSEARCH"))
                 .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java"))
                 .body("[0].body.size", equalTo(25))
-                .body("[0].body._source", containsInAnyOrder("material_type", "id", "book_title", "book_year"))
+                .body("[0].body._source", containsInAnyOrder("id", "book_title", "book_year"))
                 .body("[0].body.aggs.byAuthor.terms.field", equalTo("book_author"))
                 .body("[0].body.aggs.byAuthor.terms.size", equalTo(5));
     }
@@ -692,7 +692,7 @@ class QueryResourceTest {
                 .body("[0].engine", equalTo("SOLR"))
                 .body("[0].body.limit", equalTo(15))
                 .body("[0].body.fields[0]", equalTo("score"))
-                .body("[0].body.fields", containsInAnyOrder("score", "material_type", "id", "article_headline", "article_year"))
+                .body("[0].body.fields", containsInAnyOrder("score", "id", "article_headline", "article_year"))
                 .body("[0].body.facet.byYear.type", equalTo("terms"))
                 .body("[0].body.facet.byYear.field", equalTo("article_year"))
                 .body("[0].body.facet.byYear.limit", equalTo(5));
@@ -920,14 +920,12 @@ class QueryResourceTest {
                     .contentType(ContentType.JSON)
                     .body("results.size()", equalTo(2))
                     .body("results[0].backend", equalTo("solr-articles"))
-                    .body("results[0].materialType", equalTo("article"))
                     .body("results[0].id", equalTo("article-1"))
                     .body("results[0].score", equalTo(5.0f))
                     .body("results[0].normalizedScore", equalTo(1.0f))
                     .body("results[0].fields.title", equalTo("Solr Article"))
                     .body("results[0].fields.year", equalTo(2024))
                     .body("results[1].backend", equalTo("elastic-books"))
-                    .body("results[1].materialType", equalTo("book"))
                     .body("results[1].id", equalTo("book-1"))
                     .body("results[1].score", equalTo(10.0f))
                     .body("results[1].normalizedScore", equalTo(0.5f))
@@ -946,13 +944,13 @@ class QueryResourceTest {
         assertThat(requestBodiesByPath.keySet(), containsInAnyOrder("/es/books/_search", "/solr/articles/select"));
         assertThat(
                 requestBodiesByPath.get("/es/books/_search"),
-                containsString("\"_source\":[\"material_type\",\"id\",\"book_title\",\"book_year\"]"));
+                containsString("\"_source\":[\"id\",\"book_title\",\"book_year\"]"));
         assertThat(
                 requestBodiesByPath.get("/es/books/_search"),
                 containsString("\"match_phrase\":{\"book_title\":\"java\"}"));
         assertThat(
                 requestBodiesByPath.get("/solr/articles/select"),
-                containsString("\"fields\":[\"score\",\"material_type\",\"id\",\"article_headline\",\"article_year\"]"));
+                containsString("\"fields\":[\"score\",\"id\",\"article_headline\",\"article_year\"]"));
         assertThat(
                 requestBodiesByPath.get("/solr/articles/select"),
                 containsString("\"field\":{\"f\":\"article_headline\",\"query\":\"java\"}"));

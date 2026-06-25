@@ -43,7 +43,6 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                             "_score": 10.0,
                             "_source": {
                               "id": "book-1",
-                              "material_type": "book",
                               "book_title": "Java Records",
                               "book_year": 2025
                             }
@@ -81,7 +80,6 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                           {
                             "id": "article-1",
                             "score": 5.0,
-                            "material_type": "article",
                             "article_headline": "Solr Article",
                             "article_year": 2024
                           }
@@ -120,7 +118,6 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                           {
                             "id": "book-2",
                             "score": 8.0,
-                            "material_type": "book",
                             "book_title": "Recent Book",
                             "book_year": 2026
                           }

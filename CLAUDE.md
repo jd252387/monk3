@@ -33,7 +33,7 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 |---|---|
 | `api` | JAX-RS resources and `ExceptionMapper` implementations |
 | `json` | Custom Jackson deserializers for the query DSL |
-| `mapping` | Application-level mapping config (`SearchMappingConfig`) |
+| `mapping` | Application-level config mappings (`VapiConfig`, `EmbeddingConfig`) |
 | `model` | Immutable records for the domain model |
 | `routing` | Query analysis and routing of material types to backends |
 | `search` | Query translation and search execution services |
