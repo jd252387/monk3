@@ -1,0 +1,10 @@
+{
+    "java.project.explorer.showNonJavaResources": false,
+    "java.dependency.syncWithFolderExplorer": false,
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "[java]": {
+        "spotlessGradle.diagnostics.enable": true
+    },
+    "spotlessGradle.diagnostics.enable": true,
+    "spotlessGradle.format.enable": true
+}

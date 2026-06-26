@@ -1,0 +1,37 @@
+indexer:
+  # Catalog source + locations are owned by the shared :catalog module. Relative paths resolve against the
+  # working directory; run the indexer from the repository root (the dev/compose setup mounts config/ there).
+  catalog:
+    source: FILE
+    file:
+      config: config/catalog.json
+      backends: config/backends.json
+      datasources: config/datasources.json
+    etcd:
+      endpoints:
+        - http://localhost:2379
+      catalog: /monk3/catalog
+      backends: /monk3/backends
+      datasources: /monk3/datasources
+  kafka:
+    topic: documents
+    bootstrap-servers: localhost:29092
+    group-id: document-indexer
+    max-poll-records: 500
+    max-poll-interval: PT5M
+  pipeline:
+    concurrency: 8
+    prefetch: 64
+    fetch-batch-size: 32
+    index-batch-size: 100
+    index-flush-interval: PT5S
+  material-type: document
+  data-source: default-datasource
+  is-partial: false
+
+
+quarkus:
+  live-reload:
+    instrumentation: true
+  devservices:
+    enabled: false

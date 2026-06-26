@@ -1,0 +1,113 @@
+version: '3'
+
+vars:
+  AVAILABLE_PROFILES: streaming,mongo,s3,hbase,rest
+
+tasks:
+  compose:_run:
+    internal: true
+    vars:
+      COMMAND: '{{default "up" .COMMAND}}'
+      DEFAULT_DOCKER_ARGS: '{{default "" .DEFAULT_DOCKER_ARGS}}'
+      DOCKER_ARGS: '{{default "" .DOCKER_ARGS}}'
+      ACTIVE_PROFILE_FLAGS: '{{if eq .ALL "true"}}{{.AVAILABLE_PROFILES}}{{else}}{{default "streaming" .PROFILE}}{{end}}'
+      ALL: '{{default "false" .ALL}}'
+      PROFILE_ARGS:
+        sh: |
+          set -euo pipefail
+                    
+          profile_input=$(printf '%s' "{{.ACTIVE_PROFILE_FLAGS}}")
+          profile_args=""
+          old_ifs="$IFS"
+          IFS=','
+          set -f
+          for profile in $profile_input; do
+            profile="$(printf '%s' "$profile" | xargs)"
+            [ -z "$profile" ] && continue
+            profile_args="$profile_args --profile $profile"
+          done
+          set +f
+          IFS="$old_ifs"
+          profile_args="${profile_args# }"
+          if [ -n "$profile_args" ]; then
+            printf '%s\n' "$profile_args"
+            exit 0
+          fi
+      EVENT_DATASOURCE: '{{if hasKey . "EVENT_DS"}}{{index . "EVENT_DS"}}{{else}}{{""}}{{end}}'
+    cmds:
+      - cmd: REPLICATOR_ONLINE_DATA_SOURCES={{.ACTIVE_PROFILE_FLAGS}} {{if .EVENT_DATASOURCE}}REPLICATOR_EVENT_DATA_SOURCE={{.EVENT_DATASOURCE}} {{end}}docker compose{{if .PROFILE_ARGS}} {{.PROFILE_ARGS}}{{end}} {{.COMMAND}} {{.DOCKER_ARGS}}
+
+  compose:up:
+    desc: Start Docker Compose stack for selected data source profiles.
+    vars:
+      DOCKER_ARGS: '{{default "" .DOCKER_ARGS}}'
+      PROFILE: '{{default "" .PROFILE}}'
+      ALL: '{{default "false" .ALL}}'
+    cmds:
+      - task: compose:_run
+        vars:
+          COMMAND: up
+          DOCKER_ARGS: '{{default "-d" .DOCKER_ARGS}}'
+          PROFILE: '{{.PROFILE}}'
+          ALL: '{{.ALL}}'
+
+  compose:build:
+    desc: Build Docker Compose services for selected data source profiles.
+    vars:
+      DOCKER_ARGS: '{{default "" .DOCKER_ARGS}}'
+      PROFILE: '{{default "" .PROFILE}}'
+      ALL: '{{default "false" .ALL}}'
+    cmds:
+      - task: compose:_run
+        vars:
+          COMMAND: build
+          DOCKER_ARGS: '{{.DOCKER_ARGS}}'
+          PROFILE: '{{.PROFILE}}'
+          ALL: '{{.ALL}}'
+
+  compose:rebuild:
+    desc: Build and start Docker Compose stack for selected data source profiles.
+    vars:
+      DOCKER_ARGS: '{{default "" .DOCKER_ARGS}}'
+      PROFILE: '{{default "" .PROFILE}}'
+      ALL: '{{default "false" .ALL}}'
+    cmds:
+      - task: compose:build
+        vars:
+          DOCKER_ARGS: '{{.DOCKER_ARGS}}'
+          PROFILE: '{{.PROFILE}}'
+          ALL: '{{.ALL}}'
+      - task: compose:up
+        vars:
+          DOCKER_ARGS: '{{.DOCKER_ARGS}}'
+          PROFILE: '{{.PROFILE}}'
+          ALL: '{{.ALL}}'
+
+  compose:down:
+    desc: Stop Docker Compose stack started with all data source profiles.
+    vars:
+      DOCKER_ARGS: '{{default "--remove-orphans" .DOCKER_ARGS}}'
+    cmds:
+      - docker compose {{$.PROFILE_FLAGS}} down {{.DOCKER_ARGS}}
+
+  kompose:convert:
+    desc: Convert all data source profiles to Kubernetes manifests with Kompose.
+    vars:
+      OUTPUT_DIR: '{{default "kompose-manifests" .OUTPUT_DIR}}'
+      APPLY: '{{default "false" .APPLY}}'
+    cmds:
+      - mkdir -p {{.OUTPUT_DIR}}
+      - kompose convert --profiles "{{$.AVAILABLE_PROFILES}}" --out {{.OUTPUT_DIR}}
+      - '{{if eq (lower (print .APPLY)) "true"}}kubectl apply -f {{.OUTPUT_DIR}}{{else}}echo "Skipping kubectl apply (set APPLY=true to enable)"{{end}}'
+
+  generate:document:
+    desc: Generate a sample document from a shared catalog JSON mapping file.
+    vars:
+      # Shared catalog mappings live at the repository root; the Taskfile runs from nomad/.
+      MAPPING: '{{default "../config/mappings/document.mapping.json" .MAPPING}}'
+      MULTI: '{{default "false" .MULTI}}'
+      EXCLUDE_MISSING: '{{default "false" .EXCLUDE_MISSING}}'
+      DATASOURCE: '{{default "default-datasource" .DATASOURCE}}'
+      OUTPUT_DIR: '{{default "documents" .OUTPUT_DIR}}'
+    cmds:
+      - python3 scripts/generate_document.py {{.MAPPING}} --output-dir {{.OUTPUT_DIR}} --datasource {{.DATASOURCE}} {{if eq (lower .MULTI) "true"}}--multi{{end}} {{if eq (lower .EXCLUDE_MISSING) "true"}}--exclude-missing{{end}}

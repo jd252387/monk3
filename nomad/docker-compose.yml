@@ -1,0 +1,288 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.9.2
+    container_name: zookeeper
+    profiles: ["streaming", "mongo", "s3", "hbase", "rest"]
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - data-platform
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    profiles: ["streaming", "mongo", "s3", "hbase", "rest"]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - data-platform
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    profiles: ["streaming", "mongo", "s3", "hbase", "rest"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: default
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - data-platform
+
+  zoonavigator:
+    image: elkozmon/zoonavigator:latest
+    container_name: zoonavigator
+    profiles: ["streaming", "mongo", "s3", "hbase", "rest"]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "2182:9000"
+    environment:
+      HTTP_PORT: 9000
+    networks:
+      - data-platform
+
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    container_name: es01
+    profiles: ["streaming", "s3", "rest"]
+    environment:
+      - node.name=es01
+      - cluster.name=local-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - es01-data:/usr/share/elasticsearch/data
+    networks:
+      - data-platform
+
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    container_name: es02
+    profiles: ["streaming", "s3", "rest"]
+    environment:
+      - node.name=es02
+      - cluster.name=local-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9201:9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - data-platform
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.1.4
+    container_name: kibana
+    profiles: ["streaming", "s3", "rest"]
+    depends_on:
+      - es01
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://es01:9200
+    networks:
+      - data-platform
+
+  solr1:
+    image: solr:9.9.0
+    container_name: solr1
+    profiles: ["streaming", "mongo", "hbase"]
+    ports:
+      - "8983:8983"
+      - "5005:5005"
+    environment:
+      SOLR_HOST: localhost
+      SOLR_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+      ZK_CREATE_CHROOT: true
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    command:
+      - solr
+      - -f
+      - -c
+      - -z
+      - zookeeper:2181/solr
+      - -DzkCreateChroot=true
+    networks:
+      - data-platform
+
+  mongo:
+    image: mongo:7.0.24
+    container_name: mongo
+    profiles: ["mongo"]
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: documents
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - data-platform
+
+  mongo-compass:
+    image: haohanyang/compass-web:latest
+    container_name: mongo-compass
+    profiles: ["mongo"]
+    depends_on:
+      - mongo
+    environment:
+      CW_MONGO_URI: mongodb://mongo:27017
+    ports:
+      - "8081:8080"
+    networks:
+      - data-platform
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    container_name: minio
+    profiles: ["s3"]
+    command: 'server /data --console-address ":9001"'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - data-platform
+
+  minio-init:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    container_name: minio-init
+    profiles: ["s3"]
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "-c", "until mc alias set minio http://minio:9000 minio minio123; do sleep 1; done && mc mb --ignore-existing minio/documents && mc anonymous set download minio/documents"]
+    networks:
+      - data-platform
+
+  hbase:
+    image: harisekhon/hbase:2.1
+    container_name: hbase
+    profiles: ["hbase"]
+    hostname: hbase
+    environment:
+      HBASE_MANAGES_ZK: "false"
+      ZOOKEEPER_QUORUM: zookeeper
+    ports:
+      - "16000:16000"
+      - "16010:16010"
+      - "9090:9090"
+      - "9095:9095"
+    networks:
+      - data-platform
+
+  hue:
+    image: gethue/hue:latest
+    container_name: hue
+    profiles: ["hbase"]
+    depends_on:
+      - hbase
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config/hue/zz-hbase.ini:/usr/share/hue/desktop/conf/zz-hbase.ini:ro
+    networks:
+      - data-platform
+
+  document-api:
+    build:
+      context: ./document-api
+    container_name: document-api
+    profiles: ["rest"]
+    volumes:
+      - ./documents:/documents:ro
+    environment:
+      DOCUMENTS_DIR: /documents
+    ports:
+      - "3000:3000"
+    networks:
+      - data-platform
+
+  documents-replicator:
+    build:
+      context: ./document-sync
+    container_name: documents-replicator
+    profiles: ["streaming", "rest", "mongo", "s3", "hbase"]
+    volumes:
+      - ./documents:/documents:ro
+    environment:
+      DOCUMENT_SOURCE_DIR: /documents
+      REPLICATOR_ONLINE_DATA_SOURCES: ${REPLICATOR_ONLINE_DATA_SOURCES:-}
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: documents
+      MONGO_COLLECTION: documents
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: documents
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio123
+      HBASE_TABLE: documents
+      HBASE_COLUMN_FAMILY: data
+      HBASE_QUALIFIER: json
+      REPLICATOR_OBSERVER_MODE: polling
+      REPLICATOR_EVENT_DATA_SOURCE: ${REPLICATOR_EVENT_DATA_SOURCE:-}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: documents
+    networks:
+      - data-platform
+
+networks:
+  data-platform:
+    driver: bridge
+
+volumes:
+  es01-data:
+  mongo-data:
+  minio-data:

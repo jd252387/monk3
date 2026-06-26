@@ -1,0 +1,18 @@
+[project]
+name = "document-sync"
+version = "0.1.0"
+description = "Document replication utility"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3",
+    "happybase",
+    "kafka-python",
+    "dynaconf",
+    "pymongo",
+    "setuptools>=80.9.0",
+    "watchdog",
+]
+
+[tool.uv]
+package = false
