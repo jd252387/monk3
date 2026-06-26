@@ -23,9 +23,6 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.List;
 
 @Path("/queries")
@@ -34,9 +31,9 @@ import java.util.List;
 @Tag(name = "Queries", description = "Translate and execute search queries using the monk3 DSL")
 public class QueryResource {
     private static final String SCHEMA_MEDIA_TYPE = "application/schema+json";
-    private static final byte[] QUERY_SCHEMA = loadQuerySchema();
 
     private final SearchExecutionService searchExecutionService;
+    private final QuerySchemaProvider querySchemaProvider;
 
     @POST
     @Path("/parse")
@@ -295,22 +292,9 @@ public class QueryResource {
     @GET
     @Path("/schema")
     @Produces(SCHEMA_MEDIA_TYPE)
-    @Operation(summary = "Query DSL JSON Schema", description = "Returns the JSON Schema that fully describes the monk3 query DSL.")
+    @Operation(summary = "Query DSL JSON Schema", description = "Returns the JSON Schema that fully describes the monk3 query DSL. Field properties are constrained to the field names declared in the currently loaded mappings.")
     @APIResponse(responseCode = "200", description = "JSON Schema document (draft 2020-12)")
     public Response querySchema() {
-        return Response.ok(QUERY_SCHEMA, SCHEMA_MEDIA_TYPE).build();
-    }
-
-    private static byte[] loadQuerySchema() {
-        try (InputStream inputStream = QueryResource.class
-                .getClassLoader()
-                .getResourceAsStream("search-query-dsl.schema.json")) {
-            if (inputStream == null) {
-                throw new IllegalStateException("search-query-dsl.schema.json was not found on the classpath");
-            }
-            return inputStream.readAllBytes();
-        } catch (IOException exception) {
-            throw new UncheckedIOException("Failed to read search-query-dsl.schema.json", exception);
-        }
+        return Response.ok(querySchemaProvider.schema(), SCHEMA_MEDIA_TYPE).build();
     }
 }

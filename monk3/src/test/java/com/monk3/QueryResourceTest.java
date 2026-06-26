@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -2705,6 +2706,24 @@ class QueryResourceTest {
                 .body("$defs.NumericRangeQuery.allOf[1].anyOf.required[0]", hasItem("lte"))
                 .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gte"))
                 .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gt"));
+    }
+
+    @Test
+    void schemaConstrainsFieldNamesToConfiguredMappingFields() {
+        given()
+                .accept("application/schema+json")
+                .when().get("/queries/schema")
+                .then()
+                .statusCode(200)
+                // Query node field: physical root + subdocument fields, virtual fields, and "" for boolean/nested nodes.
+                .body("$defs.QueryNode.properties.field.enum",
+                        hasItems("", "title", "author", "year", "chapters", "pageCount", "recentBook"))
+                // Result projection and aggregation fields share the field names but never the empty string.
+                .body("properties.fields.items.enum", hasItems("title", "author"))
+                .body("properties.fields.items.enum", not(hasItem("")))
+                .body("$defs.TermsAggregation.properties.args.properties.field.enum", hasItems("author", "year"))
+                .body("$defs.RangeAggregation.properties.args.properties.field.enum", hasItems("year"))
+                .body("$defs.SubfacetsAggregation.properties.args.properties.field.enum", hasItems("publishedAt"));
     }
 
     @Test

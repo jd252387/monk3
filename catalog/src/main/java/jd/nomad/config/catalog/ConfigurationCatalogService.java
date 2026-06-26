@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,16 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
 
     public Optional<VirtualMapping> virtualMappingForBackend(String backend) {
         return Optional.ofNullable(snapshot.get().virtualMappingsByBackend().get(backend));
+    }
+
+    /** All physical mappings across every configured backend; used to enumerate every queryable field. */
+    public Collection<SearchMapping> allMappings() {
+        return snapshot.get().mappingsByBackend().values();
+    }
+
+    /** All virtual mappings across every configured backend; used to enumerate every virtual field. */
+    public Collection<VirtualMapping> allVirtualMappings() {
+        return snapshot.get().virtualMappingsByBackend().values();
     }
 
     public String backendForMaterialType(String materialType) {
