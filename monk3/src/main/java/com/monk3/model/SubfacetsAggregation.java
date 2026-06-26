@@ -13,10 +13,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jd.nomad.mapping.FieldType;
+import jd.nomad.mapping.VirtualField;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -47,10 +49,10 @@ public record SubfacetsAggregation(
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        QueryParseContext payloadContext = payloadContext(context);
+        Function<QueryPayload, JsonNode> translate = filterTranslator(context, SearchEngine.ELASTICSEARCH);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode namedFilters = root.putObject("filters").putObject("filters");
-        filters.forEach((name, payload) -> namedFilters.set(name, payload.toElasticsearch(payloadContext)));
+        filters.forEach((name, payload) -> namedFilters.set(name, translate.apply(payload)));
         if (!subAggregations.isEmpty()) {
             root.set("aggs", context.translateChildren(SearchEngine.ELASTICSEARCH, subAggregations));
         }
@@ -59,7 +61,7 @@ public record SubfacetsAggregation(
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        QueryParseContext payloadContext = payloadContext(context);
+        Function<QueryPayload, JsonNode> translate = filterTranslator(context, SearchEngine.SOLR);
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "query");
         facet.put("q", "*:*");
@@ -67,7 +69,7 @@ public record SubfacetsAggregation(
         filters.forEach((name, payload) -> {
             ObjectNode subFacet = subFacets.putObject(name);
             subFacet.put("type", "query");
-            subFacet.set("q", payload.toSolr(payloadContext));
+            subFacet.set("q", translate.apply(payload));
             // Each filter is its own bucket/domain; sub-aggregations nest inside each filter facet
             // (not the *:* parent) so they match Elasticsearch's per-filter-bucket semantics.
             if (!subAggregations.isEmpty()) {
@@ -88,8 +90,23 @@ public record SubfacetsAggregation(
         return namedCounts(SearchEngine.SOLR, "count", facet::path);
     }
 
-    private QueryParseContext payloadContext(AggregationContext context) {
-        return context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).payloadContext();
+    /**
+     * Builds the per-filter translator for {@code field}. When {@code field} is a virtual field, each
+     * filter payload is expanded through the virtual template (as the {@code {{data}}} substitution),
+     * exactly as a normal leaf query would be; the {@code VirtualFieldExpander} enforces payload/type
+     * compatibility. Otherwise the field resolves to a physical facet field and each payload is
+     * translated against it.
+     */
+    private Function<QueryPayload, JsonNode> filterTranslator(AggregationContext context, SearchEngine engine) {
+        QueryParseContext queryContext = context.queryContext();
+        Optional<VirtualField> virtualField = queryContext.findVirtualField(field);
+        if (virtualField.isPresent()) {
+            VirtualField vf = virtualField.get();
+            return payload -> queryContext.expandVirtual(vf, payload, engine);
+        }
+        QueryParseContext payloadContext =
+                context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).payloadContext();
+        return payload -> payload.translate(engine, payloadContext);
     }
 
     private AggregationResult namedCounts(

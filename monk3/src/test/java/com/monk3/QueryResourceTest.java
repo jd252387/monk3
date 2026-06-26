@@ -840,6 +840,135 @@ class QueryResourceTest {
     }
 
     @Test
+    void parseEmitsElasticsearchSubfacetsAggregationOnVirtualField() {
+        // A subfacets `field` may be a virtual field: each filter payload is expanded through the
+        // virtual template (here `recentBook` = title match {{data}} AND a fixed year range).
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Subfacets on virtual field ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byRecency": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "recentBook",
+                                "filters": {
+                                  "first": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] },
+                                  "second": { "type": "text", "phrases": [{ "type": "phrase", "value": "kotlin" }] }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.aggs.byRecency.filters.filters.first.bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[0].body.aggs.byRecency.filters.filters.first.bool.must[1].range.book_year.gte", equalTo(2010))
+                .body("[0].body.aggs.byRecency.filters.filters.first.bool.must[1].range.book_year.lte", equalTo(2025))
+                .body("[0].body.aggs.byRecency.filters.filters.second.bool.must[0].match_phrase.book_title", equalTo("kotlin"));
+    }
+
+    @Test
+    void parseEmitsSolrSubfacetsAggregationOnVirtualField() {
+        // Recent publishedAt range routes `book` to solr-books; the subfacets `field` is the
+        // `recentBook` virtual field, expanded once per filter payload into each query facet's `q`.
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Subfacets on virtual field Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byRecency": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "recentBook",
+                                "filters": {
+                                  "first": { "type": "text", "phrases": [{ "type": "phrase", "value": "kotlin" }] },
+                                  "second": { "type": "text", "phrases": [{ "type": "phrase", "value": "scala" }] }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.facet.byRecency.type", equalTo("query"))
+                .body("[0].body.facet.byRecency.q", equalTo("*:*"))
+                .body(containsString("\"book_title\""))
+                .body(containsString("\"book_year\""))
+                .body(containsString("kotlin"))
+                .body(containsString("scala"))
+                .body(containsString("2010"))
+                .body(containsString("2025"));
+    }
+
+    @Test
+    void parseEmitsFilterAggregationOnVirtualField() {
+        // FilterAggregation translates its query nodes via QueryNode.translate, which already expands
+        // virtual fields; this locks in that behavior for a virtual leaf node inside a filter agg.
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Filter aggregation on virtual field ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "recent": {
+                              "aggType": "filter",
+                              "args": {
+                                "query": [
+                                  { "field": "recentBook", "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "scala" }] } }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.recent.filter.bool.must[0].match_phrase.book_title", equalTo("scala"))
+                .body("[0].body.aggs.recent.filter.bool.must[1].range.book_year.gte", equalTo(2010))
+                .body("[0].body.aggs.recent.filter.bool.must[1].range.book_year.lte", equalTo(2025));
+    }
+
+    @Test
     void parseEmitsElasticsearchFilterAggregationCombiningQueryNodesWithMust() {
         given()
                 .contentType(ContentType.JSON)
