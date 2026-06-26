@@ -2193,14 +2193,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Project a non-fetchable field",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["internalNotes"]
                         }
                         """)
@@ -2225,14 +2225,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Aggregate an aggregation-only field",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "byPopularity": { "aggType": "terms", "args": { "field": "popularity", "size": 5 } }

@@ -3,7 +3,8 @@
   "root": {
     "materialType": {
       "type": "string",
-      "destinationField": "material_type"
+      "destinationField": "material_type",
+      "aggregatable": true
     },
     "title": {
       "type": "freetext",
