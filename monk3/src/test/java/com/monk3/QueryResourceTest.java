@@ -1543,6 +1543,89 @@ class QueryResourceTest {
     }
 
     @Test
+    void rejectsSearchOnNonSearchableField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Search on a non-searchable field",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "popularity",
+                            "data": { "type": "exact", "values": [5] }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Field 'popularity' is not searchable"));
+    }
+
+    @Test
+    void rejectsProjectionOfNonFetchableField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Project a non-fetchable field",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          },
+                          "fields": ["internalNotes"]
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("Field 'internalNotes' is not fetchable for material type 'book'"));
+    }
+
+    @Test
+    void rejectsAggregationOnNonAggregatableField() {
+        assertAggregationTranslationError("""
+                {"byInPrint": {"aggType": "terms", "args": {"field": "inPrint"}}}
+                """, "Aggregation field 'inPrint' is not aggregatable for material type 'book'");
+    }
+
+    @Test
+    void allowsAggregationOnAggregatableFieldThatIsNotSearchable() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": {
+                            "name": "Aggregate an aggregation-only field",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          },
+                          "fields": ["title"],
+                          "aggs": {
+                            "byPopularity": { "aggType": "terms", "args": { "field": "popularity", "size": 5 } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byPopularity.terms.field", equalTo("book_popularity"))
+                .body("[0].body.aggs.byPopularity.terms.size", equalTo(5));
+    }
+
+    @Test
     void invalidAggregationStructuresReturnStructuredBadRequest() {
         assertAggregationStructureError("""
                 {"bad": {"aggType": "geo", "args": {"field": "year"}}}

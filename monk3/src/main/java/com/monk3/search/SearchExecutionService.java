@@ -254,6 +254,10 @@ public class SearchExecutionService {
             throw new QueryTranslationException(
                     "Subdocument field '" + logicalField + "' cannot be returned as a root result field");
         }
+        if (!mappedField.isFetchable()) {
+            throw new QueryTranslationException(
+                    "Field '" + logicalField + "' is not fetchable for material type '" + materialType + "'");
+        }
         return new FieldProjection(logicalField, mappedField.searchField());
     }
 

@@ -79,6 +79,22 @@
                         "type": "object",
                         "additionalProperties": { "type": "string" }
                     },
+                    "searchable": {
+                        "description": "Whether this field may be used as a search target in a query. Defaults to true. A query leaf on a non-searchable field is rejected.",
+                        "type": "boolean"
+                    },
+                    "fetchable": {
+                        "description": "Whether this field's stored value may be projected into results. Defaults to true. Requesting a non-fetchable field is rejected.",
+                        "type": "boolean"
+                    },
+                    "aggregatable": {
+                        "description": "Whether this field may be used as an aggregation/facet field. Defaults to false. An aggregation over a non-aggregatable field is rejected.",
+                        "type": "boolean"
+                    },
+                    "sortable": {
+                        "description": "Whether this field may be used to sort results. Defaults to false.",
+                        "type": "boolean"
+                    },
                     "sourcing": {
                         "description": "Indexer-side leaf value extraction, keyed by datasource. Ignored by the query side.",
                         "$ref": "#/definitions/sourcingMap"

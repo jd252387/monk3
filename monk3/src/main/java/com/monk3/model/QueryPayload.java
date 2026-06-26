@@ -31,6 +31,9 @@ public sealed interface QueryPayload extends QueryData permits TextQuery, RangeQ
         if (mappedField.isSubdocument()) {
             throw new QueryTranslationException("Subdocument field '" + node.field() + "' requires boolean query data");
         }
+        if (!mappedField.isSearchable()) {
+            throw new QueryTranslationException("Field '" + node.field() + "' is not searchable");
+        }
         return mappedField;
     }
 }

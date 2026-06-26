@@ -18,11 +18,13 @@
     },
     "year": {
       "type": "number",
-      "destinationField": "article_year"
+      "destinationField": "article_year",
+      "aggregatable": true
     },
     "publishedAt": {
       "type": "datetime",
-      "destinationField": "article_published_at"
+      "destinationField": "article_published_at",
+      "aggregatable": true
     },
     "citationCount": {
       "type": "number",

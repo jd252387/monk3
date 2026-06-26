@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.mapping.DocumentMapping;
+import jd.nomad.mapping.FieldCapabilities;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.MappingParseException;
@@ -111,6 +112,8 @@ public class CatalogSnapshotBuilder {
                 ? parseVectorSpec(fieldObject, logicalName, destinationField)
                 : null;
 
+        FieldCapabilities capabilities = parseCapabilities(fieldObject, logicalName);
+
         return new MappedField(
                 logicalName,
                 type,
@@ -120,7 +123,22 @@ public class CatalogSnapshotBuilder {
                 primaryKeySourcing,
                 subdocumentPartialUpdate,
                 morphologies,
-                vectorSpec);
+                vectorSpec,
+                capabilities);
+    }
+
+    /**
+     * Parses the optional per-field capability flags ({@code searchable}, {@code fetchable},
+     * {@code aggregatable}, {@code sortable}). Each defaults to {@link FieldCapabilities#defaults()}:
+     * a field is searchable and fetchable but not aggregatable or sortable unless it opts in.
+     */
+    private FieldCapabilities parseCapabilities(ObjectNode fieldObject, String logicalName) {
+        FieldCapabilities defaults = FieldCapabilities.defaults();
+        return new FieldCapabilities(
+                optionalBoolean(fieldObject, "searchable", defaults.searchable(), logicalName),
+                optionalBoolean(fieldObject, "fetchable", defaults.fetchable(), logicalName),
+                optionalBoolean(fieldObject, "aggregatable", defaults.aggregatable(), logicalName),
+                optionalBoolean(fieldObject, "sortable", defaults.sortable(), logicalName));
     }
 
     /**
@@ -252,5 +270,17 @@ public class CatalogSnapshotBuilder {
     private static String optionalText(ObjectNode node, String property) {
         JsonNode value = node.get(property);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private static boolean optionalBoolean(ObjectNode node, String property, boolean defaultValue, String logicalName) {
+        JsonNode value = node.get(property);
+        if (value == null || value.isNull()) {
+            return defaultValue;
+        }
+        if (!value.isBoolean()) {
+            throw new MappingParseException(
+                    "Field '" + logicalName + "' flag '" + property + "' must be a boolean");
+        }
+        return value.booleanValue();
     }
 }

@@ -52,6 +52,11 @@ public record AggregationContext(
                         "Aggregation type '" + aggType + "' is not supported for field '" + logicalName
                                 + "' with mapping type '" + QueryParseContext.typeName(mappedField.type()) + "'");
             }
+            if (!mappedField.isAggregatable()) {
+                throw new QueryTranslationException(
+                        "Aggregation field '" + logicalName + "' is not aggregatable for material type '"
+                                + materialType + "'");
+            }
             resolutions.add(new Resolution(mappedField.searchField(), mappedField.type()));
             if (resolved == null) {
                 resolved = new ResolvedFacetField(mappedField.searchField(), context.withField(mappedField));
