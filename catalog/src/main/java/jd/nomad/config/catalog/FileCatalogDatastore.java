@@ -24,6 +24,8 @@ import org.apache.commons.vfs2.impl.DefaultFileMonitor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedHashMap;
@@ -219,12 +221,39 @@ public class FileCatalogDatastore implements CatalogDatastore {
         }
     }
 
+    /**
+     * Resolves a configured location to a VFS-resolvable URI. Locations carrying an explicit scheme (e.g.
+     * {@code file:}, {@code http:}) and absolute filesystem paths are used as-is. A relative path is resolved
+     * against the classpath rather than the JVM working directory: the shared {@code config/} tree is synced
+     * into each app's resources, so {@code config/catalog.json} loads from the classpath in dev and packaged
+     * runtimes alike.
+     */
     private static String resolveLocation(String location) {
         if (hasScheme(location)) {
             return location;
         }
-        Path path = Paths.get(location).toAbsolutePath();
-        return path.toUri().toString();
+        Path path = Paths.get(location);
+        if (path.isAbsolute()) {
+            return path.toUri().toString();
+        }
+        return resolveClasspathLocation(location);
+    }
+
+    private static String resolveClasspathLocation(String location) {
+        String resourceName = location.startsWith("./") ? location.substring(2) : location;
+        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        URL resource = contextClassLoader != null ? contextClassLoader.getResource(resourceName) : null;
+        if (resource == null) {
+            resource = FileCatalogDatastore.class.getClassLoader().getResource(resourceName);
+        }
+        if (resource == null) {
+            throw new IllegalStateException("Catalog resource not found on classpath: " + location);
+        }
+        try {
+            return resource.toURI().toString();
+        } catch (URISyntaxException e) {
+            return resource.toString();
+        }
     }
 
     private static boolean hasScheme(String location) {
