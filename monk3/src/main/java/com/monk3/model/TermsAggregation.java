@@ -5,10 +5,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.search.AggregationContext;
+import com.monk3.search.SearchEngine;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
+import java.util.Map;
 
 @Schema(description = "Top-N distinct values of a root document field with counts", example = """
         {
@@ -19,7 +24,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
           }
         }
         """)
-public record TermsAggregation(@NotBlank String field, @Positive Integer size) implements Aggregation {
+public record TermsAggregation(
+        @NotBlank String field,
+        @Positive Integer size,
+        Map<String, @NotNull @Valid Aggregation> subAggregations
+) implements Aggregation {
     @JsonProperty
     public String aggType() {
         return "terms";
@@ -34,6 +43,9 @@ public record TermsAggregation(@NotBlank String field, @Positive Integer size) i
         if (size != null) {
             terms.put("size", size);
         }
+        if (!subAggregations.isEmpty()) {
+            root.set("aggs", context.translateChildren(SearchEngine.ELASTICSEARCH, subAggregations));
+        }
         return root;
     }
 
@@ -45,6 +57,9 @@ public record TermsAggregation(@NotBlank String field, @Positive Integer size) i
         facet.put("field", searchField);
         if (size != null) {
             facet.put("limit", size);
+        }
+        if (!subAggregations.isEmpty()) {
+            facet.set("facet", context.translateChildren(SearchEngine.SOLR, subAggregations));
         }
         return facet;
     }

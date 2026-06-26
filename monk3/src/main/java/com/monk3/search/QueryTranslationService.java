@@ -16,10 +16,12 @@ import jd.nomad.config.catalog.ConfigurationCatalogService;
 import jd.nomad.mapping.BackendConfig;
 import lombok.RequiredArgsConstructor;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @ApplicationScoped
 @RequiredArgsConstructor
@@ -32,25 +34,45 @@ public class QueryTranslationService {
     private final EmbeddingClient embeddingClient;
 
     /**
-     * Routes each requested material type to a backend. Since a backend has exactly one mapping,
-     * each material type yields its own target; request order is preserved.
+     * Routes each query's material types to backends and groups by backend. Within a single query,
+     * material types resolving to the same backend share that query (their per-material-type filters are
+     * OR-combined at translation time). Across queries, every query that routes to a backend contributes
+     * its own {@link BackendTarget.MaterialQuery}; those are merged with a boolean should in {@link #translate}.
+     * Backend order follows first appearance across the queries.
      */
-    public List<BackendTarget> resolveTargets(SearchQueryRequest request) {
-        QueryAnalysis analysis = QueryAnalyzer.analyze(request.query());
-        return request.materialTypes().stream()
-                .map(materialType -> resolveTarget(materialType, request.query(), analysis))
-                .collect(Collectors.groupingBy(BackendTarget::name))
+    public List<BackendTarget> resolveTargets(List<SearchQueryRequest> requests) {
+        return requests.stream()
+                .flatMap(this::resolveQueryTargets)
+                .collect(Collectors.groupingBy(ResolvedQuery::backendName, LinkedHashMap::new, Collectors.toList()))
                 .values().stream()
                 .map(group -> new BackendTarget(
-                        group.getFirst().name(),
-                        group.stream().flatMap(target -> target.materialTypes().stream()).toList(),
+                        group.getFirst().backendName(),
                         group.getFirst().backend(),
                         group.getFirst().engine(),
-                        group.getFirst().query()))
+                        group.stream().map(ResolvedQuery::materialQuery).toList()))
                 .toList();
     }
 
-    private BackendTarget resolveTarget(String materialType, QueryNode query, QueryAnalysis analysis) {
+    /**
+     * Resolves a single query to one {@link ResolvedQuery} per backend its material types target, grouping the
+     * material types that share a backend so they translate against that backend's single context.
+     */
+    private Stream<ResolvedQuery> resolveQueryTargets(SearchQueryRequest request) {
+        QueryAnalysis analysis = QueryAnalyzer.analyze(request.query());
+        return request.materialTypes().stream()
+                .map(materialType -> resolveMaterialType(materialType, analysis))
+                .collect(Collectors.groupingBy(ResolvedMaterialType::backendName, LinkedHashMap::new, Collectors.toList()))
+                .values().stream()
+                .map(group -> new ResolvedQuery(
+                        group.getFirst().backendName(),
+                        group.getFirst().backend(),
+                        group.getFirst().engine(),
+                        new BackendTarget.MaterialQuery(
+                                group.stream().map(ResolvedMaterialType::materialType).toList(),
+                                request.query())));
+    }
+
+    private ResolvedMaterialType resolveMaterialType(String materialType, QueryAnalysis analysis) {
         String backendName = routingEngine.resolve(
                 catalogService.backendForMaterialType(materialType),
                 catalogService.routingRulesForMaterialType(materialType),
@@ -61,7 +83,7 @@ public class QueryTranslationService {
         } catch (IllegalStateException e) {
             throw new QueryTranslationException("No configured search backend named '" + backendName + "'");
         }
-        return new BackendTarget(backendName, List.of(materialType), backendConfig, SearchEngine.of(backendConfig.engine()), query);
+        return new ResolvedMaterialType(materialType, backendName, backendConfig, SearchEngine.of(backendConfig.engine()));
     }
 
     public QueryTranslation translate(BackendTarget target) {
@@ -70,24 +92,38 @@ public class QueryTranslationService {
         if (engine == SearchEngine.SOLR) {
             context = context.withSolrRootIdentifier(translateRootIdentifier(context, engine));
         }
-        JsonNode query = target.query().translate(engine, context);
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        ObjectNode bool = root.putObject("bool");
-        List<JsonNode> filters = translateMappingFilters(target, engine, context);
-        if (!filters.isEmpty()) {
-            bool.putArray("filter").add(QueryJson.shouldOrSingle(engine, filters));
-        }
-        bool.putArray("must").add(query);
+        QueryParseContext queryContext = context;
+        List<JsonNode> perQueryBools = target.queries().stream()
+                .map(materialQuery -> translateMaterialQuery(materialQuery, engine, queryContext))
+                .toList();
+        ObjectNode root = (ObjectNode) QueryJson.shouldOrSingle(engine, perQueryBools);
         return new QueryTranslation(root, context.solrNamedQueries());
     }
 
     /**
-     * Translates each requested material type's optional {@code filter} (a DSL {@code QueryNode} declared
-     * in {@code catalog.json}) into engine JSON. Material types declaring no filter contribute nothing; all
-     * material types in a target share one backend, so the single per-backend {@code context} applies to each.
+     * Translates one query that routed to this backend into its {@code bool}: the user query in {@code must},
+     * plus its material types' optional catalog filters OR-combined in {@code filter}. Multiple such bools for
+     * the same backend (one per originating query) are merged with a boolean should by {@link #translate}.
      */
-    private List<JsonNode> translateMappingFilters(BackendTarget target, SearchEngine engine, QueryParseContext context) {
-        return target.materialTypes().stream()
+    private JsonNode translateMaterialQuery(BackendTarget.MaterialQuery materialQuery, SearchEngine engine, QueryParseContext context) {
+        JsonNode query = materialQuery.query().translate(engine, context);
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        ObjectNode bool = root.putObject("bool");
+        List<JsonNode> filters = translateMappingFilters(materialQuery.materialTypes(), engine, context);
+        if (!filters.isEmpty()) {
+            bool.putArray("filter").add(QueryJson.shouldOrSingle(engine, filters));
+        }
+        bool.putArray("must").add(query);
+        return root;
+    }
+
+    /**
+     * Translates each material type's optional {@code filter} (a DSL {@code QueryNode} declared in
+     * {@code catalog.json}) into engine JSON. Material types declaring no filter contribute nothing; all
+     * material types share one backend, so the single per-backend {@code context} applies to each.
+     */
+    private List<JsonNode> translateMappingFilters(List<String> materialTypes, SearchEngine engine, QueryParseContext context) {
+        return materialTypes.stream()
                 .map(catalogService::filterForMaterialType)
                 .flatMap(Optional::stream)
                 .<JsonNode>map(filter -> objectMapper.convertValue(filter, QueryNode.class).translate(engine, context))
@@ -128,11 +164,29 @@ public class QueryTranslationService {
 
     public record BackendTarget(
             String name,
-            List<String> materialTypes,
             BackendConfig backend,
             SearchEngine engine,
-            QueryNode query
+            List<MaterialQuery> queries
     ) {
+        /** Distinct union of the material types across every query that routed to this backend. */
+        public List<String> materialTypes() {
+            return queries.stream()
+                    .flatMap(materialQuery -> materialQuery.materialTypes().stream())
+                    .distinct()
+                    .toList();
+        }
+
+        /** One originating query's material types (sharing this backend) paired with that query's node. */
+        public record MaterialQuery(List<String> materialTypes, QueryNode query) {
+        }
+    }
+
+    /** One backend a single query routed to, with the material types that share it grouped into a {@link BackendTarget.MaterialQuery}. */
+    private record ResolvedQuery(String backendName, BackendConfig backend, SearchEngine engine, BackendTarget.MaterialQuery materialQuery) {
+    }
+
+    /** One material type resolved to its backend, before material types are grouped per backend. */
+    private record ResolvedMaterialType(String materialType, String backendName, BackendConfig backend, SearchEngine engine) {
     }
 
     /**

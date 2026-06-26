@@ -48,7 +48,7 @@ public class QueryResource {
                     summary = "Simple phrase search → ES match_phrase / Solr field query, with size and a terms agg",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Elasticsearch text query",
                                 "materialTypes": ["book"],
                                 "query": {
@@ -58,7 +58,7 @@ public class QueryResource {
                                     "phrases": [{ "type": "phrase", "value": "java records" }]
                                   }
                                 }
-                              },
+                              }],
                               "fields": ["title"],
                               "size": 10,
                               "aggs": {
@@ -73,7 +73,7 @@ public class QueryResource {
                     summary = "Datetime range query on a date field",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Articles published in 2024",
                                 "materialTypes": ["article"],
                                 "query": {
@@ -84,7 +84,7 @@ public class QueryResource {
                                     "lt": "2025-01-01T00:00:00Z"
                                   }
                                 }
-                              },
+                              }],
                               "fields": ["title", "publishedAt"]
                             }
                             """),
@@ -92,7 +92,7 @@ public class QueryResource {
                     summary = "Exact value match for specific years",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Articles from 1995 or 2020",
                                 "materialTypes": ["article"],
                                 "query": {
@@ -102,7 +102,7 @@ public class QueryResource {
                                     "values": [1995, 2020]
                                   }
                                 }
-                              },
+                              }],
                               "fields": ["title", "year"]
                             }
                             """),
@@ -110,7 +110,7 @@ public class QueryResource {
                     summary = "Nested subdocument query on chapters",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Nested chapter query",
                                 "materialTypes": ["book"],
                                 "query": {
@@ -123,7 +123,7 @@ public class QueryResource {
                                     }
                                   ]
                                 }
-                              },
+                              }],
                               "fields": ["title"]
                             }
                             """)
@@ -154,7 +154,7 @@ public class QueryResource {
                     summary = "Boolean query across books and articles with terms and range aggs",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Recent ML publications",
                                 "materialTypes": ["book", "article"],
                                 "query": {
@@ -172,7 +172,7 @@ public class QueryResource {
                                     }
                                   ]
                                 }
-                              },
+                              }],
                               "fields": ["title", "year", "author"],
                               "size": 20,
                               "aggs": {
@@ -192,18 +192,44 @@ public class QueryResource {
                               }
                             }
                             """),
+            @ExampleObject(name = "Merged multi-query search",
+                    summary = "Two queries over the same material type; same-backend queries merge with a boolean should",
+                    value = """
+                            {
+                              "query": [
+                                {
+                                  "name": "Java books",
+                                  "materialTypes": ["book"],
+                                  "query": {
+                                    "field": "title",
+                                    "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                                  }
+                                },
+                                {
+                                  "name": "Recent books",
+                                  "materialTypes": ["book"],
+                                  "query": {
+                                    "field": "year",
+                                    "data": { "type": "range", "gte": 2020, "lte": 2025 }
+                                  }
+                                }
+                              ],
+                              "fields": ["title", "year"],
+                              "size": 10
+                            }
+                            """),
             @ExampleObject(name = "Simple text search",
                     summary = "Single-backend phrase search with a unique-count aggregation",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Find Java books",
                                 "materialTypes": ["book"],
                                 "query": {
                                   "field": "title",
                                   "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                                 }
-                              },
+                              }],
                               "fields": ["title", "year"],
                               "size": 10,
                               "aggs": {
@@ -218,14 +244,14 @@ public class QueryResource {
                     summary = "Phrase search with terms, unique, and subfacets aggregations",
                     value = """
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Java books with facets",
                                 "materialTypes": ["book"],
                                 "query": {
                                   "field": "title",
                                   "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                                 }
-                              },
+                              }],
                               "fields": ["title", "year"],
                               "size": 10,
                               "aggs": {

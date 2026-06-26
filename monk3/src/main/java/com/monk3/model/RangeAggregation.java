@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.search.AggregationContext;
 import com.monk3.search.QueryJson;
+import com.monk3.search.SearchEngine;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +16,7 @@ import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Set;
 
 @Schema(description = "Histogram of a numeric root document field, bucketed by a fixed interval between bounds", example = """
@@ -31,7 +34,8 @@ public record RangeAggregation(
         @NotBlank String field,
         @NotNull @Positive BigDecimal interval,
         @NotNull BigDecimal from,
-        @NotNull BigDecimal to
+        @NotNull BigDecimal to,
+        Map<String, @NotNull @Valid Aggregation> subAggregations
 ) implements Aggregation {
     @JsonProperty
     public String aggType() {
@@ -55,6 +59,9 @@ public record RangeAggregation(
         histogram.put("min_doc_count", 0);
         putBounds(histogram, "hard_bounds");
         putBounds(histogram, "extended_bounds");
+        if (!subAggregations.isEmpty()) {
+            root.set("aggs", context.translateChildren(SearchEngine.ELASTICSEARCH, subAggregations));
+        }
         return root;
     }
 
@@ -67,6 +74,9 @@ public record RangeAggregation(
         facet.set("start", QueryJson.valueNode(from));
         facet.set("end", QueryJson.valueNode(to));
         facet.set("gap", QueryJson.valueNode(interval));
+        if (!subAggregations.isEmpty()) {
+            facet.set("facet", context.translateChildren(SearchEngine.SOLR, subAggregations));
+        }
         return facet;
     }
 

@@ -10,9 +10,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import java.util.List;
 import java.util.Map;
 
-@Schema(description = "A search request that executes a query across configured backends and returns merged results", example = """
+@Schema(description = "A search request that executes one or more queries across configured backends and returns merged results", example = """
         {
-          "query": {
+          "query": [{
             "id": "q1",
             "name": "Recent ML publications",
             "materialTypes": ["book", "article"],
@@ -31,7 +31,7 @@ import java.util.Map;
                 }
               ]
             }
-          },
+          }],
           "fields": ["title", "year", "author"],
           "size": 20,
           "aggs": {
@@ -52,7 +52,8 @@ import java.util.Map;
         }
         """)
 public record SearchExecutionRequest(
-        @NotNull @Valid @Schema(description = "The search query to execute") SearchQueryRequest query,
+        @NotEmpty @Schema(description = "The search queries to execute; queries targeting the same backend are merged with a boolean should")
+        List<@NotNull @Valid SearchQueryRequest> query,
         @NotEmpty @Schema(description = "Field names to project in the response") List<@NotBlank String> fields,
         @Positive @Schema(description = "Maximum number of results to return per backend", example = "20") Integer size,
         @Schema(description = "Optional named facets/aggregations over root document fields, computed per backend")

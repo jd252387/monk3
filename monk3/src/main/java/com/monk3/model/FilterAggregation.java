@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotNull;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
+import java.util.Map;
 
 @Schema(description = "A single-bucket facet counting documents that match a query; the query is a list of "
         + "query DSL nodes combined with a must (AND) relationship", example = """
@@ -28,7 +29,8 @@ import java.util.List;
         }
         """)
 public record FilterAggregation(
-        @NotEmpty List<@NotNull @Valid QueryNode> query
+        @NotEmpty List<@NotNull @Valid QueryNode> query,
+        Map<String, @NotNull @Valid Aggregation> subAggregations
 ) implements Aggregation {
 
     @JsonProperty
@@ -39,7 +41,12 @@ public record FilterAggregation(
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
         JsonNode filterQuery = translateMust(SearchEngine.ELASTICSEARCH, context.queryContext());
-        return JsonNodeFactory.instance.objectNode().set("filter", filterQuery);
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        root.set("filter", filterQuery);
+        if (!subAggregations.isEmpty()) {
+            root.set("aggs", context.translateChildren(SearchEngine.ELASTICSEARCH, subAggregations));
+        }
+        return root;
     }
 
     @Override
@@ -48,17 +55,22 @@ public record FilterAggregation(
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "query");
         facet.put("q", context.registerNamedQuery(filterQuery));
+        if (!subAggregations.isEmpty()) {
+            facet.set("facet", context.translateChildren(SearchEngine.SOLR, subAggregations));
+        }
         return facet;
     }
 
     @Override
     public AggregationResult parseElasticsearch(JsonNode aggregation) {
-        return AggregationResult.ofValue(aggregation.path("doc_count").asLong(0));
+        return AggregationResult.ofValue(aggregation.path("doc_count").asLong(0))
+                .withAggregations(parseChildren(SearchEngine.ELASTICSEARCH, aggregation));
     }
 
     @Override
     public AggregationResult parseSolr(JsonNode facet) {
-        return AggregationResult.ofValue(facet.path("count").asLong(0));
+        return AggregationResult.ofValue(facet.path("count").asLong(0))
+                .withAggregations(parseChildren(SearchEngine.SOLR, facet));
     }
 
     // A single node is used as-is; multiple nodes combine with a must (AND) relationship.

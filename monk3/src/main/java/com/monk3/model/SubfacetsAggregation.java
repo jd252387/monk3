@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.monk3.search.AggregationContext;
 import com.monk3.search.QueryParseContext;
+import com.monk3.search.SearchEngine;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -33,7 +34,8 @@ import java.util.function.Function;
         """)
 public record SubfacetsAggregation(
         @NotBlank String field,
-        @NotEmpty Map<String, @NotNull @Valid QueryPayload> filters
+        @NotEmpty Map<String, @NotNull @Valid QueryPayload> filters,
+        Map<String, @NotNull @Valid Aggregation> subAggregations
 ) implements Aggregation {
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES =
             Set.of(FieldType.STRING, FieldType.FREETEXT, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
@@ -49,6 +51,9 @@ public record SubfacetsAggregation(
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode namedFilters = root.putObject("filters").putObject("filters");
         filters.forEach((name, payload) -> namedFilters.set(name, payload.toElasticsearch(payloadContext)));
+        if (!subAggregations.isEmpty()) {
+            root.set("aggs", context.translateChildren(SearchEngine.ELASTICSEARCH, subAggregations));
+        }
         return root;
     }
 
@@ -63,6 +68,11 @@ public record SubfacetsAggregation(
             ObjectNode subFacet = subFacets.putObject(name);
             subFacet.put("type", "query");
             subFacet.set("q", payload.toSolr(payloadContext));
+            // Each filter is its own bucket/domain; sub-aggregations nest inside each filter facet
+            // (not the *:* parent) so they match Elasticsearch's per-filter-bucket semantics.
+            if (!subAggregations.isEmpty()) {
+                subFacet.set("facet", context.translateChildren(SearchEngine.SOLR, subAggregations));
+            }
         });
         return facet;
     }
@@ -70,21 +80,28 @@ public record SubfacetsAggregation(
     @Override
     public AggregationResult parseElasticsearch(JsonNode aggregation) {
         JsonNode buckets = aggregation.path("buckets");
-        return namedCounts(name -> buckets.path(name).path("doc_count"));
+        return namedCounts(SearchEngine.ELASTICSEARCH, "doc_count", buckets::path);
     }
 
     @Override
     public AggregationResult parseSolr(JsonNode facet) {
-        return namedCounts(name -> facet.path(name).path("count"));
+        return namedCounts(SearchEngine.SOLR, "count", facet::path);
     }
 
     private QueryParseContext payloadContext(AggregationContext context) {
         return context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).payloadContext();
     }
 
-    private AggregationResult namedCounts(Function<String, JsonNode> countByName) {
+    private AggregationResult namedCounts(
+            SearchEngine engine, String countProperty, Function<String, JsonNode> bucketByName) {
         List<AggregationResult.Bucket> buckets = filters.keySet().stream()
-                .map(name -> new AggregationResult.Bucket(TextNode.valueOf(name), countByName.apply(name).asLong(0)))
+                .map(name -> {
+                    JsonNode bucketNode = bucketByName.apply(name);
+                    return new AggregationResult.Bucket(
+                            TextNode.valueOf(name),
+                            bucketNode.path(countProperty).asLong(0),
+                            parseChildren(engine, bucketNode));
+                })
                 .toList();
         return AggregationResult.ofBuckets(buckets);
     }

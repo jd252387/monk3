@@ -1,7 +1,9 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk3.model.Aggregation;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 
@@ -32,6 +34,24 @@ public record AggregationContext(
         String key = "agg_" + aggregationName;
         namedQueries.set(key, query);
         return "{!v=$" + key + "}";
+    }
+
+    /**
+     * Translates a map of sub-aggregations into the engine's nested-aggregation object (ES {@code aggs}
+     * / Solr nested {@code facet}). Child contexts share this context's backend mappings and the single
+     * {@code namedQueries} block; the child's aggregation name is path-qualified ({@code parent_child})
+     * so Solr named-query keys stay globally unique across nesting while the root key {@code agg_<name>}
+     * is unchanged. (Names are assumed not to contain {@code _} in a way that collides; agg names are
+     * short identifiers, so the readable path is preferred over an opaque counter.)
+     */
+    public ObjectNode translateChildren(SearchEngine engine, Map<String, Aggregation> children) {
+        ObjectNode node = JsonNodeFactory.instance.objectNode();
+        children.forEach((childName, child) -> {
+            AggregationContext childContext =
+                    new AggregationContext(contextsByMaterialType, aggregationName + "_" + childName, namedQueries);
+            node.set(childName, child.translate(engine, childContext));
+        });
+        return node;
     }
 
     public ResolvedFacetField requireFacetField(String logicalName, String aggType, Set<FieldType> supportedTypes) {

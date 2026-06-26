@@ -52,11 +52,30 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       "aggregations": {
                         "byAuthor": {
                           "buckets": [
-                            { "key": "Jane Doe", "doc_count": 8 },
-                            { "key": "John Smith", "doc_count": 3 }
+                            {
+                              "key": "Jane Doe",
+                              "doc_count": 8,
+                              "perYear": {
+                                "buckets": [
+                                  { "key": 2000.0, "doc_count": 5 },
+                                  { "key": 2010.0, "doc_count": 3 }
+                                ]
+                              }
+                            },
+                            {
+                              "key": "John Smith",
+                              "doc_count": 3,
+                              "perYear": {
+                                "buckets": [
+                                  { "key": 2020.0, "doc_count": 3 }
+                                ]
+                              }
+                            }
                           ]
                         },
                         "uniqueYears": { "value": 42 },
+                        "avgYear": { "value": 2012.5 },
+                        "maxYear": { "value": 2025 },
                         "byYear": {
                           "buckets": [
                             { "key": 2000.0, "doc_count": 5 },
@@ -65,11 +84,30 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                         },
                         "published": {
                           "buckets": {
-                            "lastWeek": { "doc_count": 2 },
-                            "lastMonth": { "doc_count": 9 }
+                            "lastWeek": {
+                              "doc_count": 2,
+                              "byAuthor": { "buckets": [ { "key": "Jane Doe", "doc_count": 2 } ] }
+                            },
+                            "lastMonth": {
+                              "doc_count": 9,
+                              "byAuthor": {
+                                "buckets": [
+                                  { "key": "Jane Doe", "doc_count": 6 },
+                                  { "key": "John Smith", "doc_count": 3 }
+                                ]
+                              }
+                            }
                           }
                         },
-                        "matchingDocs": { "doc_count": 4 }
+                        "matchingDocs": {
+                          "doc_count": 4,
+                          "perYear": {
+                            "buckets": [
+                              { "key": 2000.0, "doc_count": 1 },
+                              { "key": 2010.0, "doc_count": 3 }
+                            ]
+                          }
+                        }
                       }
                     }
                     """));
@@ -89,11 +127,30 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                         "count": 11,
                         "byYear": {
                           "buckets": [
-                            { "val": 2020, "count": 4 },
-                            { "val": 2024, "count": 6 }
+                            {
+                              "val": 2020,
+                              "count": 4,
+                              "byType": {
+                                "buckets": [
+                                  { "val": "research", "count": 3 },
+                                  { "val": "review", "count": 1 }
+                                ]
+                              }
+                            },
+                            {
+                              "val": 2024,
+                              "count": 6,
+                              "byType": {
+                                "buckets": [
+                                  { "val": "research", "count": 6 }
+                                ]
+                              }
+                            }
                           ]
                         },
                         "uniqueYears": 7,
+                        "avgYear": 2012.5,
+                        "maxYear": 2025,
                         "published": {
                           "count": 11,
                           "lastWeek": { "count": 2 },

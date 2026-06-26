@@ -11,8 +11,12 @@
   ],
   "properties": {
     "query": {
-      "$ref": "#/$defs/SearchQuery",
-      "description": "Required search query to translate and execute."
+      "type": "array",
+      "description": "Required non-empty list of search queries to translate and execute. Queries whose material types route to the same backend are merged with a boolean should.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/SearchQuery"
+      }
     },
     "fields": {
       "type": "array",
@@ -92,6 +96,18 @@
         },
         {
           "$ref": "#/$defs/FilterAggregation"
+        },
+        {
+          "$ref": "#/$defs/SumAggregation"
+        },
+        {
+          "$ref": "#/$defs/AvgAggregation"
+        },
+        {
+          "$ref": "#/$defs/MinAggregation"
+        },
+        {
+          "$ref": "#/$defs/MaxAggregation"
         }
       ]
     },
@@ -124,6 +140,10 @@
               "minimum": 1
             }
           }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over each bucket/domain of this aggregation."
         }
       }
     },
@@ -149,6 +169,114 @@
             "field": {
               "type": "string",
               "description": "Root document field to count distinct values of."
+            }
+          }
+        }
+      }
+    },
+    "SumAggregation": {
+      "type": "object",
+      "description": "Sum of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "sum"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to sum."
+            }
+          }
+        }
+      }
+    },
+    "AvgAggregation": {
+      "type": "object",
+      "description": "Average of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "avg"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to average."
+            }
+          }
+        }
+      }
+    },
+    "MinAggregation": {
+      "type": "object",
+      "description": "Minimum of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "min"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to take the minimum of."
+            }
+          }
+        }
+      }
+    },
+    "MaxAggregation": {
+      "type": "object",
+      "description": "Maximum of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "max"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to take the maximum of."
             }
           }
         }
@@ -194,6 +322,10 @@
               "description": "Upper bound of the last bucket; must be greater than 'from'."
             }
           }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over each bucket/domain of this aggregation."
         }
       }
     },
@@ -230,6 +362,10 @@
               }
             }
           }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over each filter's bucket/domain."
         }
       }
     },
@@ -261,6 +397,10 @@
               }
             }
           }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over the filter's matching documents."
         }
       }
     },

@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @QuarkusTest
@@ -613,14 +614,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "ES full body",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title", "year"],
                           "size": 25,
                           "aggs": {
@@ -669,14 +670,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Solr full body",
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
-                          },
+                          }],
                           "fields": ["title", "year"],
                           "size": 15,
                           "aggs": {
@@ -699,19 +700,87 @@ class QueryResourceTest {
     }
 
     @Test
+    void parseEmitsElasticsearchMetricAggregations() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "ES metrics",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "sumYear": { "aggType": "sum", "args": { "field": "year" } },
+                            "avgYear": { "aggType": "avg", "args": { "field": "year" } },
+                            "minYear": { "aggType": "min", "args": { "field": "year" } },
+                            "maxYear": { "aggType": "max", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.sumYear.sum.field", equalTo("book_year"))
+                .body("[0].body.aggs.avgYear.avg.field", equalTo("book_year"))
+                .body("[0].body.aggs.minYear.min.field", equalTo("book_year"))
+                .body("[0].body.aggs.maxYear.max.field", equalTo("book_year"));
+    }
+
+    @Test
+    void parseEmitsSolrMetricAggregations() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Solr metrics",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "sumYear": { "aggType": "sum", "args": { "field": "year" } },
+                            "avgYear": { "aggType": "avg", "args": { "field": "year" } },
+                            "minYear": { "aggType": "min", "args": { "field": "year" } },
+                            "maxYear": { "aggType": "max", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].body.facet.sumYear", equalTo("sum(article_year)"))
+                .body("[0].body.facet.avgYear", equalTo("avg(article_year)"))
+                .body("[0].body.facet.minYear", equalTo("min(article_year)"))
+                .body("[0].body.facet.maxYear", equalTo("max(article_year)"));
+    }
+
+    @Test
     void parseEmitsRangeAggregationMatchingSearchBody() {
         given()
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Year histogram",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "byYear": { "aggType": "range", "args": { "field": "year", "interval": 10, "from": 2000, "to": 2030 } }
@@ -736,14 +805,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Published subfacets Solr",
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "published": {
@@ -776,14 +845,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Filter aggregation ES",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "matchingDocs": {
@@ -815,14 +884,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Filter aggregation Solr",
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "matchingDocs": {
@@ -859,14 +928,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Single-node filter aggregation",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "recentDocs": {
@@ -890,6 +959,163 @@ class QueryResourceTest {
     }
 
     @Test
+    void parseEmitsElasticsearchTermsSubAggregationsAsSiblingAggs() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested terms ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byYear": {
+                              "aggType": "terms",
+                              "args": { "field": "year", "size": 5 },
+                              "aggs": {
+                                "perAuthor": { "aggType": "terms", "args": { "field": "author", "size": 3 } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byYear.terms.field", equalTo("book_year"))
+                .body("[0].body.aggs.byYear.aggs.perAuthor.terms.field", equalTo("book_author"))
+                .body("[0].body.aggs.byYear.aggs.perAuthor.terms.size", equalTo(3));
+    }
+
+    @Test
+    void parseNestsSolrTermsSubAggregationsInsideFacet() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested terms Solr",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byYear": {
+                              "aggType": "terms",
+                              "args": { "field": "year", "size": 5 },
+                              "aggs": {
+                                "byType": { "aggType": "terms", "args": { "field": "materialType" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].body.facet.byYear.type", equalTo("terms"))
+                .body("[0].body.facet.byYear.facet.byType.type", equalTo("terms"))
+                .body("[0].body.facet.byYear.facet.byType.field", equalTo("material_type"));
+    }
+
+    @Test
+    void parseNestsSolrSubfacetsSubAggregationsInsideEachFilter() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested subfacets Solr",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "published": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "publishedAt",
+                                "filters": {
+                                  "lastWeek": { "type": "range", "gt": "2026-02-01T00:00:00Z", "lt": "2026-02-07T00:00:00Z" },
+                                  "lastMonth": { "type": "range", "gt": "2026-01-07T00:00:00Z", "lt": "2026-02-07T00:00:00Z" }
+                                }
+                              },
+                              "aggs": {
+                                "byYear": { "aggType": "terms", "args": { "field": "year" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].body.facet.published.facet.lastWeek.facet.byYear.type", equalTo("terms"))
+                .body("[0].body.facet.published.facet.lastWeek.facet.byYear.field", equalTo("article_year"))
+                .body("[0].body.facet.published.facet.lastMonth.facet.byYear.type", equalTo("terms"))
+                .body("[0].body.facet.published.facet.lastMonth.facet.byYear.field", equalTo("article_year"));
+    }
+
+    @Test
+    void parseEmitsSolrFilterSubAggregationWithUniqueNestedNamedQuery() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested filter Solr",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "matchingDocs": {
+                              "aggType": "filter",
+                              "args": { "query": [{ "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } }] },
+                              "aggs": {
+                                "recent": {
+                                  "aggType": "filter",
+                                  "args": { "query": [{ "field": "year", "data": { "type": "range", "gt": 2015, "lt": 2020 } }] }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-articles"))
+                .body("[0].body.facet.matchingDocs.q", equalTo("{!v=$agg_matchingDocs}"))
+                .body("[0].body.facet.matchingDocs.facet.recent.type", equalTo("query"))
+                .body("[0].body.facet.matchingDocs.facet.recent.q", equalTo("{!v=$agg_matchingDocs_recent}"))
+                .body("[0].body.queries.agg_matchingDocs", notNullValue())
+                .body("[0].body.queries.agg_matchingDocs_recent.frange.query", equalTo("article_year"))
+                .body("[0].body.queries.agg_matchingDocs_recent.frange.l", equalTo(2015));
+    }
+
+    @Test
     void executesQueryAcrossMultipleBackendsAndMergesNormalizedResults() {
         SearchBackendTestResource.reset();
         SearchBackendTestResource.requireParallelRequests(2);
@@ -899,7 +1125,7 @@ class QueryResourceTest {
                     .contentType(ContentType.JSON)
                     .body("""
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Merged search",
                                 "materialTypes": ["book", "article"],
                                 "query": {
@@ -909,7 +1135,7 @@ class QueryResourceTest {
                                     "phrases": [{ "type": "phrase", "value": "java" }]
                                   }
                                 }
-                              },
+                              }],
                               "fields": ["title", "year"],
                               "size": 10
                             }
@@ -964,14 +1190,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Faceted book search",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "size": 10,
                           "aggs": {
@@ -1005,14 +1231,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Faceted article search",
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "size": 10,
                           "aggs": {
@@ -1039,6 +1265,81 @@ class QueryResourceTest {
     }
 
     @Test
+    void executesMetricAggregationsAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Metric book search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "size": 10,
+                          "aggs": {
+                            "avgYear": { "aggType": "avg", "args": { "field": "year" } },
+                            "maxYear": { "aggType": "max", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.avgYear.value", equalTo(2012.5f))
+                .body("aggregations.'elastic-books'.maxYear.value", equalTo(2025));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"avgYear\":{\"avg\":{\"field\":\"book_year\"}},"
+                        + "\"maxYear\":{\"max\":{\"field\":\"book_year\"}}}"));
+    }
+
+    @Test
+    void executesMetricAggregationsAgainstSolr() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Metric article search",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "size": 10,
+                          "aggs": {
+                            "avgYear": { "aggType": "avg", "args": { "field": "year" } },
+                            "maxYear": { "aggType": "max", "args": { "field": "year" } }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'solr-articles'.avgYear.value", equalTo(2012.5f))
+                .body("aggregations.'solr-articles'.maxYear.value", equalTo(2025));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"facet\":{\"avgYear\":\"avg(article_year)\",\"maxYear\":\"max(article_year)\"}"));
+    }
+
+    @Test
     void executesRangeAggregationAgainstElasticsearch() {
         SearchBackendTestResource.reset();
 
@@ -1046,14 +1347,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Year histogram",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "byYear": { "aggType": "range", "args": { "field": "year", "interval": 10, "from": 2000, "to": 2030 } }
@@ -1084,14 +1385,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Year range facet",
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "byYear": { "aggType": "range", "args": { "field": "year", "interval": 10, "from": 2000, "to": 2030 } }
@@ -1119,14 +1420,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Published subfacets",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "published": {
@@ -1167,14 +1468,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Published subfacets Solr",
                             "materialTypes": ["article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "published": {
@@ -1214,14 +1515,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Cross-backend facets",
                             "materialTypes": ["book", "article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "byYear": { "aggType": "terms", "args": { "field": "year" } }
@@ -1246,14 +1547,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Filter aggregation counts",
                             "materialTypes": ["book", "article"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "matchingDocs": {
@@ -1278,19 +1579,213 @@ class QueryResourceTest {
     }
 
     @Test
+    void executesNestedTermsSubAggregationsAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested terms book search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "size": 10,
+                          "aggs": {
+                            "byAuthor": {
+                              "aggType": "terms",
+                              "args": { "field": "author", "size": 5 },
+                              "aggs": {
+                                "perYear": { "aggType": "terms", "args": { "field": "year" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].key", equalTo("Jane Doe"))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].count", equalTo(8))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].aggregations.perYear.buckets[0].key", equalTo(2000.0f))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].aggregations.perYear.buckets[0].count", equalTo(5))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].aggregations.perYear.buckets[1].key", equalTo(2010.0f))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[0].aggregations.perYear.buckets[1].count", equalTo(3))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[1].key", equalTo("John Smith"))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[1].aggregations.perYear.buckets[0].key", equalTo(2020.0f))
+                .body("aggregations.'elastic-books'.byAuthor.buckets[1].aggregations.perYear.buckets[0].count", equalTo(3));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"byAuthor\":{\"terms\":{\"field\":\"book_author\",\"size\":5},"
+                        + "\"aggs\":{\"perYear\":{\"terms\":{\"field\":\"book_year\"}}}}}"));
+    }
+
+    @Test
+    void executesNestedTermsSubAggregationsAgainstSolr() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested terms article search",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "solr" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "size": 10,
+                          "aggs": {
+                            "byYear": {
+                              "aggType": "terms",
+                              "args": { "field": "year", "size": 5 },
+                              "aggs": {
+                                "byType": { "aggType": "terms", "args": { "field": "materialType" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'solr-articles'.byYear.buckets[0].key", equalTo(2020))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].count", equalTo(4))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].aggregations.byType.buckets[0].key", equalTo("research"))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].aggregations.byType.buckets[0].count", equalTo(3))
+                .body("aggregations.'solr-articles'.byYear.buckets[0].aggregations.byType.buckets[1].key", equalTo("review"))
+                .body("aggregations.'solr-articles'.byYear.buckets[1].aggregations.byType.buckets[0].key", equalTo("research"))
+                .body("aggregations.'solr-articles'.byYear.buckets[1].aggregations.byType.buckets[0].count", equalTo(6));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"facet\":{\"byYear\":{\"type\":\"terms\",\"field\":\"article_year\",\"limit\":5,"
+                        + "\"facet\":{\"byType\":{\"type\":\"terms\",\"field\":\"material_type\"}}}}"));
+    }
+
+    @Test
+    void executesNestedSubfacetsSubAggregationsAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested subfacets book search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "published": {
+                              "aggType": "subfacets",
+                              "args": {
+                                "field": "publishedAt",
+                                "filters": {
+                                  "lastWeek": { "type": "range", "gt": "2026-02-01T00:00:00Z", "lt": "2026-02-07T00:00:00Z" },
+                                  "lastMonth": { "type": "range", "gt": "2026-01-07T00:00:00Z", "lt": "2026-02-07T00:00:00Z" }
+                                }
+                              },
+                              "aggs": {
+                                "byAuthor": { "aggType": "terms", "args": { "field": "author" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.published.buckets[0].key", equalTo("lastWeek"))
+                .body("aggregations.'elastic-books'.published.buckets[0].count", equalTo(2))
+                .body("aggregations.'elastic-books'.published.buckets[0].aggregations.byAuthor.buckets[0].key", equalTo("Jane Doe"))
+                .body("aggregations.'elastic-books'.published.buckets[0].aggregations.byAuthor.buckets[0].count", equalTo(2))
+                .body("aggregations.'elastic-books'.published.buckets[1].key", equalTo("lastMonth"))
+                .body("aggregations.'elastic-books'.published.buckets[1].aggregations.byAuthor.buckets[1].key", equalTo("John Smith"))
+                .body("aggregations.'elastic-books'.published.buckets[1].aggregations.byAuthor.buckets[1].count", equalTo(3));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"byAuthor\":{\"terms\":{\"field\":\"book_author\"}}}"));
+    }
+
+    @Test
+    void executesFilterSubAggregationAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested filter book search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "matchingDocs": {
+                              "aggType": "filter",
+                              "args": { "query": [{ "field": "year", "data": { "type": "range", "gt": 2000, "lt": 2020 } }] },
+                              "aggs": {
+                                "perYear": { "aggType": "terms", "args": { "field": "year" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.matchingDocs.value", equalTo(4))
+                .body("aggregations.'elastic-books'.matchingDocs.aggregations.perYear.buckets[0].key", equalTo(2000.0f))
+                .body("aggregations.'elastic-books'.matchingDocs.aggregations.perYear.buckets[0].count", equalTo(1))
+                .body("aggregations.'elastic-books'.matchingDocs.aggregations.perYear.buckets[1].key", equalTo(2010.0f))
+                .body("aggregations.'elastic-books'.matchingDocs.aggregations.perYear.buckets[1].count", equalTo(3));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"perYear\":{\"terms\":{\"field\":\"book_year\"}}}"));
+    }
+
+    @Test
     void searchWithoutAggregationsOmitsAggregationsInResponse() {
         given()
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Plain search",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"]
                         }
                         """)
@@ -1307,14 +1802,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "No matches",
                             "materialTypes": ["emptyset"],
                             "query": {
                               "field": "ds",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "nonexistent" }] }
                             }
-                          },
+                          }],
                           "fields": ["ds"]
                         }
                         """)
@@ -1660,6 +2155,26 @@ class QueryResourceTest {
         assertAggregationStructureError("""
                 {"bad": {"aggType": "filter", "args": {"query": [{"field": "year", "data": {"type": "range", "gt": 1}}], "foo": 1}}}
                 """, "Unknown filter aggregation property: foo");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "unique", "args": {"field": "year"}, "aggs": {"perYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "Aggregation type 'unique' does not support sub-aggregations");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "sum", "args": {"field": "year"}, "aggs": {"perYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "Aggregation type 'sum' does not support sub-aggregations");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "terms", "args": {"field": "year"}, "aggs": {}}}
+                """, "Aggregation aggs must not be empty");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "terms", "args": {"field": "year"}, "aggs": []}}
+                """, "Aggregation aggs must be an object");
+
+        assertAggregationStructureError("""
+                {"bad": {"aggType": "terms", "args": {"field": "year"}, "aggs": {"child": {"aggType": "geo", "args": {"field": "year"}}}}}
+                """, "Unsupported aggregation type 'geo'");
     }
 
     @Test
@@ -1668,14 +2183,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Bad subfacet filter",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": {
                             "published": {
@@ -1712,14 +2227,14 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Aggregation error",
                             "materialTypes": ["book"],
                             "query": {
                               "field": "title",
                               "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "aggs": %s
                         }
@@ -1901,7 +2416,7 @@ class QueryResourceTest {
                 .statusCode(400)
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
-                .body("error.message", containsString("query.query.data.textType"))
+                .body("error.message", containsString("query.[0].query.data.textType"))
                 .body("error.message", containsString("property 'textType' is not part of the query DSL"));
     }
 
@@ -1953,7 +2468,7 @@ class QueryResourceTest {
                 .statusCode(400)
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
-                .body("error.message", containsString("query.query.data"))
+                .body("error.message", containsString("query.[0].query.data"))
                 .body("error.message", containsString("Query payload type is required"));
     }
 
@@ -1978,7 +2493,7 @@ class QueryResourceTest {
                 .statusCode(400)
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
-                .body("error.message", containsString("query.query.data"))
+                .body("error.message", containsString("query.[0].query.data"))
                 .body("error.message", containsString("Range query requires at least one bound"));
     }
 
@@ -1992,7 +2507,8 @@ class QueryResourceTest {
                 .contentType("application/schema+json")
                 .body("$schema", equalTo("https://json-schema.org/draft/2020-12/schema"))
                 .body("required", containsInAnyOrder("query", "fields"))
-                .body("properties.query.$ref", equalTo("#/$defs/SearchQuery"))
+                .body("properties.query.type", equalTo("array"))
+                .body("properties.query.items.$ref", equalTo("#/$defs/SearchQuery"))
                 .body("properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
                 .body("$defs.SearchQuery.required", containsInAnyOrder("name", "materialTypes", "query"))
                 .body("$defs.Aggregations.additionalProperties.$ref", equalTo("#/$defs/Aggregation"))
@@ -2001,17 +2517,31 @@ class QueryResourceTest {
                         "#/$defs/UniqueAggregation",
                         "#/$defs/RangeAggregation",
                         "#/$defs/SubfacetsAggregation",
-                        "#/$defs/FilterAggregation"
+                        "#/$defs/FilterAggregation",
+                        "#/$defs/SumAggregation",
+                        "#/$defs/AvgAggregation",
+                        "#/$defs/MinAggregation",
+                        "#/$defs/MaxAggregation"
                 ))
                 .body("$defs.TermsAggregation.properties.aggType.const", equalTo("terms"))
                 .body("$defs.UniqueAggregation.properties.aggType.const", equalTo("unique"))
                 .body("$defs.RangeAggregation.properties.aggType.const", equalTo("range"))
                 .body("$defs.SubfacetsAggregation.properties.aggType.const", equalTo("subfacets"))
                 .body("$defs.FilterAggregation.properties.aggType.const", equalTo("filter"))
+                .body("$defs.SumAggregation.properties.aggType.const", equalTo("sum"))
+                .body("$defs.AvgAggregation.properties.aggType.const", equalTo("avg"))
+                .body("$defs.MinAggregation.properties.aggType.const", equalTo("min"))
+                .body("$defs.MaxAggregation.properties.aggType.const", equalTo("max"))
                 .body("$defs.FilterAggregation.properties.args.properties.query.items.$ref", equalTo("#/$defs/QueryNode"))
                 .body("$defs.RangeAggregation.properties.args.required", containsInAnyOrder("field", "interval", "from", "to"))
                 .body("$defs.SubfacetsAggregation.properties.args.properties.filters.additionalProperties.$ref",
                         equalTo("#/$defs/QueryPayload"))
+                .body("$defs.TermsAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
+                .body("$defs.RangeAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
+                .body("$defs.SubfacetsAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
+                .body("$defs.FilterAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
+                .body("$defs.UniqueAggregation.properties.aggs", nullValue())
+                .body("$defs.SumAggregation.properties.aggs", nullValue())
                 .body("$defs.QueryPayload.oneOf.$ref", containsInAnyOrder(
                         "#/$defs/TextQuery",
                         "#/$defs/RangeQuery",
@@ -2361,7 +2891,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Recent books search",
                             "materialTypes": ["book"],
                             "query": {
@@ -2372,7 +2902,7 @@ class QueryResourceTest {
                                 "lte": "%s"
                               }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "size": 5
                         }
@@ -2395,7 +2925,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
-                          "query": {
+                          "query": [{
                             "name": "Old books search",
                             "materialTypes": ["book"],
                             "query": {
@@ -2406,7 +2936,7 @@ class QueryResourceTest {
                                 "lte": "2020-12-31T00:00:00Z"
                               }
                             }
-                          },
+                          }],
                           "fields": ["title"],
                           "size": 5
                         }
@@ -2486,6 +3016,129 @@ class QueryResourceTest {
     }
 
     @Test
+    void mergesMultipleQueriesTargetingSameBackendWithBooleanShould() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [
+                            {
+                              "name": "Java books",
+                              "materialTypes": ["book"],
+                              "query": {
+                                "field": "title",
+                                "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                              }
+                            },
+                            {
+                              "name": "Python books",
+                              "materialTypes": ["book"],
+                              "query": {
+                                "field": "title",
+                                "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "python" }] }
+                              }
+                            }
+                          ],
+                          "fields": ["title"]
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("size()", equalTo(1))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].materialTypes", containsInAnyOrder("book"))
+                .body("[0].body.query.bool.minimum_should_match", equalTo(1))
+                .body("[0].body.query.bool.should.size()", equalTo(2))
+                .body("[0].body.query.bool", not(hasKey("must")))
+                .body("[0].body.query.bool.should[0].bool.filter[0].match_phrase.material_type", equalTo("book"))
+                .body("[0].body.query.bool.should[0].bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[0].body.query.bool.should[1].bool.must[0].match_phrase.book_title", equalTo("python"));
+    }
+
+    @Test
+    void keepsQueriesTargetingDifferentBackendsAsSeparateRequests() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [
+                            {
+                              "name": "Java books",
+                              "materialTypes": ["book"],
+                              "query": {
+                                "field": "title",
+                                "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                              }
+                            },
+                            {
+                              "name": "Python articles",
+                              "materialTypes": ["article"],
+                              "query": {
+                                "field": "title",
+                                "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "python" }] }
+                              }
+                            }
+                          ],
+                          "fields": ["title"]
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("size()", equalTo(2))
+                .body("backend", containsInAnyOrder("elastic-books", "solr-articles"))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.query.bool", not(hasKey("should")))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java"))
+                .body("[1].backend", equalTo("solr-articles"))
+                .body("[1].body.query.bool.must[0].field.f", equalTo("article_headline"))
+                .body("[1].body.query.bool.must[0].field.query", equalTo("python"));
+    }
+
+    @Test
+    void translatesSingleElementQueryArrayWithoutAddingAnOuterShould() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Single query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("size()", equalTo(1))
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.query.bool", not(hasKey("should")))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java"));
+    }
+
+    @Test
+    void rejectsEmptyQueryArray() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [],
+                          "fields": ["title"]
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
     void mergesSearchBackendRequestsWhenMultipleMaterialTypesResolveToSameBackend() {
         SearchBackendTestResource.reset();
         SearchBackendTestResource.requireParallelRequests(1);
@@ -2495,7 +3148,7 @@ class QueryResourceTest {
                     .contentType(ContentType.JSON)
                     .body("""
                             {
-                              "query": {
+                              "query": [{
                                 "name": "Merged search",
                                 "materialTypes": ["book", "book_elastic"],
                                 "query": {
@@ -2505,7 +3158,7 @@ class QueryResourceTest {
                                     "phrases": [{ "type": "phrase", "value": "java" }]
                                   }
                                 }
-                              },
+                              }],
                               "fields": ["title", "year"],
                               "size": 10
                             }
@@ -2655,7 +3308,7 @@ class QueryResourceTest {
     private static String parseRequest(String query) {
         return """
                 {
-                  "query": %s,
+                  "query": [%s],
                   "fields": ["title"]
                 }
                 """.formatted(query);
