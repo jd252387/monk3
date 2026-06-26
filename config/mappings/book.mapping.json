@@ -18,19 +18,35 @@
     },
     "author": {
       "type": "string",
-      "destinationField": "book_author"
+      "destinationField": "book_author",
+      "aggregatable": true
     },
     "year": {
       "type": "number",
-      "destinationField": "book_year"
+      "destinationField": "book_year",
+      "aggregatable": true,
+      "sortable": true
     },
     "publishedAt": {
       "type": "datetime",
-      "destinationField": "book_published_at"
+      "destinationField": "book_published_at",
+      "aggregatable": true
     },
     "inPrint": {
       "type": "boolean",
       "destinationField": "book_in_print"
+    },
+    "popularity": {
+      "type": "number",
+      "destinationField": "book_popularity",
+      "searchable": false,
+      "aggregatable": true,
+      "sortable": true
+    },
+    "internalNotes": {
+      "type": "freetext",
+      "destinationField": "book_internal_notes",
+      "fetchable": false
     },
     "embedding": {
       "type": "vector",

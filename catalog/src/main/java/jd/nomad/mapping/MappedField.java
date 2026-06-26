@@ -14,7 +14,8 @@ public record MappedField(
         Map<String, SourceExpression> primaryKeySourcing,
         Map<String, String> subdocumentPartialUpdate,
         Map<String, String> morphologies,
-        VectorSpec vectorSpec
+        VectorSpec vectorSpec,
+        FieldCapabilities capabilities
 ) {
     private static final String DEFAULT_DATASOURCE = "default";
     private static final String WILDCARD_DATASOURCE = "*";
@@ -26,13 +27,15 @@ public record MappedField(
         primaryKeySourcing = primaryKeySourcing == null ? Map.of() : Map.copyOf(primaryKeySourcing);
         subdocumentPartialUpdate = subdocumentPartialUpdate == null ? Map.of() : Map.copyOf(subdocumentPartialUpdate);
         morphologies = morphologies == null ? Map.of() : Map.copyOf(morphologies);
+        capabilities = capabilities == null ? FieldCapabilities.defaults() : capabilities;
     }
 
     /**
      * Compact constructor used by query-side callers (and existing tests) that carry no indexing sourcing.
      */
     public MappedField(String logicalName, FieldType type, String subdocumentType, String destinationField) {
-        this(logicalName, type, subdocumentType, destinationField, Map.of(), Map.of(), Map.of(), Map.of(), null);
+        this(logicalName, type, subdocumentType, destinationField, Map.of(), Map.of(), Map.of(), Map.of(), null,
+                FieldCapabilities.defaults());
     }
 
     public String searchField() {
@@ -50,6 +53,26 @@ public record MappedField(
 
     public boolean isVector() {
         return type == FieldType.VECTOR;
+    }
+
+    /** Whether this field may be used as a search target in a query. */
+    public boolean isSearchable() {
+        return capabilities.searchable();
+    }
+
+    /** Whether this field's stored value may be projected into results. */
+    public boolean isFetchable() {
+        return capabilities.fetchable();
+    }
+
+    /** Whether this field may be used as an aggregation/facet field. */
+    public boolean isAggregatable() {
+        return capabilities.aggregatable();
+    }
+
+    /** Whether this field may be used to sort results. */
+    public boolean isSortable() {
+        return capabilities.sortable();
     }
 
     /**
