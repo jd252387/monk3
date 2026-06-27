@@ -1,5 +1,9 @@
 [versions]
 quarkus = "3.33.1.1"
+# Quinoa must be new enough to use Quarkus' VertxHttpBuildTimeConfig: 2.5.x references the
+# removed io.quarkus.vertx.http.runtime.HttpBuildTimeConfig and fails on Quarkus 3.33.
+# 2.8.2 targets Quarkus 3.27.3 (<= 3.33, so no forward-incompat); 2.8.3 targets 3.36.2.
+quinoa = "2.8.2"
 lombok = "1.18.46"
 
 [libraries]
@@ -11,6 +15,7 @@ quarkus-rest-jackson = { module = "io.quarkus:quarkus-rest-jackson" }
 quarkus-hibernate-validator = { module = "io.quarkus:quarkus-hibernate-validator" }
 quarkus-smallrye-openapi = { module = "io.quarkus:quarkus-smallrye-openapi" }
 quarkus-container-image-jib = { module = "io.quarkus:quarkus-container-image-jib" }
+quarkus-quinoa = { module = "io.quarkiverse.quinoa:quarkus-quinoa", version.ref = "quinoa" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 quarkus-junit5 = { module = "io.quarkus:quarkus-junit5" }
 rest-assured = { module = "io.rest-assured:rest-assured" }

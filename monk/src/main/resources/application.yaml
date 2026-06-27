@@ -1,6 +1,15 @@
 quarkus:
   http:
     port: 8080
+  # Quinoa serves the React SPA in src/main/webui: built into the app at package time
+  # and run via the Vite dev server (live reload) during quarkusDev. Same-origin on :8080.
+  quinoa:
+    ui-dir: src/main/webui
+    build-dir: dist
+    enable-spa-routing: true
+    # Let Quarkus REST handle the API: without this, Quinoa's SPA routing forwards
+    # /queries/* to the dev server (which, via the Vite dev proxy, loops back and hangs).
+    ignored-path-prefixes: /queries
   swagger-ui:
     always-include: true
     theme: "flattop"
