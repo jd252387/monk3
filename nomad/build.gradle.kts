@@ -26,7 +26,7 @@ dependencies {
     implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-jackson")
     implementation("io.quarkus:quarkus-hibernate-validator")
-    implementation 'io.quarkus:quarkus-container-image-jib'
+    implementation("io.quarkus:quarkus-container-image-jib")
 
     implementation("org.apache.camel.quarkus:camel-quarkus-kafka")
     implementation("org.apache.camel.quarkus:camel-quarkus-reactive-streams")
