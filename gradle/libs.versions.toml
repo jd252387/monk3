@@ -4,6 +4,7 @@ lombok = "1.18.46"
 
 [libraries]
 quarkus-bom = { module = "io.quarkus.platform:quarkus-bom", version.ref = "quarkus" }
+quarkus-camel-bom = { module = "io.quarkus.platform:quarkus-camel-bom", version.ref = "quarkus" }
 quarkus-config-yaml = { module = "io.quarkus:quarkus-config-yaml" }
 quarkus-rest = { module = "io.quarkus:quarkus-rest" }
 quarkus-rest-jackson = { module = "io.quarkus:quarkus-rest-jackson" }

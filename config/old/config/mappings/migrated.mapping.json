@@ -1,0 +1,30 @@
+{
+  "$schema": "../../mappings.schema.json",
+  "primaryKey": "id",
+  "root": {
+    "name": {
+      "type": "string",
+      "destinationField": "name_s"
+    },
+    "readers": {
+      "type": "string",
+      "destinationField": "readers_ss"
+    },
+    "writers": {
+      "type": "string",
+      "destinationField": "writers_ss"
+    },
+    "write_date": {
+      "type": "datetime",
+      "destinationField": "write_date_dt"
+    },
+    "number_of_writers": {
+      "type": "number",
+      "destinationField": "number_of_writers_i"
+    },
+    "text_contents": {
+      "type": "freetext",
+      "destinationField": "text_contents_t"
+    }
+  }
+}

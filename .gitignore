@@ -1,12 +1,34 @@
+# Build output
 .gradle/
 build/
 bin/
+out/
+target/
 
+# Shared config synced into subproject resources for local runs (see */build.gradle* syncConfig)
+monk3/src/main/resources/config/
+nomad/src/main/resources/config/
+
+# Compiled / log files
 *.class
 *.log
+*.pid
 
+# IDEs
 .idea/
 *.iml
 
-target/
-.quarkus
+# Quarkus
+.quarkus/
+
+# Tooling
+.codegraph/
+reasonix.toml
+
+# OS
+.DS_Store
+
+scripts/extracted
+.offline-gradle-home
+scripts/zipper/extracted
+scripts/zipper/extracted.zip

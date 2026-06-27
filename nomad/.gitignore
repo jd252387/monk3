@@ -1,0 +1,9 @@
+.gradle/
+build/
+!gradle/wrapper/
+!.gradle/keep
+documents/*.json
+kube/kompose-manifests
+.idea
+bin
+document-sync/config/settings.local.toml

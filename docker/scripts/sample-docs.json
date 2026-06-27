@@ -1,0 +1,37 @@
+[
+  {
+    "id": "1",
+    "title": "Apache Solr Guide",
+    "category": "Technology",
+    "price": 29.99,
+    "description": "Comprehensive guide to Apache Solr search platform and its powerful faceting capabilities"
+  },
+  {
+    "id": "2",
+    "title": "Elasticsearch in Action",
+    "category": "Technology",
+    "price": 39.99,
+    "description": "Practical Elasticsearch for developers covering full-text search and aggregations"
+  },
+  {
+    "id": "3",
+    "title": "Distributed Systems Design",
+    "category": "Technology",
+    "price": 49.99,
+    "description": "Design patterns for distributed systems including etcd for service coordination"
+  },
+  {
+    "id": "4",
+    "title": "Cooking Basics",
+    "category": "Food",
+    "price": 19.99,
+    "description": "Learn fundamental cooking techniques from professional chefs around the world"
+  },
+  {
+    "id": "5",
+    "title": "World Atlas 2024",
+    "category": "Reference",
+    "price": 24.99,
+    "description": "Complete world atlas with detailed geographical maps and demographic data"
+  }
+]

@@ -1,0 +1,19 @@
+quarkus:
+  http:
+    port: 8080
+  swagger-ui:
+    always-include: true
+
+indexer:
+  catalog:
+    source: FILE
+    file:
+      backends: "./config/backends.json"
+      config: "./config/catalog.json"
+      datasources: "./config/datasources.json"
+
+monk3:
+  vapi:
+    endpointName: "https://example.endpoint.com/capsules/fetch"
+  embedding:
+    url: "https://example.embedding.com/embed"

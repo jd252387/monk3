@@ -1,0 +1,17 @@
+{
+  "$schema": "./mappings.schema.json",
+  "root": {
+    "name": {
+      "type": "string",
+      "destinationField": "name_s"
+    },
+    "readers": {
+      "type": "string",
+      "destinationField": "readers_ss"
+    },
+    "writers": {
+      "type": "string",
+      "destinationField": "writers_ss"
+    }
+  }
+}

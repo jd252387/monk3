@@ -1,0 +1,158 @@
+{
+    "$schema": "https://json-schema.org/draft-07/schema",
+    "type": "object",
+    "definitions": {
+        "sourceExpression": {
+            "description": "How a value is extracted from a fetched source document. Either a bare jq string, or an object declaring exactly one of jq / jsonPointer plus optional partialUpdate and required.",
+            "oneOf": [
+                {
+                    "type": "string",
+                    "description": "Shorthand for a required jq expression."
+                },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "jq": {
+                            "type": "string",
+                            "description": "jackson-jq program evaluated against the fetched document."
+                        },
+                        "jsonPointer": {
+                            "type": "string",
+                            "description": "RFC 6901 JSON Pointer resolved against the fetched document (alternative to jq)."
+                        },
+                        "partialUpdate": {
+                            "type": "string",
+                            "description": "Array/value operation applied in partial-update mode (e.g. set, add, add-distinct, remove, removeregex, inc)."
+                        },
+                        "required": {
+                            "type": "boolean",
+                            "description": "When true (default), a missing value aborts mapping of the document."
+                        }
+                    },
+                    "oneOf": [
+                        { "required": ["jq"], "not": { "required": ["jsonPointer"] } },
+                        { "required": ["jsonPointer"], "not": { "required": ["jq"] } }
+                    ]
+                }
+            ]
+        },
+        "sourcingMap": {
+            "description": "Per-datasource value extraction. Keys are datasource names; 'default' and '*' act as fallbacks.",
+            "type": "object",
+            "additionalProperties": { "$ref": "#/definitions/sourceExpression" }
+        },
+        "documentSchema": {
+            "type": "object",
+            "properties": {
+                "identifier": {
+                    "description": "A monk3 DSL query that identifies documents of this type. Used as the Solr root block mask ('which' local param) for root-level nested queries. Only meaningful on the 'root' document.",
+                    "type": "object"
+                }
+            },
+            "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["string", "freetext", "boolean", "datetime", "number", "subdocument", "vector"]
+                    },
+                    "subdocumentType": {
+                        "description": "Equal to the name of another document type (a property under the root of this schema with the documentSchema definition).",
+                        "type": "string"
+                    },
+                    "destinationField": {
+                        "description": "Physical field name that is stored in the search engine for this field. For 'vector' fields it must contain the '%i' placeholder, expanded over start..end (inclusive) into the family of physical vector fields searched together.",
+                        "type": "string"
+                    },
+                    "start": {
+                        "description": "First index (inclusive) substituted for '%i' in a 'vector' field's destinationField. Only valid on vector fields.",
+                        "type": "integer"
+                    },
+                    "end": {
+                        "description": "Last index (inclusive) substituted for '%i' in a 'vector' field's destinationField. Only valid on vector fields.",
+                        "type": "integer"
+                    },
+                    "morphologies": {
+                        "description": "Query-side alternate destination fields keyed by morphology name (e.g. 'english'). Routes morphology-tagged queries to these fields. Ignored by the indexer.",
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
+                    },
+                    "searchable": {
+                        "description": "Whether this field may be used as a search target in a query. Defaults to true. A query leaf on a non-searchable field is rejected.",
+                        "type": "boolean"
+                    },
+                    "fetchable": {
+                        "description": "Whether this field's stored value may be projected into results. Defaults to true. Requesting a non-fetchable field is rejected.",
+                        "type": "boolean"
+                    },
+                    "aggregatable": {
+                        "description": "Whether this field may be used as an aggregation/facet field. Defaults to false. An aggregation over a non-aggregatable field is rejected.",
+                        "type": "boolean"
+                    },
+                    "sortable": {
+                        "description": "Whether this field may be used to sort results. Defaults to false.",
+                        "type": "boolean"
+                    },
+                    "sourcing": {
+                        "description": "Indexer-side leaf value extraction, keyed by datasource. Ignored by the query side.",
+                        "$ref": "#/definitions/sourcingMap"
+                    },
+                    "primaryKey": {
+                        "description": "Indexer-side subdocument child-id extraction, keyed by datasource. Only valid on subdocument fields.",
+                        "$ref": "#/definitions/sourcingMap"
+                    },
+                    "partialUpdate": {
+                        "description": "Indexer-side subdocument array operation, keyed by datasource. Only valid on subdocument fields.",
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
+                    }
+                },
+                "allOf": [
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "subdocument"
+                                }
+                            },
+                            "required": ["type"]
+                        },
+                        "then": {
+                            "required": ["subdocumentType"]
+                        }
+                    },
+                    {
+                        "if": {
+                            "properties": {
+                                "type": {
+                                    "const": "vector"
+                                }
+                            },
+                            "required": ["type"]
+                        },
+                        "then": {
+                            "required": ["destinationField", "start", "end"]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "properties": {
+        "$schema": {
+            "description": "Optional JSON Schema URI for editor validation of mapping documents.",
+            "type": "string"
+        },
+        "root": {
+            "description": "Mapping definition for the root search document. Fields declared here describe values that live directly on the top-level indexed document.",
+            "$ref": "#/definitions/documentSchema"
+        }
+    },
+    "required": ["root"],
+    "additionalProperties": {
+        "description": "Mapping definition for a named subdocument type. Each additional top-level property name can be referenced by subdocument fields through subdocumentType.",
+        "$ref": "#/definitions/documentSchema"
+    }
+}

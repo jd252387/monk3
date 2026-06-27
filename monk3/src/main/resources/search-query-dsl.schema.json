@@ -1,0 +1,904 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/search-query-dsl.schema.json",
+  "title": "Search Query DSL",
+  "description": "Defines the root JSON DSL document used to execute a search: the query that is translated to Apache Solr or Elasticsearch, the fields to project, the result size, and optional aggregations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "query",
+    "fields"
+  ],
+  "properties": {
+    "query": {
+      "type": "array",
+      "description": "Required non-empty list of search queries to translate and execute. Queries whose material types route to the same backend are merged with a boolean should.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/SearchQuery"
+      }
+    },
+    "fields": {
+      "type": "array",
+      "description": "Required field names to project in the response.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "description": "A logical root document field name."
+      }
+    },
+    "size": {
+      "type": "integer",
+      "description": "Optional maximum number of results to return per backend.",
+      "minimum": 1
+    },
+    "aggs": {
+      "$ref": "#/$defs/Aggregations",
+      "description": "Optional named facets/aggregations over root document fields, computed per backend."
+    }
+  },
+  "$defs": {
+    "SearchQuery": {
+      "type": "object",
+      "description": "Describes a search query before it is translated to Apache Solr or Elasticsearch.",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "materialTypes",
+        "query"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Optional randomly generated identifier for this query instance."
+        },
+        "name": {
+          "type": "string",
+          "description": "Required human-readable query name used in logs and diagnostics."
+        },
+        "materialTypes": {
+          "type": "array",
+          "description": "Required list of source or material types to fetch data from.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "description": "A source or material type identifier."
+          }
+        },
+        "query": {
+          "$ref": "#/$defs/QueryNode",
+          "description": "Required root query node."
+        }
+      }
+    },
+    "Aggregations": {
+      "type": "object",
+      "description": "Named aggregations; each key is the aggregation name echoed back in the response.",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/Aggregation"
+      }
+    },
+    "Aggregation": {
+      "description": "A single named facet/aggregation over a root document field.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TermsAggregation"
+        },
+        {
+          "$ref": "#/$defs/UniqueAggregation"
+        },
+        {
+          "$ref": "#/$defs/RangeAggregation"
+        },
+        {
+          "$ref": "#/$defs/SubfacetsAggregation"
+        },
+        {
+          "$ref": "#/$defs/FilterAggregation"
+        },
+        {
+          "$ref": "#/$defs/SumAggregation"
+        },
+        {
+          "$ref": "#/$defs/AvgAggregation"
+        },
+        {
+          "$ref": "#/$defs/MinAggregation"
+        },
+        {
+          "$ref": "#/$defs/MaxAggregation"
+        },
+        {
+          "$ref": "#/$defs/NestedAggregation"
+        }
+      ]
+    },
+    "TermsAggregation": {
+      "type": "object",
+      "description": "Top-N distinct values of a root document field with counts.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "terms"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Root document field to facet on."
+            },
+            "size": {
+              "type": "integer",
+              "description": "Optional maximum number of buckets to return.",
+              "minimum": 1
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over each bucket/domain of this aggregation."
+        }
+      }
+    },
+    "UniqueAggregation": {
+      "type": "object",
+      "description": "Count of distinct values of a root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "unique"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Root document field to count distinct values of."
+            }
+          }
+        }
+      }
+    },
+    "SumAggregation": {
+      "type": "object",
+      "description": "Sum of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "sum"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to sum."
+            }
+          }
+        }
+      }
+    },
+    "AvgAggregation": {
+      "type": "object",
+      "description": "Average of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "avg"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to average."
+            }
+          }
+        }
+      }
+    },
+    "MinAggregation": {
+      "type": "object",
+      "description": "Minimum of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "min"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to take the minimum of."
+            }
+          }
+        }
+      }
+    },
+    "MaxAggregation": {
+      "type": "object",
+      "description": "Maximum of a numeric root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "max"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to take the maximum of."
+            }
+          }
+        }
+      }
+    },
+    "RangeAggregation": {
+      "type": "object",
+      "description": "Histogram of a numeric root document field, bucketed by a fixed interval between bounds.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "range"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "interval",
+            "from",
+            "to"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Numeric root document field to facet on."
+            },
+            "interval": {
+              "type": "number",
+              "description": "Bucket width.",
+              "exclusiveMinimum": 0
+            },
+            "from": {
+              "type": "number",
+              "description": "Inclusive lower bound of the first bucket."
+            },
+            "to": {
+              "type": "number",
+              "description": "Upper bound of the last bucket; must be greater than 'from'."
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over each bucket/domain of this aggregation."
+        }
+      }
+    },
+    "SubfacetsAggregation": {
+      "type": "object",
+      "description": "A facet with one named sub-facet per filter; each filter is a query DSL payload applied to the given root document field.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "subfacets"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "filters"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Root document field the filters apply to."
+            },
+            "filters": {
+              "type": "object",
+              "description": "Named filters in query DSL payload syntax; each becomes a sub-facet with the given name.",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/QueryPayload"
+              }
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over each filter's bucket/domain."
+        }
+      }
+    },
+    "FilterAggregation": {
+      "type": "object",
+      "description": "A single-bucket facet counting documents that match a query; the query nodes are combined with a must (AND) relationship.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "filter"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "array",
+              "description": "Query DSL nodes combined with a must (AND) relationship.",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/QueryNode"
+              }
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Optional sub-aggregations run over the filter's matching documents."
+        }
+      }
+    },
+    "NestedAggregation": {
+      "type": "object",
+      "description": "Runs its sub-aggregations within the domain of a subdocument (nested) field. Translates to an Elasticsearch nested aggregation and a Solr blockChildren domain change.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args",
+        "aggs"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "nested"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Subdocument field whose nested documents the sub-aggregations run over."
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Sub-aggregations run within the nested subdocument domain. At least one is required."
+        }
+      }
+    },
+    "QueryNode": {
+      "type": "object",
+      "description": "A recursive query node. A node with an empty field is a boolean/group node; if the field is equal to the name of a document type in the mapping, then the sub-queries in 'data' query the fields in the specified document type; if 'field' is empty, then the node is a leaf field query.",
+      "$comment": "The field value determines the shape of data and whether bool/mm are allowed.",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "data"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Field to query. If empty or equal to the name of a document type, then the 'data' field is expected to be an array of clause objects, representing a boolean relationship of sub-queries or a nested query."
+        },
+        "minimumMatch": {
+          "type": "integer",
+          "description": "Required amount of 'should' clauses that should match. Only allowed when 'field' is empty or equal to a document type name."
+        },
+        "bool": {
+          "type": "string",
+          "enum": ["should", "must", "mustNot"],
+          "description": "How this node combines with its sibling clauses inside a boolean 'data' array: 'should' (OR), 'must' (AND), or 'mustNot' (negation). Required on every clause of a boolean node; ignored on the root node."
+        },
+        "data": {
+          "description": "When 'field' is not empty, contains an object representing the query payload to match on the specified field. When 'field' is empty or equal to the name of a document type, contains an array of clause objects representing a boolean sub-query. Each clause is a query node tagged with a 'bool' of 'should', 'must', or 'mustNot', and the clauses are grouped by that tag. In the case of a nested query (when 'field' is equal to the name of a document type), the grouped clauses must match on the same child document."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "field": {
+                "const": ""
+              }
+            }
+          },
+          "then": {
+            "$comment": "Boolean query - contains an array of clause objects, each a query node tagged with a 'bool' of 'should', 'must', or 'mustNot'.",
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/BooleanQueryData"
+              }
+            }
+          },
+          "else": {
+            "$comment": "Leaf query when 'field' names a leaf field, or a boolean/nested sub-query when 'field' names a subdocument type.",
+            "properties": {
+              "data": {
+                "description": "Payload for the field query, or an array of clause objects representing a boolean/nested sub-query when 'field' names a subdocument type.",
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/QueryPayload"
+                  },
+                  {
+                    "$ref": "#/$defs/BooleanQueryData"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "BooleanQueryData": {
+      "type": "array",
+      "description": "Clauses for this boolean query; each is a query node tagged with a 'bool' of 'should', 'must', or 'mustNot'.",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/QueryNode"
+          },
+          {
+            "required": [
+              "bool"
+            ]
+          }
+        ]
+      }
+    },
+    "QueryPayload": {
+      "description": "Payload for a leaf field query.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextQuery"
+        },
+        {
+          "$ref": "#/$defs/RangeQuery"
+        },
+        {
+          "$ref": "#/$defs/ExactQuery"
+        },
+        {
+          "$ref": "#/$defs/ExistsQuery"
+        },
+        {
+          "$ref": "#/$defs/PrefixQuery"
+        },
+        {
+          "$ref": "#/$defs/KnnFlatQuery"
+        }
+      ]
+    },
+    "KnnFlatQuery": {
+      "type": "object",
+      "description": "Vector (kNN) query payload. Embeds 'text' via the embedding API and searches a 'vector' mapping field's physical fields, combined as a max-score query.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "const": "knnFlat"
+        },
+        "text": {
+          "type": "string",
+          "description": "Free text embedded into a query vector by the embedding API."
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of nearest neighbours per field; defaults to 10 when omitted."
+        }
+      }
+    },
+    "PrefixQuery": {
+      "type": "object",
+      "description": "Prefix query payload matching documents whose field value starts with the given prefix.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "prefix"
+      ],
+      "properties": {
+        "type": {
+          "const": "prefix"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "The prefix the field value must start with."
+        }
+      }
+    },
+    "ExistsQuery": {
+      "type": "object",
+      "description": "Exists query payload matching documents where the field has any value.",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "exists"
+        }
+      }
+    },
+    "TextQuery": {
+      "type": "object",
+      "description": "Text query payload for matching string or free-text fields.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "phrases"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "phrases": {
+          "type": "array",
+          "description": "Phrases to match. Each item is discriminated by 'type': a 'phrase' is matched with the field query parser; a 'capsule' is a Solr-only value resolved to an external krembox endpoint.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "phrase"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "The phrase to match."
+                  },
+                  "isExact": {
+                    "type": "boolean",
+                    "description": "When true, morphology is not applied to this phrase even if the query specifies a morphology."
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "capsule"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "A Solr-only capsule value of the form '{endpointType}_{id}'. The endpointType is resolved to a krembox URL via configuration."
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "morphology": {
+          "type": "string",
+          "description": "Optional morphology name; routes the query to the field's configured morphology destination field instead of its default destinationField."
+        }
+      }
+    },
+    "RangeQuery": {
+      "description": "Range query payload for matching either numeric values or datetime/timestamp values within bounds.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NumericRangeQuery"
+        },
+        {
+          "$ref": "#/$defs/DatetimeRangeQuery"
+        }
+      ]
+    },
+    "ExactQuery": {
+      "description": "Exact query payload for matching numeric, datetime/timestamp, or boolean values.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NumericExactQuery"
+        },
+        {
+          "$ref": "#/$defs/DatetimeExactQuery"
+        },
+        {
+          "$ref": "#/$defs/BooleanExactQuery"
+        }
+      ]
+    },
+    "NumericExactQuery": {
+      "type": "object",
+      "description": "Exact query payload for matching one or more numeric values.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "values"
+      ],
+      "properties": {
+        "type": {
+          "const": "exact"
+        },
+        "values": {
+          "type": "array",
+          "description": "Numeric values to match exactly.",
+          "minItems": 1,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "DatetimeExactQuery": {
+      "type": "object",
+      "description": "Exact query payload for matching one or more datetime or timestamp values.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "values"
+      ],
+      "properties": {
+        "type": {
+          "const": "exact"
+        },
+        "values": {
+          "type": "array",
+          "description": "Datetime or timestamp values to match exactly.",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BooleanExactQuery": {
+      "type": "object",
+      "description": "Exact query payload for matching one or more boolean values.",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "values"
+      ],
+      "properties": {
+        "type": {
+          "const": "exact"
+        },
+        "values": {
+          "type": "array",
+          "description": "Boolean values to match exactly.",
+          "minItems": 1,
+          "items": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "NumericRangeQuery": {
+      "type": "object",
+      "description": "Range query payload for matching numeric values within bounds.",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "range"
+        },
+        "gte": {
+          "type": "number",
+          "description": "Inclusive lower bound."
+        },
+        "gt": {
+          "type": "number",
+          "description": "Exclusive lower bound."
+        },
+        "lte": {
+          "type": "number",
+          "description": "Inclusive upper bound."
+        },
+        "lt": {
+          "type": "number",
+          "description": "Exclusive upper bound."
+        }
+      },
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "gte"
+              ]
+            },
+            {
+              "required": [
+                "gt"
+              ]
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "required": [
+                "lte"
+              ]
+            },
+            {
+              "required": [
+                "lt"
+              ]
+            }
+          ]
+        }
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "gte",
+              "gt"
+            ]
+          },
+          {
+            "required": [
+              "lte",
+              "lt"
+            ]
+          }
+        ]
+      }
+    },
+    "DatetimeRangeQuery": {
+      "type": "object",
+      "description": "Range query payload for matching datetime or timestamp values within bounds.",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "range"
+        },
+        "gte": {
+          "type": "string",
+          "description": "Inclusive lower timestamp bound."
+        },
+        "gt": {
+          "type": "string",
+          "description": "Exclusive lower timestamp bound."
+        },
+        "lte": {
+          "type": "string",
+          "description": "Inclusive upper timestamp bound."
+        },
+        "lt": {
+          "type": "string",
+          "description": "Exclusive upper timestamp bound."
+        }
+      },
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "gte"
+              ]
+            },
+            {
+              "required": [
+                "gt"
+              ]
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "required": [
+                "lte"
+              ]
+            },
+            {
+              "required": [
+                "lt"
+              ]
+            }
+          ]
+        }
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "gte",
+              "gt"
+            ]
+          },
+          {
+            "required": [
+              "lte",
+              "lt"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
