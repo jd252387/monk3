@@ -109,6 +109,15 @@ export default function App() {
           </Group>
           <Group gap="sm" wrap="nowrap">
             <Button
+              component="a"
+              href="/q/swagger-ui"
+              target="_blank"
+              rel="noreferrer"
+              variant="subtle"
+            >
+              API docs
+            </Button>
+            <Button
               variant="default"
               onClick={() => run('parse')}
               loading={running === 'parse'}
