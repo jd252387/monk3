@@ -6,7 +6,7 @@
 #
 # Any extra arguments are forwarded to copy-by-ext.sh, so you can still pass
 # a SOURCE directory or flags like --dry-run / --flatten, e.g.:
-#   ./copy-default.sh --dry-run monk3
+#   ./copy-default.sh --dry-run monk
 
 set -euo pipefail
 

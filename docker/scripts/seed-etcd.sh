@@ -24,15 +24,15 @@ put() {
   log "put ${key} <- ${file}"
 }
 
-echo "=== Seeding monk3 configuration into etcd ==="
-put "/monk3/catalog"         "/config/catalog-etcd.json"
-put "/monk3/mappings/sample" "/config/mappings/sample.mapping.json"
-put "/monk3/backends"        "/config/backends-docker.json"
+echo "=== Seeding monk configuration into etcd ==="
+put "/monk/catalog"         "/config/catalog-etcd.json"
+put "/monk/mappings/sample" "/config/mappings/sample.mapping.json"
+put "/monk/backends"        "/config/backends-docker.json"
 
 echo ""
-echo "=== Verifying seeded keys under /monk3 ==="
-START=$(printf '%s' "/monk3" | b64)
-END=$(printf '%s' "/monk4" | b64)   # prefix range end: last byte of "/monk3" incremented
+echo "=== Verifying seeded keys under /monk ==="
+START=$(printf '%s' "/monk" | b64)
+END=$(printf '%s' "/monk4" | b64)   # prefix range end: last byte of "/monk" incremented
 curl -sf "${ETCD_URL}/v3/kv/range" \
   -H 'Content-Type: application/json' \
   -d "{\"key\":\"${START}\",\"range_end\":\"${END}\"}" \

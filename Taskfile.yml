@@ -38,10 +38,10 @@ tasks:
       - cmd: REPLICATOR_ONLINE_DATA_SOURCES={{.ACTIVE_PROFILE_FLAGS}} {{if .EVENT_DATASOURCE}}REPLICATOR_EVENT_DATA_SOURCE={{.EVENT_DATASOURCE}} {{end}}docker compose{{if .PROFILE_ARGS}} {{.PROFILE_ARGS}}{{end}} {{.COMMAND}} {{.DOCKER_ARGS}}
 
   jib:build:
-    desc: Build the monk3 and nomad container images with Quarkus Jib into the local Docker daemon.
+    desc: Build the monk and nomad container images with Quarkus Jib into the local Docker daemon.
     vars:
-      # Override e.g. PROJECTS=':monk3:build' to build a single image.
-      PROJECTS: '{{default ":monk3:build :nomad:build" .PROJECTS}}'
+      # Override e.g. PROJECTS=':monk:build' to build a single image.
+      PROJECTS: '{{default ":monk:build :nomad:build" .PROJECTS}}'
       GRADLE_ARGS: '{{default "-x test" .GRADLE_ARGS}}'
     cmds:
       - ./gradlew {{.PROJECTS}} -Dquarkus.container-image.build=true {{.GRADLE_ARGS}}
@@ -53,12 +53,12 @@ tasks:
       PROFILE: '{{default "" .PROFILE}}'
       ALL: '{{default "false" .ALL}}'
     cmds:
-      # The monk3 and nomad services run Jib-built images (no build: section); build/load them before
-      # `up` so Compose finds them locally instead of trying to pull monk3/{monk3,nomad}:latest from a
+      # The monk and nomad services run Jib-built images (no build: section); build/load them before
+      # `up` so Compose finds them locally instead of trying to pull monk/{monk,nomad}:latest from a
       # registry.
       - task: jib:build
         vars:
-          PROJECTS: ':monk3:build :nomad:build'
+          PROJECTS: ':monk:build :nomad:build'
       - task: compose:_run
         vars:
           COMMAND: up

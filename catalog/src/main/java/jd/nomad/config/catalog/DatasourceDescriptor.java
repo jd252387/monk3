@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.node.NullNode;
 /**
  * A named datasource declaration from the catalog. {@code configuration} carries the raw, datasource-specific
  * JSON (e.g. the {@code s3}/{@code rest-api}/{@code mongodb} block) which each indexer fetcher factory parses
- * on its own. The query side (monk3) does not use datasources.
+ * on its own. The query side (monk) does not use datasources.
  */
 public record DatasourceDescriptor(String name, String type, JsonNode configuration) {
 

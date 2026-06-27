@@ -1,4 +1,4 @@
-# monk3
+# monk
 
 A [Quarkus](https://quarkus.io/) REST service (Java 25) that accepts a custom search query DSL and
 translates it into **Elasticsearch** or **Solr** query syntax, optionally executing searches across
@@ -26,15 +26,15 @@ configured backends and returning merged, normalized results.
 # Build (compiles and runs the full test suite)
 ./gradlew build
 
-# Run in dev mode with hot reload (the app lives in the :monk3 subproject)
-./gradlew :monk3:quarkusDev
+# Run in dev mode with hot reload (the app lives in the :monk subproject)
+./gradlew :monk:quarkusDev
 
 # Run the tests
 ./gradlew test
 
 # Run a single test class / method
-./gradlew :monk3:test --tests "com.monk3.QueryResourceTest"
-./gradlew :monk3:test --tests "com.monk3.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
+./gradlew :monk:test --tests "com.monk.QueryResourceTest"
+./gradlew :monk:test --tests "com.monk.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
 ```
 
 The service listens on `http://localhost:8080`. Swagger UI is available at
@@ -100,8 +100,8 @@ referencing another block in the same file.
 ## Project structure
 
 ```
-monk3/
-├── src/main/java/com/monk3/   Root service
+monk/
+├── src/main/java/com/monk/   Root service
 │   ├── api/                   JAX-RS resources and exception mappers
 │   ├── json/                  Jackson deserializers for the query DSL
 │   ├── mapping/               Application-level mapping config
@@ -115,46 +115,46 @@ monk3/
 
 ## Running the stack with Docker
 
-### Full stack with a containerized monk3 (root `docker-compose.yml`)
+### Full stack with a containerized monk (root `docker-compose.yml`)
 
 The repository-root [`docker-compose.yml`](docker-compose.yml) brings up the shared data-platform
-backends and a containerized **monk3** that searches them. The monk3 image is built with
+backends and a containerized **monk** that searches them. The monk image is built with
 [Quarkus Jib](https://quarkus.io/guides/container-image#jib) (no Dockerfile) straight into the local
 Docker daemon — `task compose:up` does this for you before starting the stack. It is profile-gated;
 the `streaming` profile (the default used by the [Taskfile](Taskfile.yml)) is the one that runs
-**both** Solr and Elasticsearch alongside monk3:
+**both** Solr and Elasticsearch alongside monk:
 
 ```bash
-task compose:up                      # builds the monk3 Jib image, then starts the streaming profile
+task compose:up                      # builds the monk Jib image, then starts the streaming profile
 # or, without go-task:
-task jib:build PROJECTS=':monk3:build'   # or: ./gradlew :monk3:build -Dquarkus.container-image.build=true
+task jib:build PROJECTS=':monk:build'   # or: ./gradlew :monk:build -Dquarkus.container-image.build=true
 docker compose --profile streaming up -d
 ```
 
 This starts, among others:
 
 - **Solr** (`solr1`, `:8983`) and **Elasticsearch** (`es01`/`es02`, `:9200`/`:9201`) search backends.
-- **monk3-init** — a one-shot job that creates the `sample` Solr collection and Elasticsearch index
+- **monk-init** — a one-shot job that creates the `sample` Solr collection and Elasticsearch index
   on those backends and seeds the sample documents. It also creates the empty `documents` Solr
   collection that the nomad indexer writes into.
-- **monk3** — the query API on <http://localhost:8090> (Swagger UI at
+- **monk** — the query API on <http://localhost:8090> (Swagger UI at
   <http://localhost:8090/q/swagger-ui>). It reads [`config/catalog-docker.json`](config/catalog-docker.json)
   and [`config/backends-nomad.json`](config/backends-nomad.json) (baked into the Jib image from the
   repo-root `config/`), which point `product` → Solr (`solr1`) and `product_elastic` →
   Elasticsearch (`es01`).
 - **nomad** — the Kafka→Solr indexing pipeline. It consumes the `documents` Kafka topic and indexes
   into the `documents` Solr collection on `solr1`, reading [`config/catalog-nomad.json`](config/catalog-nomad.json)
-  and [`config/backends-nomad.json`](config/backends-nomad.json) (baked into the Jib image like monk3).
+  and [`config/backends-nomad.json`](config/backends-nomad.json) (baked into the Jib image like monk).
   The `documents-replicator` publishes Kafka events only when run with `EVENT_DS=streaming`
   (`task compose:up EVENT_DS=streaming`), with each event carrying the document inline for the
   `default-datasource` (kafka-inline) source; generate sample documents into `nomad/documents/` with
   `task generate:document`.
 
 Tear it down with `task compose:down`. Other profiles (`mongo`, `s3`, `hbase`, `rest`) bring up the
-indexing-side data sources; see [`TASKFILE.md`](TASKFILE.md). Both the monk3 and nomad images are
+indexing-side data sources; see [`TASKFILE.md`](TASKFILE.md). Both the monk and nomad images are
 built by `task jib:build` (run automatically by `task compose:up`).
 
-### monk3-only sample stack with monk3 on the host (`docker/docker-compose.yml`)
+### monk-only sample stack with monk on the host (`docker/docker-compose.yml`)
 
 [`docker/docker-compose.yml`](docker/docker-compose.yml) brings up the supporting services and seeds
 the configuration into etcd, which is what `application.yaml` reads from by default:
@@ -171,11 +171,11 @@ This starts:
   <http://localhost:8002> and add a connection to host `etcd`, port `2379`.
 - **etcd-seed** — a one-shot job that loads [`config/catalog-etcd.json`](config/catalog-etcd.json),
   the sample mapping, and [`config/backends-docker.json`](config/backends-docker.json) into the etcd
-  `/monk3/*` keys via the v3 gateway.
+  `/monk/*` keys via the v3 gateway.
 - **init** — a one-shot job that creates the `sample` Solr collection and Elasticsearch index and
   indexes the sample documents.
 
-Once the stack is up, run the service against it with `./gradlew :monk3:quarkusDev` (it connects to etcd on
+Once the stack is up, run the service against it with `./gradlew :monk:quarkusDev` (it connects to etcd on
 `localhost:2379` and to the backends on `localhost:9200`/`localhost:8983`).
 
 ## Testing

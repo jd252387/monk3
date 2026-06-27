@@ -1,0 +1,29 @@
+quarkus:
+  http:
+    port: 8080
+  swagger-ui:
+    always-include: true
+    theme: "flattop"
+  # Container image built with Quarkus Jib (no Dockerfile / Docker daemon needed at build assembly).
+  container-image:
+    group: monk
+    name: monk
+    tag: latest
+  jib:
+    # The app is compiled to Java 25 bytecode, so the runtime base image must ship a Java 25 JRE
+    # (Quarkus' default UBI base image is Java 21).
+    base-jvm-image: eclipse-temurin:25-jre
+
+indexer:
+  catalog:
+    source: FILE
+    file:
+      backends: "./config/backends.json"
+      config: "./config/catalog.json"
+      datasources: "./config/datasources.json"
+
+monk:
+  vapi:
+    endpointName: "https://example.endpoint.com/capsules/fetch"
+  embedding:
+    url: "https://example.embedding.com/embed"

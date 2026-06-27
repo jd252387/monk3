@@ -1,4 +1,4 @@
-Add a new aggregation type (aggType) called "filter". This aggregation type receive an "query" field within the "args" object for the aggregation. "query" will contain a query object in the monk3 DSL syntax, and the aggregation will be parsed to a "query facet" in Apache Solr, or a "filter aggregation" in Elasticsearch. "query" is an array of monk3's QueryNode. If multiple QueryNodes are specified in the array, then they should be in a must boolean relationship. 
+Add a new aggregation type (aggType) called "filter". This aggregation type receive an "query" field within the "args" object for the aggregation. "query" will contain a query object in the monk DSL syntax, and the aggregation will be parsed to a "query facet" in Apache Solr, or a "filter aggregation" in Elasticsearch. "query" is an array of monk's QueryNode. If multiple QueryNodes are specified in the array, then they should be in a must boolean relationship. 
 
 For example, given this query: 
 

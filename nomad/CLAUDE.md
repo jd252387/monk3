@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **nomad is a subproject of the monk3 monorepo.** Run Gradle from the repository root with the `:nomad`
+> **nomad is a subproject of the monk monorepo.** Run Gradle from the repository root with the `:nomad`
 > prefix. It targets Java 25 / Quarkus 3.33.1.1 and depends on `project(':catalog')` for its configuration.
-> There is no spotless gate (neither `:monk3` nor `:catalog` use one); the legacy `palantir-java-format`
+> There is no spotless gate (neither `:monk` nor `:catalog` use one); the legacy `palantir-java-format`
 > version is incompatible with JDK 25.
 
 ## Build and Development Commands
@@ -13,9 +13,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `./gradlew :nomad:build` - Full build with tests
 - `./gradlew :nomad:build -Dquarkus.native.enabled=true` - Native executable build (requires GraalVM)
 - `./gradlew :nomad:build -Dquarkus.container-image.build=true` - Container image via Quarkus Jib
-  (no Dockerfile) into the local Docker daemon, tagged `monk3/nomad:latest`. The image config lives in
+  (no Dockerfile) into the local Docker daemon, tagged `monk/nomad:latest`. The image config lives in
   `nomad/src/main/resources/application.yaml` (`quarkus.container-image.*`, `quarkus.jib.base-jvm-image`
-  pinned to a Java 25 JRE). `task jib:build` builds both the nomad and monk3 images, and the root
+  pinned to a Java 25 JRE). `task jib:build` builds both the nomad and monk images, and the root
   compose runs nomad as a containerized service under the `streaming` profile (see below).
 
 ### Running
@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Docker Compose (via Taskfile, from the repository root)
 The `docker-compose.yml` and `Taskfile.yml` now live at the **repository root** (moved out of `nomad/`);
-run `task` from the root. The root compose runs containerized monk3 (query API) and nomad (indexer)
+run `task` from the root. The root compose runs containerized monk (query API) and nomad (indexer)
 services under the `streaming` profile (see the repo-root `README.md`). The `nomad` service consumes the
 `documents` Kafka topic and indexes into the `documents` Solr collection on `solr1`, wired via
 `config/catalog-nomad.json` + `config/backends-nomad.json` and `INDEXER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`.
@@ -67,7 +67,7 @@ The pipeline is orchestrated in `IndexingStream.java:48-77`:
 ### Configuration Catalog System
 
 The catalog system is now **provided by the shared `:catalog` module** (`jd.nomad.config.catalog.*`,
-`jd.nomad.mapping.*`); nomad consumes the *same* configuration as monk3. The same `config/` files drive both
+`jd.nomad.mapping.*`); nomad consumes the *same* configuration as monk. The same `config/` files drive both
 apps (file- or etcd-backed, selected via `indexer.catalog.source`):
 
 - **Catalog** (`config/catalog.json`): per material type — `physical` mapping file, optional `virtual`, default `backend`, optional `routing`.

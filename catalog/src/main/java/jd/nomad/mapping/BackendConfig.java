@@ -16,7 +16,7 @@ public record BackendConfig(
         @JsonProperty String physical,
         @JsonProperty String virtual,
         @JsonProperty int defaultSize,
-        // Indexer-side connection details for clustered sinks; the query side (monk3) ignores these.
+        // Indexer-side connection details for clustered sinks; the query side (monk) ignores these.
         @JsonProperty String zk,
         @JsonProperty String chroot,
         @JsonProperty List<URI> hosts

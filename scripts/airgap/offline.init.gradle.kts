@@ -2,7 +2,7 @@
 // Artifactory instead of the public internet.
 //
 // Run via:
-//   ARTIFACTORY_MAVEN_URL="https://artifactory.internal/artifactory/monk3-offline-maven" \
+//   ARTIFACTORY_MAVEN_URL="https://artifactory.internal/artifactory/monk-offline-maven" \
 //     ./gradlew -I offline.init.gradle.kts build
 //
 // Do NOT pass --offline: the internal network (and therefore Artifactory) IS reachable;

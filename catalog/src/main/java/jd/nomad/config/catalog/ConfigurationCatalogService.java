@@ -37,7 +37,7 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
         updateListeners.add(callback);
     }
 
-    /** Mapping bound to a backend; used by the query side (monk3) which resolves a query to a backend. */
+    /** Mapping bound to a backend; used by the query side (monk) which resolves a query to a backend. */
     public SearchMapping mappingForBackend(String backend) {
         return Optional.ofNullable(snapshot.get().mappingsByBackend().get(backend))
                 .orElseThrow(() -> new IllegalStateException(
@@ -74,7 +74,7 @@ public class ConfigurationCatalogService implements CatalogUpdateSink {
         return rules != null ? rules : List.of();
     }
 
-    /** Optional filter (a monk3 DSL {@code QueryNode}) restricting results for a material type. */
+    /** Optional filter (a monk DSL {@code QueryNode}) restricting results for a material type. */
     public Optional<JsonNode> filterForMaterialType(String materialType) {
         return Optional.ofNullable(snapshot.get().filtersByMaterialType().get(materialType));
     }

@@ -15,22 +15,22 @@ The Compose tasks that start or build the stack — `compose:up`, `compose:build
 
 ### `jib:build`
 
-Builds the monk3 and nomad container images with [Quarkus Jib](https://quarkus.io/guides/container-image#jib)
+Builds the monk and nomad container images with [Quarkus Jib](https://quarkus.io/guides/container-image#jib)
 directly into the local Docker daemon (no Dockerfile). A running Docker daemon is required.
 
-- Default command: `./gradlew :monk3:build :nomad:build -Dquarkus.container-image.build=true -x test`
-- `PROJECTS` (default `:monk3:build :nomad:build`) — narrow to one image, e.g. `PROJECTS=':monk3:build'`.
+- Default command: `./gradlew :monk:build :nomad:build -Dquarkus.container-image.build=true -x test`
+- `PROJECTS` (default `:monk:build :nomad:build`) — narrow to one image, e.g. `PROJECTS=':monk:build'`.
 - `GRADLE_ARGS` (default `-x test`) — extra Gradle args; pass `GRADLE_ARGS=''` to also run tests.
-- Produces `monk3/monk3:latest` and `monk3/nomad:latest` (group/name/tag from each app's `application.yaml`).
+- Produces `monk/monk:latest` and `monk/nomad:latest` (group/name/tag from each app's `application.yaml`).
 
 ### `compose:up`
 
-Starts the Docker Compose stack. The `monk3` and `nomad` services run the Jib-built `monk3/monk3:latest`
-and `monk3/nomad:latest` images, so this task first builds them into the local Docker daemon
-(`task jib:build PROJECTS=':monk3:build :nomad:build'`) before `docker compose ... up`, ensuring Compose
+Starts the Docker Compose stack. The `monk` and `nomad` services run the Jib-built `monk/monk:latest`
+and `monk/nomad:latest` images, so this task first builds them into the local Docker daemon
+(`task jib:build PROJECTS=':monk:build :nomad:build'`) before `docker compose ... up`, ensuring Compose
 finds them locally instead of trying to pull them.
 
-- Default command: `./gradlew :monk3:build :nomad:build -Dquarkus.container-image.build=true -x test` then `docker compose --profile ... up -d`
+- Default command: `./gradlew :monk:build :nomad:build -Dquarkus.container-image.build=true -x test` then `docker compose --profile ... up -d`
 - Overrides: pass `DOCKER_ARGS` for flags like `--remove-orphans`.
 
 ### `compose:build`

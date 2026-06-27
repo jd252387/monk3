@@ -279,12 +279,12 @@ services:
       - data-platform
 
   # One-shot job that creates the `sample` Solr collection and Elasticsearch index on the
-  # in-compose backends and seeds the sample documents, so the monk3 query API has data to search.
-  monk3-init:
+  # in-compose backends and seeds the sample documents, so the monk query API has data to search.
+  monk-init:
     build:
       context: ./docker
       dockerfile: helper.Dockerfile
-    container_name: monk3-init
+    container_name: monk-init
     profiles: ["streaming"]
     command: /scripts/init.sh
     environment:
@@ -299,20 +299,20 @@ services:
     networks:
       - data-platform
 
-  # monk3 query API. Searches the in-compose Solr (solr1) and Elasticsearch (es01) backends,
+  # monk query API. Searches the in-compose Solr (solr1) and Elasticsearch (es01) backends,
   # wired via config/backends-nomad.json + config/catalog-docker.json (baked into the Jib image:
   # the catalog is read from the classpath, synced from the repo-root config/ at build time).
   # Image is built with Quarkus Jib (`task jib:build` / `task compose:up`), not pulled from a registry.
-  monk3:
-    image: monk3/monk3:latest
+  monk:
+    image: monk/monk:latest
     pull_policy: never
-    container_name: monk3
+    container_name: monk
     profiles: ["streaming"]
     depends_on:
-      monk3-init:
+      monk-init:
         condition: service_completed_successfully
     ports:
-      - "8090:8080" # 8080 is taken by kafka-ui; expose monk3 on host 8090
+      - "8090:8080" # 8080 is taken by kafka-ui; expose monk on host 8090
     environment:
       INDEXER_CATALOG_SOURCE: FILE
       INDEXER_CATALOG_FILE_CONFIG: config/catalog-docker.json
@@ -323,23 +323,23 @@ services:
 
   # nomad indexing pipeline. Consumes document change events from the in-compose Kafka (`documents`
   # topic, produced by documents-replicator when run with EVENT_DS=streaming) and indexes them into the
-  # in-compose Solr (solr1) `documents` collection that monk3-init creates. Wired via
+  # in-compose Solr (solr1) `documents` collection that monk-init creates. Wired via
   # config/catalog-nomad.json + config/backends-nomad.json (baked into the Jib image from the repo-root
-  # config/, read from the classpath). Like monk3, the image is built with Quarkus Jib (`task jib:build`
+  # config/, read from the classpath). Like monk, the image is built with Quarkus Jib (`task jib:build`
   # / `task compose:up`), not pulled from a registry.
   #
   # The `document` material type uses config/mappings/document.mapping.json, whose `default-datasource`
   # (kafka-inline) sourcing extracts fields from the event's inlineDocument. Override INDEXER_DATA_SOURCE
   # (e.g. s3-audio / mongo / rest) to fetch from another datasource instead.
   nomad:
-    image: monk3/nomad:latest
+    image: monk/nomad:latest
     pull_policy: never
     container_name: nomad
     profiles: ["streaming"]
     depends_on:
       kafka:
         condition: service_healthy
-      monk3-init:
+      monk-init:
         condition: service_completed_successfully
     environment:
       INDEXER_CATALOG_SOURCE: FILE

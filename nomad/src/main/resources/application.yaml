@@ -10,9 +10,9 @@ indexer:
     etcd:
       endpoints:
         - http://localhost:2379
-      catalog: /monk3/catalog
-      backends: /monk3/backends
-      datasources: /monk3/datasources
+      catalog: /monk/catalog
+      backends: /monk/backends
+      datasources: /monk/datasources
   kafka:
     topic: documents
     bootstrap-servers: localhost:29092
@@ -37,7 +37,7 @@ quarkus:
     enabled: false
   # Container image built with Quarkus Jib (`./gradlew :nomad:build -Dquarkus.container-image.build=true`).
   container-image:
-    group: monk3
+    group: monk
     name: nomad
     tag: latest
   jib:

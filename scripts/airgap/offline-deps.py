@@ -63,10 +63,10 @@ def load_config() -> Config:
         stage_dir=stage_dir,
         offline_repo_dir=stage_dir / "offline-repo",
         gradle_dist_dir=stage_dir / "gradle-dist",
-        output_zip=Path(_env("OUTPUT_ZIP", str(REPO_ROOT / f"monk3-offline-deps-{today}.zip"))),
+        output_zip=Path(_env("OUTPUT_ZIP", str(REPO_ROOT / f"monk-offline-deps-{today}.zip"))),
         artifactory_url=os.environ.get("ARTIFACTORY_URL", ""),
-        artifactory_maven_repo=_env("ARTIFACTORY_MAVEN_REPO", "monk3-offline-maven"),
-        artifactory_generic_repo=_env("ARTIFACTORY_GENERIC_REPO", "monk3-offline-generic"),
+        artifactory_maven_repo=_env("ARTIFACTORY_MAVEN_REPO", "monk-offline-maven"),
+        artifactory_generic_repo=_env("ARTIFACTORY_GENERIC_REPO", "monk-offline-generic"),
         artifactory_token=os.environ.get("ARTIFACTORY_TOKEN", ""),
         artifactory_user=os.environ.get("ARTIFACTORY_USER", ""),
         artifactory_password=os.environ.get("ARTIFACTORY_PASSWORD", ""),
@@ -189,7 +189,7 @@ def fetch_gradle_dist(cfg: Config) -> None:
 
 def write_readme(cfg: Config) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    readme = f"""# monk3 offline dependency bundle
+    readme = f"""# monk offline dependency bundle
 
 Generated {generated} for Gradle {cfg.gradle_version}.
 
@@ -205,7 +205,7 @@ Create two Artifactory repos: a **Maven** repo (e.g. `{cfg.artifactory_maven_rep
 
     export ARTIFACTORY_URL="https://artifactory.internal/artifactory"
     export ARTIFACTORY_TOKEN="<access-token>"
-    ./offline-deps.py upload .          # or: ./offline-deps.py upload monk3-offline-deps-<date>.zip
+    ./offline-deps.py upload .          # or: ./offline-deps.py upload monk-offline-deps-<date>.zip
 
 ## 2. Point the build at Artifactory
 
@@ -327,7 +327,7 @@ Environment (download):
   GRADLE_VERSION   Gradle version of the wrapper distribution (default: {cfg.gradle_version})
   OFFLINE_GUH      Isolated Gradle user home (default: {cfg.offline_guh})
   STAGE_DIR        Bundle staging dir (default: {cfg.stage_dir})
-  OUTPUT_ZIP       Output zip path (default: monk3-offline-deps-<date>.zip)
+  OUTPUT_ZIP       Output zip path (default: monk-offline-deps-<date>.zip)
 
 Environment (upload):
   ARTIFACTORY_URL          Base Artifactory URL, e.g. https://artifactory.internal/artifactory

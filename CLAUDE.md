@@ -8,26 +8,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build
 ./gradlew build
 
-# Run in dev mode (hot reload) — the app lives in the :monk3 subproject
-./gradlew :monk3:quarkusDev
+# Run in dev mode (hot reload) — the app lives in the :monk subproject
+./gradlew :monk:quarkusDev
 
 # Run all tests
 ./gradlew test
 
 # Run a single test class
-./gradlew :monk3:test --tests "com.monk3.QueryResourceTest"
+./gradlew :monk:test --tests "com.monk.QueryResourceTest"
 
 # Run a single test method
-./gradlew :monk3:test --tests "com.monk3.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
+./gradlew :monk:test --tests "com.monk.QueryResourceTest.parsesTextQueryToElasticsearchDslUsingConfiguredMapping"
 ```
 
 ## Architecture
 
-monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL and translates it into Elasticsearch or Solr query syntax, optionally executing searches across configured backends.
+monk is a Quarkus REST service (Java 25) that accepts a custom search query DSL and translates it into Elasticsearch or Solr query syntax, optionally executing searches across configured backends.
 
 ### Package layout
 
-`monk3` subproject (`com.monk3`) — the Quarkus application:
+`monk` subproject (`com.monk`) — the Quarkus application:
 
 | Package | Role |
 |---|---|
@@ -38,9 +38,9 @@ monk3 is a Quarkus REST service (Java 25) that accepts a custom search query DSL
 | `routing` | Query analysis and routing of material types to backends |
 | `search` | Query translation and search execution services |
 
-`catalog` subproject (`jd.nomad.*`): configuration catalog with hot reload — `config` (catalog datastores: `FileCatalogDatastore`, `EtcdCatalogDatastore`, `ConfigurationCatalogService`, `DatasourceDescriptor`), `mapping` (mapping/backend config records, `FieldType`, `SourceExpression`), `routing` (`RoutingRule` / `RoutingCondition`). It is shared by both `:monk3` (query side) and `:nomad` (indexing side).
+`catalog` subproject (`jd.nomad.*`): configuration catalog with hot reload — `config` (catalog datastores: `FileCatalogDatastore`, `EtcdCatalogDatastore`, `ConfigurationCatalogService`, `DatasourceDescriptor`), `mapping` (mapping/backend config records, `FieldType`, `SourceExpression`), `routing` (`RoutingRule` / `RoutingCondition`). It is shared by both `:monk` (query side) and `:nomad` (indexing side).
 
-`nomad` subproject (`jd.nomad.*`): a Kafka→Solr/Elasticsearch indexing pipeline (Quarkus + Apache Camel) that consumes the **same** catalog config as monk3. It adds indexer-only config the query side ignores (per-datasource sourcing, datasources, richer backend connection info). See `nomad/CLAUDE.md`.
+`nomad` subproject (`jd.nomad.*`): a Kafka→Solr/Elasticsearch indexing pipeline (Quarkus + Apache Camel) that consumes the **same** catalog config as monk. It adds indexer-only config the query side ignores (per-datasource sourcing, datasources, richer backend connection info). See `nomad/CLAUDE.md`.
 
 ### REST endpoints (`/queries`)
 
@@ -74,7 +74,7 @@ A field entry may also declare optional capability flags (`FieldCapabilities`, p
 
 The root `identifier` is used as the Solr `{!parent}` block mask (the `which` local param) for root-level nested queries: it is translated to engine JSON and referenced via a root-level `queries` block (`{!v=$root_identifier}`). Intermediate block joins instead derive their mask from the parent hierarchy's nest path (e.g. `_nest_path_:/chapters`). A root `identifier` is required whenever a Solr-backed mapping is queried with a subdocument node.
 
-Field entries may also carry **indexer-only** keys (parsed by the shared `CatalogSnapshotBuilder` but ignored by monk3): `sourcing` (per-datasource value extraction — a bare jq string, or an object with exactly one of `jq`/`jsonPointer` plus optional `partialUpdate`/`required`), and on subdocument fields `primaryKey` (per-datasource child-id extraction) and `partialUpdate` (per-datasource array op). The per-field maps fall back `<datasource>` → `default` → `*`. The nomad indexer also reads a `config/datasources.json` (selected via `indexer.catalog.file.datasources` / etcd `…datasources`) and the optional `BackendConfig` connection fields `zk` / `chroot` / `hosts` from `backends.json`. All of these are optional, so monk3 mappings/backends that omit them still validate. The mapping JSON Schema (`config/mappings/mappings.schema.json`) documents the optional keys.
+Field entries may also carry **indexer-only** keys (parsed by the shared `CatalogSnapshotBuilder` but ignored by monk): `sourcing` (per-datasource value extraction — a bare jq string, or an object with exactly one of `jq`/`jsonPointer` plus optional `partialUpdate`/`required`), and on subdocument fields `primaryKey` (per-datasource child-id extraction) and `partialUpdate` (per-datasource array op). The per-field maps fall back `<datasource>` → `default` → `*`. The nomad indexer also reads a `config/datasources.json` (selected via `indexer.catalog.file.datasources` / etcd `…datasources`) and the optional `BackendConfig` connection fields `zk` / `chroot` / `hosts` from `backends.json`. All of these are optional, so monk mappings/backends that omit them still validate. The mapping JSON Schema (`config/mappings/mappings.schema.json`) documents the optional keys.
 
 Virtual mapping files (`*.virtual.json`) declare virtual fields that expand to query templates (with a `{{data}}` placeholder) via `VirtualFieldExpander`; `predicate`-typed virtual fields take no data.
 

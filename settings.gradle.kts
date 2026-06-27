@@ -14,8 +14,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "monk3"
+rootProject.name = "monk"
 
 include("catalog")
-include("monk3")
+include("monk")
 include("nomad")

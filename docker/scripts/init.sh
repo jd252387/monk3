@@ -107,7 +107,7 @@ log "Documents indexed into Elasticsearch."
 # Optionally create additional (empty) SolrCloud collections used by other services in the stack
 # (the nomad indexer writes into the `documents` collection). EXTRA_COLLECTIONS is a comma-separated
 # list of collection names; the schemaless _default configSet lets nomad index without a fixed schema.
-# Left unset (as in the monk3-only docker/ stack) this block is skipped.
+# Left unset (as in the monk-only docker/ stack) this block is skipped.
 if [ -n "${EXTRA_COLLECTIONS:-}" ]; then
   echo ""
   echo "=== Creating extra SolrCloud collections ==="
