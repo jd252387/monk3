@@ -4,14 +4,14 @@ This repository ships with a [Taskfile](Taskfile.yml) at the repository root to 
 
 ## Docker Compose Tasks
 
-All Compose tasks support a common set of variables:
+The Compose tasks that start or build the stack — `compose:up`, `compose:build`, and `compose:rebuild` — support a common set of variables (`compose:down` ignores them):
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PROFILE` | _unset_ | Comma-separated list of profiles to enable. When omitted, the default is to include every profile from `PROFILES`. |
-| `ALL` | `false` | When set to `true`, the task includes every profile regardless of `PROFILE`. |
+| `PROFILE` | `streaming` | Comma-separated list of profiles to enable. Each name becomes a `docker compose --profile <name>` flag and is added to `REPLICATOR_ONLINE_DATA_SOURCES`. Available profiles: `streaming`, `mongo`, `s3`, `hbase`, `rest`. |
+| `ALL` | `false` | When set to `true`, the task includes every available profile (`streaming,mongo,s3,hbase,rest`), overriding `PROFILE`. |
 | `DOCKER_ARGS` | Task-specific | Extra arguments appended to the `docker compose` command. |
-| `EVENT_DS` | _unset_ | Optional data source name forwarded as `REPLICATOR_EVENT_DATA_SOURCE` for the documents replicator. When provided, the syncer publishes Kafka indexing events using the specified source. |
+| `EVENT_DS` | _unset_ | Optional data source name forwarded as `REPLICATOR_EVENT_DATA_SOURCE` for the documents replicator. When provided, the syncer publishes Kafka indexing events from the specified source; when unset, no event data source is configured. |
 
 ### `jib:build`
 
@@ -55,11 +55,59 @@ Stops the Docker Compose stack for all profiles.
 | --- | --- | --- |
 | `DOCKER_ARGS` | `--remove-orphans` | Extra flags added to `docker compose down`. |
 
-### Additional Notes
+### Selecting profiles and data sources (`PROFILE`, `ALL`, `EVENT_DS`)
 
-- When `PROFILE` is supplied, you can target a subset of services, e.g. `task compose:up -- PROFILE=streaming,mongo`.
-- Setting `ALL=true` forces all profiles to be included regardless of `PROFILE`, mirroring `docker compose --profile <all-profiles>`.
-- The special `event-datasource` flag controls whether the documents replicator emits Kafka events. For example: `task compose:up -- event-datasource=rest`.
+`PROFILE`, `ALL`, and `EVENT_DS` are honoured by every Compose task that starts or builds the stack — `compose:up`, `compose:build`, and `compose:rebuild` (`compose:down` ignores them and stops whatever is running). Internally these tasks expand to:
+
+```bash
+REPLICATOR_ONLINE_DATA_SOURCES=<profiles> [REPLICATOR_EVENT_DATA_SOURCE=<EVENT_DS>] \
+  docker compose [--profile <p1> --profile <p2> …] <command> <DOCKER_ARGS>
+```
+
+A profile name therefore does double duty: it is passed to Docker Compose as a `--profile` flag *and* listed in `REPLICATOR_ONLINE_DATA_SOURCES`, the set of data sources the documents replicator keeps online.
+
+#### `PROFILE`
+
+Comma-separated list of profiles to enable; defaults to `streaming` when unset. The available profiles are `streaming`, `mongo`, `s3`, `hbase`, and `rest`. Use commas with no surrounding spaces.
+
+```bash
+# Default: only the `streaming` profile
+task compose:up
+#   -> REPLICATOR_ONLINE_DATA_SOURCES=streaming docker compose --profile streaming up -d
+
+# A subset of profiles
+task compose:up PROFILE=streaming,mongo
+#   -> REPLICATOR_ONLINE_DATA_SOURCES=streaming,mongo \
+#        docker compose --profile streaming --profile mongo up -d
+```
+
+#### `ALL`
+
+When `true`, enables every available profile (`streaming,mongo,s3,hbase,rest`) and overrides whatever `PROFILE` is set to. Defaults to `false`.
+
+```bash
+# Every profile
+task compose:up ALL=true
+#   -> REPLICATOR_ONLINE_DATA_SOURCES=streaming,mongo,s3,hbase,rest \
+#        docker compose --profile streaming --profile mongo --profile s3 \
+#          --profile hbase --profile rest up -d
+
+# PROFILE is ignored when ALL=true
+task compose:up ALL=true PROFILE=mongo   # still enables all five profiles
+```
+
+#### `EVENT_DS`
+
+Names the single data source that should emit Kafka indexing events. When set, the command is prefixed with `REPLICATOR_EVENT_DATA_SOURCE=<value>`; when unset, no event data source is configured and the replicator emits no events. `EVENT_DS` is typically one of the profiles you enabled.
+
+```bash
+# Bring up streaming + rest, and have the `rest` data source publish indexing events
+task compose:up PROFILE=streaming,rest EVENT_DS=rest
+#   -> REPLICATOR_ONLINE_DATA_SOURCES=streaming,rest REPLICATOR_EVENT_DATA_SOURCE=rest \
+#        docker compose --profile streaming --profile rest up -d
+```
+
+> Pass these as plain `KEY=value` task variables (e.g. `task compose:up PROFILE=mongo`), not after a `--`. Add `--dry` to print the fully resolved `docker compose` command without running it.
 
 ## Kompose Conversion
 
@@ -100,6 +148,6 @@ task generate:document -- MAPPING=src/main/resources/mapping/document.yaml MULTI
 ## Tips
 
 - To inspect the exact command that will run, execute the task with `--dry` to print the resolved command without running it.
-- Combine multiple variable overrides as needed, e.g. `task compose:up -- PROFILE=streaming DOCKER_ARGS="--build" event-datasource=rest`.
-- `PROFILES` and `PROFILE_FLAGS` are typically left untouched; override them only when introducing new profiles or bespoke Compose workflows.
+- Combine multiple variable overrides as needed, e.g. `task compose:up PROFILE=streaming,rest EVENT_DS=rest DOCKER_ARGS="--build"`.
+- `AVAILABLE_PROFILES` (the master list `streaming,mongo,s3,hbase,rest` that `ALL=true` expands to) is typically left untouched; override it only when introducing new profiles.
 
