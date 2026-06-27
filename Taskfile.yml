@@ -103,11 +103,11 @@ tasks:
   generate:document:
     desc: Generate a sample document from a shared catalog JSON mapping file.
     vars:
-      # Shared catalog mappings live at the repository root; the Taskfile runs from nomad/.
-      MAPPING: '{{default "../config/mappings/document.mapping.json" .MAPPING}}'
+      # Shared catalog mappings live at the repository root; the Taskfile runs from the repo root.
+      MAPPING: '{{default "config/mappings/document.mapping.json" .MAPPING}}'
       MULTI: '{{default "false" .MULTI}}'
       EXCLUDE_MISSING: '{{default "false" .EXCLUDE_MISSING}}'
       DATASOURCE: '{{default "default-datasource" .DATASOURCE}}'
-      OUTPUT_DIR: '{{default "documents" .OUTPUT_DIR}}'
+      OUTPUT_DIR: '{{default "nomad/documents" .OUTPUT_DIR}}'
     cmds:
-      - python3 scripts/generate_document.py {{.MAPPING}} --output-dir {{.OUTPUT_DIR}} --datasource {{.DATASOURCE}} {{if eq (lower .MULTI) "true"}}--multi{{end}} {{if eq (lower .EXCLUDE_MISSING) "true"}}--exclude-missing{{end}}
+      - python3 nomad/scripts/generate_document.py {{.MAPPING}} --output-dir {{.OUTPUT_DIR}} --datasource {{.DATASOURCE}} {{if eq (lower .MULTI) "true"}}--multi{{end}} {{if eq (lower .EXCLUDE_MISSING) "true"}}--exclude-missing{{end}}

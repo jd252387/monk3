@@ -115,6 +115,34 @@ monk3/
 
 ## Running the stack with Docker
 
+### Full stack with a containerized monk3 (root `docker-compose.yml`)
+
+The repository-root [`docker-compose.yml`](docker-compose.yml) brings up the shared data-platform
+backends and a containerized **monk3** that searches them. It is profile-gated; the `streaming`
+profile (the default used by the [Taskfile](Taskfile.yml)) is the one that runs **both** Solr and
+Elasticsearch alongside monk3:
+
+```bash
+task compose:up                      # streaming profile (kafka, solr1, es01/es02, monk3, ...)
+# or, without go-task:
+docker compose --profile streaming up -d --build
+```
+
+This builds the monk3 image and starts, among others:
+
+- **Solr** (`solr1`, `:8983`) and **Elasticsearch** (`es01`/`es02`, `:9200`/`:9201`) search backends.
+- **monk3-init** — a one-shot job that creates the `sample` Solr collection and Elasticsearch index
+  on those backends and seeds the sample documents.
+- **monk3** — the query API on <http://localhost:8090> (Swagger UI at
+  <http://localhost:8090/q/swagger-ui>). It reads [`config/catalog-docker.json`](config/catalog-docker.json)
+  and [`config/backends-nomad.json`](config/backends-nomad.json) (mounted read-only), which point
+  `product` → Solr (`solr1`) and `product_elastic` → Elasticsearch (`es01`).
+
+Tear it down with `task compose:down`. Other profiles (`mongo`, `s3`, `hbase`, `rest`) bring up the
+indexing-side data sources; see [`TASKFILE.md`](TASKFILE.md).
+
+### monk3-only sample stack with monk3 on the host (`docker/docker-compose.yml`)
+
 [`docker/docker-compose.yml`](docker/docker-compose.yml) brings up the supporting services and seeds
 the configuration into etcd, which is what `application.yaml` reads from by default:
 

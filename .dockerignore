@@ -1,0 +1,15 @@
+# Trim the build context sent to the Docker daemon (the monk3 image copies only the
+# Gradle build definition plus catalog/, monk3/, and config/).
+.git
+**/.git
+**/build
+**/.gradle
+.gradle
+**/__pycache__
+**/*.pyc
+.idea
+**/*.iml
+**/.quarkus
+.vscode
+**/.vscode
+.DS_Store

@@ -21,12 +21,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Testing
 - `./gradlew :nomad:test` - Run unit tests (the test task sets `workingDir = rootDir` so `config/...` resolves)
 
-### Docker Compose (via Taskfile, from `nomad/`)
+### Docker Compose (via Taskfile, from the repository root)
+The `docker-compose.yml` and `Taskfile.yml` now live at the **repository root** (moved out of `nomad/`);
+run `task` from the root. The root compose also runs a containerized monk3 query API under the
+`streaming` profile (see the repo-root `README.md`).
 - `task compose:up` - Start Docker Compose stack (use `PROFILE=<profiles>` to specify profiles)
 - `task compose:down` - Stop Docker Compose stack
 - `task compose:rebuild` - Rebuild and restart stack
-- `task generate:document` - Generate a sample document from `../config/mappings/document.mapping.json`
-  (override with `MAPPING=...`, `MULTI=true`, `EXCLUDE_MISSING=true DATASOURCE=s3-audio`)
+- `task generate:document` - Generate a sample document from `config/mappings/document.mapping.json`
+  (override with `MAPPING=...`, `MULTI=true`, `EXCLUDE_MISSING=true DATASOURCE=s3-audio`); output
+  defaults to `nomad/documents`.
 
 The compose stack provides infrastructure (kafka/solr/es/mongo/minio/hbase/document-api/replicator); the
 indexer itself runs on the host via `quarkusDev` against the shared `config/`.

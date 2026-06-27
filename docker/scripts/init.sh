@@ -1,8 +1,10 @@
 #!/bin/bash
 set -uo pipefail
 
-SOLR_URL="http://solr:8983"
-ES_URL="http://elasticsearch:9200"
+# Backend hostnames default to the docker/ stack (solr/elasticsearch); the root compose stack
+# overrides these via env to target its services (solr1/es01).
+SOLR_URL="${SOLR_URL:-http://solr:8983}"
+ES_URL="${ES_URL:-http://elasticsearch:9200}"
 
 log() { echo "[init] $*"; }
 fail() { echo "[init] ERROR: $*"; exit 1; }

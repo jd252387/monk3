@@ -1,6 +1,6 @@
 # Taskfile Usage Guide
 
-This project ships with a [Taskfile](Taskfile.yml) to streamline common development workflows around Docker Compose, Kompose, and document utilities. The following sections describe the available tasks, the variables they accept, and how those variables influence behaviour.
+This repository ships with a [Taskfile](Taskfile.yml) at the repository root to streamline common development workflows around Docker Compose, Kompose, and document utilities. Run `task` from the repository root. The following sections describe the available tasks, the variables they accept, and how those variables influence behaviour.
 
 ## Docker Compose Tasks
 
@@ -74,7 +74,7 @@ Generates one or more example documents from a field mapping YAML file.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MAPPING` | _required_ | Path to the mapping YAML file. This is the only required variable for the task. |
-| `OUTPUT_DIR` | `documents` | Directory where generated JSON documents are written. Created automatically when missing. |
+| `OUTPUT_DIR` | `nomad/documents` | Directory where generated JSON documents are written. Created automatically when missing. |
 | `MULTI` | `false` | When `true`, creates multiple sample documents instead of a single output. |
 | `EXCLUDE_MISSING` | `false` | When `true`, omits fields that have no sample data in the mapping definitions. |
 
