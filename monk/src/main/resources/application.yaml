@@ -4,6 +4,23 @@ quarkus:
   swagger-ui:
     always-include: true
     theme: "flattop"
+    deep-linking: true
+    display-request-duration: true
+    default-models-expand-depth: 1
+    try-it-out-enabled: true
+    urls-primary-name: "monk API v1"
+  smallrye-openapi:
+    info-title: "Monk"
+    info-version: "1.0.0"
+    info-description: >
+      Translate and execute search queries using the **Monk DSL** across
+      Elasticsearch and Solr backends.
+
+      Submit a search request with material types and a query tree;
+      monk routes to the right backends, translates the DSL into
+      engine-native syntax, and merges results with normalized scores.
+    info-license-name: "Apache 2.0"
+    info-license-url: "https://www.apache.org/licenses/LICENSE-2.0"
   # Container image built with Quarkus Jib (no Dockerfile / Docker daemon needed at build assembly).
   container-image:
     group: monk
