@@ -1,6 +1,6 @@
 # Taskfile Usage Guide
 
-This project ships with a [Taskfile](Taskfile.yml) to streamline common development workflows around Docker Compose, Kompose, and document utilities. The following sections describe the available tasks, the variables they accept, and how those variables influence behaviour.
+This repository ships with a [Taskfile](Taskfile.yml) at the repository root to streamline common development workflows around Docker Compose, Kompose, and document utilities. Run `task` from the repository root. The following sections describe the available tasks, the variables they accept, and how those variables influence behaviour.
 
 ## Docker Compose Tasks
 
@@ -13,12 +13,24 @@ All Compose tasks support a common set of variables:
 | `DOCKER_ARGS` | Task-specific | Extra arguments appended to the `docker compose` command. |
 | `EVENT_DS` | _unset_ | Optional data source name forwarded as `REPLICATOR_EVENT_DATA_SOURCE` for the documents replicator. When provided, the syncer publishes Kafka indexing events using the specified source. |
 
+### `jib:build`
+
+Builds the monk3 and nomad container images with [Quarkus Jib](https://quarkus.io/guides/container-image#jib)
+directly into the local Docker daemon (no Dockerfile). A running Docker daemon is required.
+
+- Default command: `./gradlew :monk3:build :nomad:build -Dquarkus.container-image.build=true -x test`
+- `PROJECTS` (default `:monk3:build :nomad:build`) — narrow to one image, e.g. `PROJECTS=':monk3:build'`.
+- `GRADLE_ARGS` (default `-x test`) — extra Gradle args; pass `GRADLE_ARGS=''` to also run tests.
+- Produces `monk3/monk3:latest` and `monk3/nomad:latest` (group/name/tag from each app's `application.yaml`).
+
 ### `compose:up`
 
-Starts the Docker Compose stack.
+Starts the Docker Compose stack. The `monk3` service runs the Jib-built `monk3/monk3:latest` image,
+so this task first builds that image into the local Docker daemon (`task jib:build PROJECTS=':monk3:build'`)
+before `docker compose ... up`, ensuring Compose finds it locally instead of trying to pull it.
 
-- Default command: `docker compose --profile ... up -d`
-- Overrides: pass `DOCKER_ARGS` for flags like `--build` or `--remove-orphans`.
+- Default command: `./gradlew :monk3:build -Dquarkus.container-image.build=true -x test` then `docker compose --profile ... up -d`
+- Overrides: pass `DOCKER_ARGS` for flags like `--remove-orphans`.
 
 ### `compose:build`
 
@@ -74,7 +86,7 @@ Generates one or more example documents from a field mapping YAML file.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MAPPING` | _required_ | Path to the mapping YAML file. This is the only required variable for the task. |
-| `OUTPUT_DIR` | `documents` | Directory where generated JSON documents are written. Created automatically when missing. |
+| `OUTPUT_DIR` | `nomad/documents` | Directory where generated JSON documents are written. Created automatically when missing. |
 | `MULTI` | `false` | When `true`, creates multiple sample documents instead of a single output. |
 | `EXCLUDE_MISSING` | `false` | When `true`, omits fields that have no sample data in the mapping definitions. |
 

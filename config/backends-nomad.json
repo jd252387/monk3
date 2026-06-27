@@ -1,0 +1,20 @@
+{
+  "backends": {
+    "elastic-sample": {
+      "engine": "ELASTICSEARCH",
+      "url": "http://es01:9200",
+      "index": "sample",
+      "primaryKey": "id",
+      "physical": "config/mappings/sample.mapping.json",
+      "defaultSize": 10
+    },
+    "solr-sample": {
+      "engine": "SOLR",
+      "url": "http://solr1:8983/solr",
+      "collection": "sample",
+      "primaryKey": "id",
+      "physical": "config/mappings/sample.mapping.json",
+      "defaultSize": 20
+    }
+  }
+}

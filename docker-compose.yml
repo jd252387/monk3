@@ -233,17 +233,17 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      - ./config/hue/zz-hbase.ini:/usr/share/hue/desktop/conf/zz-hbase.ini:ro
+      - ./nomad/config/hue/zz-hbase.ini:/usr/share/hue/desktop/conf/zz-hbase.ini:ro
     networks:
       - data-platform
 
   document-api:
     build:
-      context: ./document-api
+      context: ./nomad/document-api
     container_name: document-api
     profiles: ["rest"]
     volumes:
-      - ./documents:/documents:ro
+      - ./nomad/documents:/documents:ro
     environment:
       DOCUMENTS_DIR: /documents
     ports:
@@ -253,11 +253,11 @@ services:
 
   documents-replicator:
     build:
-      context: ./document-sync
+      context: ./nomad/document-sync
     container_name: documents-replicator
     profiles: ["streaming", "rest", "mongo", "s3", "hbase"]
     volumes:
-      - ./documents:/documents:ro
+      - ./nomad/documents:/documents:ro
     environment:
       DOCUMENT_SOURCE_DIR: /documents
       REPLICATOR_ONLINE_DATA_SOURCES: ${REPLICATOR_ONLINE_DATA_SOURCES:-}
@@ -275,6 +275,47 @@ services:
       REPLICATOR_EVENT_DATA_SOURCE: ${REPLICATOR_EVENT_DATA_SOURCE:-}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: documents
+    networks:
+      - data-platform
+
+  # One-shot job that creates the `sample` Solr collection and Elasticsearch index on the
+  # in-compose backends and seeds the sample documents, so the monk3 query API has data to search.
+  monk3-init:
+    build:
+      context: ./docker
+      dockerfile: helper.Dockerfile
+    container_name: monk3-init
+    profiles: ["streaming"]
+    command: /scripts/init.sh
+    environment:
+      SOLR_URL: http://solr1:8983
+      ES_URL: http://es01:9200
+    # solr1/es01 declare no healthcheck; init.sh polls their readiness internally.
+    depends_on:
+      - solr1
+      - es01
+    networks:
+      - data-platform
+
+  # monk3 query API. Searches the in-compose Solr (solr1) and Elasticsearch (es01) backends,
+  # wired via config/backends-nomad.json + config/catalog-docker.json (baked into the Jib image:
+  # the catalog is read from the classpath, synced from the repo-root config/ at build time).
+  # Image is built with Quarkus Jib (`task jib:build` / `task compose:up`), not pulled from a registry.
+  monk3:
+    image: monk3/monk3:latest
+    pull_policy: never
+    container_name: monk3
+    profiles: ["streaming"]
+    depends_on:
+      monk3-init:
+        condition: service_completed_successfully
+    ports:
+      - "8090:8080" # 8080 is taken by kafka-ui; expose monk3 on host 8090
+    environment:
+      INDEXER_CATALOG_SOURCE: FILE
+      INDEXER_CATALOG_FILE_CONFIG: config/catalog-docker.json
+      INDEXER_CATALOG_FILE_BACKENDS: config/backends-nomad.json
+      INDEXER_CATALOG_FILE_DATASOURCES: config/datasources.json
     networks:
       - data-platform
 

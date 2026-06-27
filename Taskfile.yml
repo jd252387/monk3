@@ -37,6 +37,15 @@ tasks:
     cmds:
       - cmd: REPLICATOR_ONLINE_DATA_SOURCES={{.ACTIVE_PROFILE_FLAGS}} {{if .EVENT_DATASOURCE}}REPLICATOR_EVENT_DATA_SOURCE={{.EVENT_DATASOURCE}} {{end}}docker compose{{if .PROFILE_ARGS}} {{.PROFILE_ARGS}}{{end}} {{.COMMAND}} {{.DOCKER_ARGS}}
 
+  jib:build:
+    desc: Build the monk3 and nomad container images with Quarkus Jib into the local Docker daemon.
+    vars:
+      # Override e.g. PROJECTS=':monk3:build' to build a single image.
+      PROJECTS: '{{default ":monk3:build :nomad:build" .PROJECTS}}'
+      GRADLE_ARGS: '{{default "-x test" .GRADLE_ARGS}}'
+    cmds:
+      - ./gradlew {{.PROJECTS}} -Dquarkus.container-image.build=true {{.GRADLE_ARGS}}
+
   compose:up:
     desc: Start Docker Compose stack for selected data source profiles.
     vars:
@@ -44,6 +53,11 @@ tasks:
       PROFILE: '{{default "" .PROFILE}}'
       ALL: '{{default "false" .ALL}}'
     cmds:
+      # The monk3 service runs a Jib-built image (no build: section); build/load it before `up` so
+      # Compose finds it locally instead of trying to pull monk3/monk3:latest from a registry.
+      - task: jib:build
+        vars:
+          PROJECTS: ':monk3:build'
       - task: compose:_run
         vars:
           COMMAND: up
@@ -103,11 +117,11 @@ tasks:
   generate:document:
     desc: Generate a sample document from a shared catalog JSON mapping file.
     vars:
-      # Shared catalog mappings live at the repository root; the Taskfile runs from nomad/.
-      MAPPING: '{{default "../config/mappings/document.mapping.json" .MAPPING}}'
+      # Shared catalog mappings live at the repository root; the Taskfile runs from the repo root.
+      MAPPING: '{{default "config/mappings/document.mapping.json" .MAPPING}}'
       MULTI: '{{default "false" .MULTI}}'
       EXCLUDE_MISSING: '{{default "false" .EXCLUDE_MISSING}}'
       DATASOURCE: '{{default "default-datasource" .DATASOURCE}}'
-      OUTPUT_DIR: '{{default "documents" .OUTPUT_DIR}}'
+      OUTPUT_DIR: '{{default "nomad/documents" .OUTPUT_DIR}}'
     cmds:
-      - python3 scripts/generate_document.py {{.MAPPING}} --output-dir {{.OUTPUT_DIR}} --datasource {{.DATASOURCE}} {{if eq (lower .MULTI) "true"}}--multi{{end}} {{if eq (lower .EXCLUDE_MISSING) "true"}}--exclude-missing{{end}}
+      - python3 nomad/scripts/generate_document.py {{.MAPPING}} --output-dir {{.OUTPUT_DIR}} --datasource {{.DATASOURCE}} {{if eq (lower .MULTI) "true"}}--multi{{end}} {{if eq (lower .EXCLUDE_MISSING) "true"}}--exclude-missing{{end}}

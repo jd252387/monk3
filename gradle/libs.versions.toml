@@ -10,6 +10,7 @@ quarkus-rest = { module = "io.quarkus:quarkus-rest" }
 quarkus-rest-jackson = { module = "io.quarkus:quarkus-rest-jackson" }
 quarkus-hibernate-validator = { module = "io.quarkus:quarkus-hibernate-validator" }
 quarkus-smallrye-openapi = { module = "io.quarkus:quarkus-smallrye-openapi" }
+quarkus-container-image-jib = { module = "io.quarkus:quarkus-container-image-jib" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 quarkus-junit5 = { module = "io.quarkus:quarkus-junit5" }
 rest-assured = { module = "io.rest-assured:rest-assured" }
