@@ -53,11 +53,12 @@ tasks:
       PROFILE: '{{default "" .PROFILE}}'
       ALL: '{{default "false" .ALL}}'
     cmds:
-      # The monk3 service runs a Jib-built image (no build: section); build/load it before `up` so
-      # Compose finds it locally instead of trying to pull monk3/monk3:latest from a registry.
+      # The monk3 and nomad services run Jib-built images (no build: section); build/load them before
+      # `up` so Compose finds them locally instead of trying to pull monk3/{monk3,nomad}:latest from a
+      # registry.
       - task: jib:build
         vars:
-          PROJECTS: ':monk3:build'
+          PROJECTS: ':monk3:build :nomad:build'
       - task: compose:_run
         vars:
           COMMAND: up

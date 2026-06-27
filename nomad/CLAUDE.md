@@ -15,8 +15,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `./gradlew :nomad:build -Dquarkus.container-image.build=true` - Container image via Quarkus Jib
   (no Dockerfile) into the local Docker daemon, tagged `monk3/nomad:latest`. The image config lives in
   `nomad/src/main/resources/application.yaml` (`quarkus.container-image.*`, `quarkus.jib.base-jvm-image`
-  pinned to a Java 25 JRE). `task jib:build` builds both the nomad and monk3 images. nomad is not part
-  of the compose stack today; only its image is produced.
+  pinned to a Java 25 JRE). `task jib:build` builds both the nomad and monk3 images, and the root
+  compose runs nomad as a containerized service under the `streaming` profile (see below).
 
 ### Running
 - `./gradlew :nomad:quarkusDev` - Run in Quarkus dev mode with live reload. The indexer reads the **shared**
@@ -28,8 +28,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Docker Compose (via Taskfile, from the repository root)
 The `docker-compose.yml` and `Taskfile.yml` now live at the **repository root** (moved out of `nomad/`);
-run `task` from the root. The root compose also runs a containerized monk3 query API under the
-`streaming` profile (see the repo-root `README.md`).
+run `task` from the root. The root compose runs containerized monk3 (query API) and nomad (indexer)
+services under the `streaming` profile (see the repo-root `README.md`). The `nomad` service consumes the
+`documents` Kafka topic and indexes into the `documents` Solr collection on `solr1`, wired via
+`config/catalog-nomad.json` + `config/backends-nomad.json` and `INDEXER_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`.
 - `task compose:up` - Start Docker Compose stack (use `PROFILE=<profiles>` to specify profiles)
 - `task compose:down` - Stop Docker Compose stack
 - `task compose:rebuild` - Rebuild and restart stack
@@ -37,8 +39,10 @@ run `task` from the root. The root compose also runs a containerized monk3 query
   (override with `MAPPING=...`, `MULTI=true`, `EXCLUDE_MISSING=true DATASOURCE=s3-audio`); output
   defaults to `nomad/documents`.
 
-The compose stack provides infrastructure (kafka/solr/es/mongo/minio/hbase/document-api/replicator); the
-indexer itself runs on the host via `quarkusDev` against the shared `config/`.
+The compose stack provides infrastructure (kafka/solr/es/mongo/minio/hbase/document-api/replicator) and,
+under the `streaming` profile, a containerized `nomad` indexer. For iterative development you can instead
+run the indexer on the host via `quarkusDev` against the shared `config/` (point it at the compose Kafka
+and backends).
 
 ## Architecture Overview
 

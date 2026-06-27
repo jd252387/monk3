@@ -290,6 +290,8 @@ services:
     environment:
       SOLR_URL: http://solr1:8983
       ES_URL: http://es01:9200
+      # Also create the `documents` SolrCloud collection that the nomad indexer writes into.
+      EXTRA_COLLECTIONS: documents
     # solr1/es01 declare no healthcheck; init.sh polls their readiness internally.
     depends_on:
       - solr1
@@ -316,6 +318,37 @@ services:
       INDEXER_CATALOG_FILE_CONFIG: config/catalog-docker.json
       INDEXER_CATALOG_FILE_BACKENDS: config/backends-nomad.json
       INDEXER_CATALOG_FILE_DATASOURCES: config/datasources.json
+    networks:
+      - data-platform
+
+  # nomad indexing pipeline. Consumes document change events from the in-compose Kafka (`documents`
+  # topic, produced by documents-replicator when run with EVENT_DS=streaming) and indexes them into the
+  # in-compose Solr (solr1) `documents` collection that monk3-init creates. Wired via
+  # config/catalog-nomad.json + config/backends-nomad.json (baked into the Jib image from the repo-root
+  # config/, read from the classpath). Like monk3, the image is built with Quarkus Jib (`task jib:build`
+  # / `task compose:up`), not pulled from a registry.
+  #
+  # The `document` material type uses config/mappings/document.mapping.json, whose `default-datasource`
+  # (kafka-inline) sourcing extracts fields from the event's inlineDocument. Override INDEXER_DATA_SOURCE
+  # (e.g. s3-audio / mongo / rest) to fetch from another datasource instead.
+  nomad:
+    image: monk3/nomad:latest
+    pull_policy: never
+    container_name: nomad
+    profiles: ["streaming"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      monk3-init:
+        condition: service_completed_successfully
+    environment:
+      INDEXER_CATALOG_SOURCE: FILE
+      INDEXER_CATALOG_FILE_CONFIG: config/catalog-nomad.json
+      INDEXER_CATALOG_FILE_BACKENDS: config/backends-nomad.json
+      INDEXER_CATALOG_FILE_DATASOURCES: config/datasources.json
+      INDEXER_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INDEXER_MATERIAL_TYPE: document
+      INDEXER_DATA_SOURCE: default-datasource
     networks:
       - data-platform
 

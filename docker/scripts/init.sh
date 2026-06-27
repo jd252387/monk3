@@ -104,5 +104,25 @@ ES_BULK_RESP=$(curl -s -X POST "${ES_URL}/_bulk" \
 echo "$ES_BULK_RESP" | jq '.errors'
 log "Documents indexed into Elasticsearch."
 
+# Optionally create additional (empty) SolrCloud collections used by other services in the stack
+# (the nomad indexer writes into the `documents` collection). EXTRA_COLLECTIONS is a comma-separated
+# list of collection names; the schemaless _default configSet lets nomad index without a fixed schema.
+# Left unset (as in the monk3-only docker/ stack) this block is skipped.
+if [ -n "${EXTRA_COLLECTIONS:-}" ]; then
+  echo ""
+  echo "=== Creating extra SolrCloud collections ==="
+  IFS=',' read -ra extra_collections <<< "${EXTRA_COLLECTIONS}"
+  for collection in "${extra_collections[@]}"; do
+    collection="$(echo "$collection" | xargs)"
+    [ -z "$collection" ] && continue
+    EXTRA_RESP=$(curl -s "${SOLR_URL}/solr/admin/collections?action=CREATE&name=${collection}&numShards=1&replicationFactor=1&configSet=/opt/solr/server/solr/configsets/_default")
+    if echo "$EXTRA_RESP" | jq -e '.responseHeader.status == 0' > /dev/null 2>&1; then
+      log "SolrCloud collection '${collection}' created."
+    else
+      log "Collection '${collection}' may already exist, continuing..."
+    fi
+  done
+fi
+
 echo ""
 echo "=== Initialization complete ==="
