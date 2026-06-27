@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.search.AggregationContext;
 import com.monk3.search.AggregationContext.NestedDomain;
+import com.monk3.search.QueryParseContext;
 import com.monk3.search.SearchEngine;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -49,7 +50,7 @@ public record NestedAggregation(
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "query");
         // Scope the changed domain to this nest level; blockChildren alone returns all descendants.
-        facet.put("q", "_nest_path_:/" + domain.nestPath());
+        facet.put("q", QueryParseContext.SOLR_NEST_PATH_FIELD + ":/" + domain.nestPath());
         facet.putObject("domain").put("blockChildren", domain.blockMask());
         facet.set("facet", domain.context().translateChildren(SearchEngine.SOLR, subAggregations));
         return facet;

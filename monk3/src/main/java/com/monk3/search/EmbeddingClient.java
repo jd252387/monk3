@@ -1,7 +1,6 @@
 package com.monk3.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.mapping.EmbeddingConfig;
@@ -10,9 +9,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 
 /**
  * Calls the external embedding API to turn free text into a dense vector. The API accepts
@@ -22,33 +18,30 @@ import java.net.http.HttpResponse;
 @ApplicationScoped
 @RequiredArgsConstructor
 public class EmbeddingClient {
-    private static final String CONTENT_TYPE = "Content-Type";
-    private static final String APPLICATION_JSON = "application/json";
-
     private final EmbeddingConfig config;
-    private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final JsonHttpClient jsonHttpClient;
 
     /** Returns the {@code embedding_vector} array node for the given text, or throws on any failure. */
     public JsonNode embed(String text) {
         ObjectNode body = JsonNodeFactory.instance.objectNode();
         body.putArray("texts").add(text);
-        try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(config.url()))
-                    .header(CONTENT_TYPE, APPLICATION_JSON)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(objectMapper.writeValueAsBytes(body)))
-                    .build();
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new QueryTranslationException("Embedding API returned HTTP " + response.statusCode());
+        JsonNode response = jsonHttpClient.post(URI.create(config.url()), body, new JsonHttpClient.Errors() {
+            @Override
+            public RuntimeException status(int statusCode, String responseBody) {
+                return new QueryTranslationException("Embedding API returned HTTP " + statusCode);
             }
-            return extractVector(objectMapper.readTree(response.body()));
-        } catch (IOException exception) {
-            throw new QueryTranslationException("Embedding API could not be reached or returned invalid JSON", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new QueryTranslationException("Embedding API request was interrupted", exception);
-        }
+
+            @Override
+            public RuntimeException io(IOException cause) {
+                return new QueryTranslationException("Embedding API could not be reached or returned invalid JSON", cause);
+            }
+
+            @Override
+            public RuntimeException interrupted(InterruptedException cause) {
+                return new QueryTranslationException("Embedding API request was interrupted", cause);
+            }
+        });
+        return extractVector(response);
     }
 
     private static JsonNode extractVector(JsonNode root) {

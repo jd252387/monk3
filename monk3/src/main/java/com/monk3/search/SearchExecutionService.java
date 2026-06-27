@@ -2,7 +2,6 @@ package com.monk3.search;
 
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -22,9 +21,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -41,14 +37,11 @@ import java.util.stream.StreamSupport;
 @ApplicationScoped
 @RequiredArgsConstructor
 public class SearchExecutionService {
-    private static final String CONTENT_TYPE = "Content-Type";
-    private static final String APPLICATION_JSON = "application/json";
     private static final JsonPointer ELASTICSEARCH_MAX_SCORE_PATH = JsonPointer.compile("/hits/max_score");
 
-    private final ObjectMapper objectMapper;
     private final QueryTranslationService queryTranslationService;
     private final ConfigurationCatalogService catalogService;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final JsonHttpClient jsonHttpClient;
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
         List<BackendSearchResult> backendResults = executeBackendSearches(request);
@@ -187,23 +180,23 @@ public class SearchExecutionService {
     }
 
     private JsonNode postJson(String backendName, URI uri, JsonNode body) {
-        try {
-            HttpRequest request = HttpRequest.newBuilder(uri)
-                    .header(CONTENT_TYPE, APPLICATION_JSON)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(objectMapper.writeValueAsBytes(body)))
-                    .build();
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new SearchExecutionException(
-                        "Search backend '" + backendName + "' returned HTTP " + response.statusCode() + " - " + new String(response.body()));
+        return jsonHttpClient.post(uri, body, new JsonHttpClient.Errors() {
+            @Override
+            public RuntimeException status(int statusCode, String responseBody) {
+                return new SearchExecutionException(
+                        "Search backend '" + backendName + "' returned HTTP " + statusCode + " - " + responseBody);
             }
-            return objectMapper.readTree(response.body());
-        } catch (IOException exception) {
-            throw new SearchExecutionException("Search backend '" + backendName + "' returned invalid JSON", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new SearchExecutionException("Search backend '" + backendName + "' request was interrupted", exception);
-        }
+
+            @Override
+            public RuntimeException io(IOException cause) {
+                return new SearchExecutionException("Search backend '" + backendName + "' returned invalid JSON", cause);
+            }
+
+            @Override
+            public RuntimeException interrupted(InterruptedException cause) {
+                return new SearchExecutionException("Search backend '" + backendName + "' request was interrupted", cause);
+            }
+        });
     }
 
     private List<SearchResult> parseResponse(

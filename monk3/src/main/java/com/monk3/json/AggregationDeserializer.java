@@ -8,16 +8,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.monk3.model.Aggregation;
-import com.monk3.model.AvgAggregation;
 import com.monk3.model.FilterAggregation;
-import com.monk3.model.MaxAggregation;
-import com.monk3.model.MinAggregation;
+import com.monk3.model.MetricAggregation;
 import com.monk3.model.NestedAggregation;
 import com.monk3.model.QueryNode;
 import com.monk3.model.QueryPayload;
 import com.monk3.model.RangeAggregation;
 import com.monk3.model.SubfacetsAggregation;
-import com.monk3.model.SumAggregation;
 import com.monk3.model.TermsAggregation;
 import com.monk3.model.UniqueAggregation;
 
@@ -74,22 +71,10 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
                 rejectSubAggregations(parser, subAggregations, aggType);
                 yield readUnique(parser, args);
             }
-            case "sum" -> {
-                rejectSubAggregations(parser, subAggregations, aggType);
-                yield new SumAggregation(readMetricField(parser, args, "sum aggregation"));
-            }
-            case "avg" -> {
-                rejectSubAggregations(parser, subAggregations, aggType);
-                yield new AvgAggregation(readMetricField(parser, args, "avg aggregation"));
-            }
-            case "min" -> {
-                rejectSubAggregations(parser, subAggregations, aggType);
-                yield new MinAggregation(readMetricField(parser, args, "min aggregation"));
-            }
-            case "max" -> {
-                rejectSubAggregations(parser, subAggregations, aggType);
-                yield new MaxAggregation(readMetricField(parser, args, "max aggregation"));
-            }
+            case "sum" -> readMetric(MetricAggregation.Metric.SUM, parser, args, subAggregations);
+            case "avg" -> readMetric(MetricAggregation.Metric.AVG, parser, args, subAggregations);
+            case "min" -> readMetric(MetricAggregation.Metric.MIN, parser, args, subAggregations);
+            case "max" -> readMetric(MetricAggregation.Metric.MAX, parser, args, subAggregations);
             default -> throw MismatchedInputException.from(parser, Object.class, unsupportedTypeMessage(aggType));
         };
     }
@@ -143,6 +128,13 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static UniqueAggregation readUnique(JsonParser parser, JsonNode args) throws JsonMappingException {
         rejectUnknownFields(parser, args, UNIQUE_ARGS, "unique aggregation");
         return new UniqueAggregation(readRequiredField(parser, args));
+    }
+
+    private static MetricAggregation readMetric(
+            MetricAggregation.Metric metric, JsonParser parser, JsonNode args, Map<String, Aggregation> subAggregations)
+            throws JsonMappingException {
+        rejectSubAggregations(parser, subAggregations, metric.aggType());
+        return new MetricAggregation(metric, readMetricField(parser, args, metric.aggType() + " aggregation"));
     }
 
     private static String readMetricField(JsonParser parser, JsonNode args, String aggregation)
