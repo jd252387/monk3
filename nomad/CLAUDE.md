@@ -12,6 +12,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Building (from the repository root)
 - `./gradlew :nomad:build` - Full build with tests
 - `./gradlew :nomad:build -Dquarkus.native.enabled=true` - Native executable build (requires GraalVM)
+- `./gradlew :nomad:build -Dquarkus.container-image.build=true` - Container image via Quarkus Jib
+  (no Dockerfile) into the local Docker daemon, tagged `monk3/nomad:latest`. The image config lives in
+  `nomad/src/main/resources/application.yaml` (`quarkus.container-image.*`, `quarkus.jib.base-jvm-image`
+  pinned to a Java 25 JRE). `task jib:build` builds both the nomad and monk3 images. nomad is not part
+  of the compose stack today; only its image is produced.
 
 ### Running
 - `./gradlew :nomad:quarkusDev` - Run in Quarkus dev mode with live reload. The indexer reads the **shared**

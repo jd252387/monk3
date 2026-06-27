@@ -24,6 +24,7 @@ dependencies {
     implementation(libs.quarkus.rest.jackson)
     implementation(libs.quarkus.hibernate.validator)
     implementation(libs.quarkus.smallrye.openapi)
+    implementation(libs.quarkus.container.image.jib)
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
 

@@ -35,3 +35,12 @@ quarkus:
     instrumentation: true
   devservices:
     enabled: false
+  # Container image built with Quarkus Jib (`./gradlew :nomad:build -Dquarkus.container-image.build=true`).
+  container-image:
+    group: monk3
+    name: nomad
+    tag: latest
+  jib:
+    # The app is compiled to Java 25 bytecode, so the runtime base image must ship a Java 25 JRE
+    # (Quarkus' default UBI base image is Java 21).
+    base-jvm-image: eclipse-temurin:25-jre

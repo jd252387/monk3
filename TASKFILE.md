@@ -13,12 +13,24 @@ All Compose tasks support a common set of variables:
 | `DOCKER_ARGS` | Task-specific | Extra arguments appended to the `docker compose` command. |
 | `EVENT_DS` | _unset_ | Optional data source name forwarded as `REPLICATOR_EVENT_DATA_SOURCE` for the documents replicator. When provided, the syncer publishes Kafka indexing events using the specified source. |
 
+### `jib:build`
+
+Builds the monk3 and nomad container images with [Quarkus Jib](https://quarkus.io/guides/container-image#jib)
+directly into the local Docker daemon (no Dockerfile). A running Docker daemon is required.
+
+- Default command: `./gradlew :monk3:build :nomad:build -Dquarkus.container-image.build=true -x test`
+- `PROJECTS` (default `:monk3:build :nomad:build`) — narrow to one image, e.g. `PROJECTS=':monk3:build'`.
+- `GRADLE_ARGS` (default `-x test`) — extra Gradle args; pass `GRADLE_ARGS=''` to also run tests.
+- Produces `monk3/monk3:latest` and `monk3/nomad:latest` (group/name/tag from each app's `application.yaml`).
+
 ### `compose:up`
 
-Starts the Docker Compose stack.
+Starts the Docker Compose stack. The `monk3` service runs the Jib-built `monk3/monk3:latest` image,
+so this task first builds that image into the local Docker daemon (`task jib:build PROJECTS=':monk3:build'`)
+before `docker compose ... up`, ensuring Compose finds it locally instead of trying to pull it.
 
-- Default command: `docker compose --profile ... up -d`
-- Overrides: pass `DOCKER_ARGS` for flags like `--build` or `--remove-orphans`.
+- Default command: `./gradlew :monk3:build -Dquarkus.container-image.build=true -x test` then `docker compose --profile ... up -d`
+- Overrides: pass `DOCKER_ARGS` for flags like `--remove-orphans`.
 
 ### `compose:build`
 

@@ -298,11 +298,12 @@ services:
       - data-platform
 
   # monk3 query API. Searches the in-compose Solr (solr1) and Elasticsearch (es01) backends,
-  # wired via config/backends-nomad.json + config/catalog-docker.json (mounted read-only).
+  # wired via config/backends-nomad.json + config/catalog-docker.json (baked into the Jib image:
+  # the catalog is read from the classpath, synced from the repo-root config/ at build time).
+  # Image is built with Quarkus Jib (`task jib:build` / `task compose:up`), not pulled from a registry.
   monk3:
-    build:
-      context: .
-      dockerfile: monk3/Dockerfile
+    image: monk3/monk3:latest
+    pull_policy: never
     container_name: monk3
     profiles: ["streaming"]
     depends_on:
@@ -315,8 +316,6 @@ services:
       INDEXER_CATALOG_FILE_CONFIG: config/catalog-docker.json
       INDEXER_CATALOG_FILE_BACKENDS: config/backends-nomad.json
       INDEXER_CATALOG_FILE_DATASOURCES: config/datasources.json
-    volumes:
-      - ./config:/work/config:ro
     networks:
       - data-platform
 

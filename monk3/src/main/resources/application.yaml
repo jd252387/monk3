@@ -3,6 +3,15 @@ quarkus:
     port: 8080
   swagger-ui:
     always-include: true
+  # Container image built with Quarkus Jib (no Dockerfile / Docker daemon needed at build assembly).
+  container-image:
+    group: monk3
+    name: monk3
+    tag: latest
+  jib:
+    # The app is compiled to Java 25 bytecode, so the runtime base image must ship a Java 25 JRE
+    # (Quarkus' default UBI base image is Java 21).
+    base-jvm-image: eclipse-temurin:25-jre
 
 indexer:
   catalog:
