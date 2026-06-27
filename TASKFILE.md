@@ -25,11 +25,12 @@ directly into the local Docker daemon (no Dockerfile). A running Docker daemon i
 
 ### `compose:up`
 
-Starts the Docker Compose stack. The `monk3` service runs the Jib-built `monk3/monk3:latest` image,
-so this task first builds that image into the local Docker daemon (`task jib:build PROJECTS=':monk3:build'`)
-before `docker compose ... up`, ensuring Compose finds it locally instead of trying to pull it.
+Starts the Docker Compose stack. The `monk3` and `nomad` services run the Jib-built `monk3/monk3:latest`
+and `monk3/nomad:latest` images, so this task first builds them into the local Docker daemon
+(`task jib:build PROJECTS=':monk3:build :nomad:build'`) before `docker compose ... up`, ensuring Compose
+finds them locally instead of trying to pull them.
 
-- Default command: `./gradlew :monk3:build -Dquarkus.container-image.build=true -x test` then `docker compose --profile ... up -d`
+- Default command: `./gradlew :monk3:build :nomad:build -Dquarkus.container-image.build=true -x test` then `docker compose --profile ... up -d`
 - Overrides: pass `DOCKER_ARGS` for flags like `--remove-orphans`.
 
 ### `compose:build`

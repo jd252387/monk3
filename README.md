@@ -135,16 +135,24 @@ This starts, among others:
 
 - **Solr** (`solr1`, `:8983`) and **Elasticsearch** (`es01`/`es02`, `:9200`/`:9201`) search backends.
 - **monk3-init** — a one-shot job that creates the `sample` Solr collection and Elasticsearch index
-  on those backends and seeds the sample documents.
+  on those backends and seeds the sample documents. It also creates the empty `documents` Solr
+  collection that the nomad indexer writes into.
 - **monk3** — the query API on <http://localhost:8090> (Swagger UI at
   <http://localhost:8090/q/swagger-ui>). It reads [`config/catalog-docker.json`](config/catalog-docker.json)
   and [`config/backends-nomad.json`](config/backends-nomad.json) (baked into the Jib image from the
   repo-root `config/`), which point `product` → Solr (`solr1`) and `product_elastic` →
   Elasticsearch (`es01`).
+- **nomad** — the Kafka→Solr indexing pipeline. It consumes the `documents` Kafka topic and indexes
+  into the `documents` Solr collection on `solr1`, reading [`config/catalog-nomad.json`](config/catalog-nomad.json)
+  and [`config/backends-nomad.json`](config/backends-nomad.json) (baked into the Jib image like monk3).
+  The `documents-replicator` publishes Kafka events only when run with `EVENT_DS=streaming`
+  (`task compose:up EVENT_DS=streaming`), with each event carrying the document inline for the
+  `default-datasource` (kafka-inline) source; generate sample documents into `nomad/documents/` with
+  `task generate:document`.
 
 Tear it down with `task compose:down`. Other profiles (`mongo`, `s3`, `hbase`, `rest`) bring up the
-indexing-side data sources; see [`TASKFILE.md`](TASKFILE.md). The nomad indexer image is built the
-same way — `task jib:build` builds both the monk3 and nomad images.
+indexing-side data sources; see [`TASKFILE.md`](TASKFILE.md). Both the monk3 and nomad images are
+built by `task jib:build` (run automatically by `task compose:up`).
 
 ### monk3-only sample stack with monk3 on the host (`docker/docker-compose.yml`)
 
