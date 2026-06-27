@@ -24,9 +24,6 @@ import org.apache.commons.vfs2.impl.DefaultFileMonitor;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -78,7 +75,7 @@ public class FileCatalogDatastore implements CatalogDatastore {
         });
         monitor.setRecursive(false);
         for (String uri : refs) {
-            monitor.addFile(fileSystemManager.resolveFile(uri));
+            monitor.addFile(resolveFile(uri));
         }
         watchedUris.addAll(refs);
         monitor.start();
@@ -116,7 +113,7 @@ public class FileCatalogDatastore implements CatalogDatastore {
         String configPath = indexerConfig.catalog().file().config()
                 .orElseThrow(() -> new IllegalStateException(
                         "indexer.catalog.file.config must be set when indexer.catalog.source=FILE"));
-        outRefs.add(resolveLocation(configPath));
+        outRefs.add(configPath);
         JsonNode configNode = readJson(configPath);
         CatalogConfig catalogConfig = objectMapper.treeToValue(configNode, CatalogConfig.class);
 
@@ -144,7 +141,7 @@ public class FileCatalogDatastore implements CatalogDatastore {
         Map<String, BackendConfig> backends = Map.of();
         if (indexerConfig.catalog().file().backends().isPresent()) {
             String backendsPath = indexerConfig.catalog().file().backends().get();
-            outRefs.add(resolveLocation(backendsPath));
+            outRefs.add(backendsPath);
             backends = readBackends(backendsPath);
         }
 
@@ -159,10 +156,10 @@ public class FileCatalogDatastore implements CatalogDatastore {
                 continue;
             }
             String label = materialTypeByBackend.getOrDefault(backendName, backendName);
-            outRefs.add(resolveLocation(backend.physical()));
+            outRefs.add(backend.physical());
             mappingsByBackend.put(backendName, snapshotBuilder.parseMapping(label, readJson(backend.physical())));
             if (backend.virtual() != null && !backend.virtual().isBlank()) {
-                outRefs.add(resolveLocation(backend.virtual()));
+                outRefs.add(backend.virtual());
                 virtualMappingsByBackend.put(backendName, snapshotBuilder.parseVirtualMapping(label, readJson(backend.virtual())));
             }
         }
@@ -177,7 +174,7 @@ public class FileCatalogDatastore implements CatalogDatastore {
         Map<String, DatasourceDescriptor> datasources = Map.of();
         if (indexerConfig.catalog().file().datasources().isPresent()) {
             String datasourcesPath = indexerConfig.catalog().file().datasources().get();
-            outRefs.add(resolveLocation(datasourcesPath));
+            outRefs.add(datasourcesPath);
             datasources = snapshotBuilder.parseDatasources(readJson(datasourcesPath));
         }
 
@@ -194,12 +191,12 @@ public class FileCatalogDatastore implements CatalogDatastore {
     private void reconcileWatchedFiles(Set<String> newRefs) throws FileSystemException {
         for (String uri : newRefs) {
             if (!watchedUris.contains(uri)) {
-                monitor.addFile(fileSystemManager.resolveFile(uri));
+                monitor.addFile(resolveFile(uri));
             }
         }
         for (String uri : List.copyOf(watchedUris)) {
             if (!newRefs.contains(uri)) {
-                monitor.removeFile(fileSystemManager.resolveFile(uri));
+                monitor.removeFile(resolveFile(uri));
             }
         }
         watchedUris.clear();
@@ -207,7 +204,7 @@ public class FileCatalogDatastore implements CatalogDatastore {
     }
 
     private Map<String, BackendConfig> readBackends(String location) throws IOException {
-        FileObject file = fileSystemManager.resolveFile(resolveLocation(location));
+        FileObject file = resolveFile(location);
         try (InputStream stream = file.getContent().getInputStream()) {
             BackendsFile parsed = objectMapper.readValue(stream, BackendsFile.class);
             return Map.copyOf(parsed.backends());
@@ -215,60 +212,22 @@ public class FileCatalogDatastore implements CatalogDatastore {
     }
 
     private JsonNode readJson(String location) throws IOException {
-        FileObject file = fileSystemManager.resolveFile(resolveLocation(location));
+        FileObject file = resolveFile(location);
         try (InputStream stream = file.getContent().getInputStream()) {
             return objectMapper.readTree(stream);
         }
     }
 
     /**
-     * Resolves a configured location to a VFS-resolvable URI. Locations carrying an explicit scheme (e.g.
-     * {@code file:}, {@code http:}) and absolute filesystem paths are used as-is. A relative path is resolved
-     * against the classpath rather than the JVM working directory: the shared {@code config/} tree is synced
-     * into each app's resources, so {@code config/catalog.json} loads from the classpath in dev and packaged
-     * runtimes alike.
+     * Resolves a catalog config location to a VFS {@link FileObject}. The catalog supplies plain
+     * filesystem paths (often relative, e.g. {@code ./config/catalog.json}), but VFS2's
+     * {@code resolveFile(String)} parses its argument as a URI and rejects relative paths. Normalizing
+     * to an absolute {@code file:} URI first keeps both the initial load and the monitor watch set valid.
      */
-    private static String resolveLocation(String location) {
-        if (hasScheme(location)) {
-            return location;
-        }
-        Path path = Paths.get(location);
-        if (path.isAbsolute()) {
-            return path.toUri().toString();
-        }
-        return resolveClasspathLocation(location);
+    private FileObject resolveFile(String location) throws FileSystemException {
+        return fileSystemManager.resolveFile(Paths.get(location).toAbsolutePath().normalize().toUri().toString());
     }
 
-    private static String resolveClasspathLocation(String location) {
-        String resourceName = location.startsWith("./") ? location.substring(2) : location;
-        ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-        URL resource = contextClassLoader != null ? contextClassLoader.getResource(resourceName) : null;
-        if (resource == null) {
-            resource = FileCatalogDatastore.class.getClassLoader().getResource(resourceName);
-        }
-        if (resource == null) {
-            throw new IllegalStateException("Catalog resource not found on classpath: " + location);
-        }
-        try {
-            return resource.toURI().toString();
-        } catch (URISyntaxException e) {
-            return resource.toString();
-        }
-    }
-
-    private static boolean hasScheme(String location) {
-        int colon = location.indexOf(':');
-        if (colon <= 0) {
-            return false;
-        }
-        for (int i = 0; i < colon; i++) {
-            char c = location.charAt(i);
-            if (!Character.isLetterOrDigit(c) && c != '+' && c != '-' && c != '.') {
-                return false;
-            }
-        }
-        return true;
-    }
 
     private record BackendsFile(Map<String, BackendConfig> backends) {}
 }

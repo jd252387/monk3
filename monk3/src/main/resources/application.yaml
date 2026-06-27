@@ -3,6 +3,7 @@ quarkus:
     port: 8080
   swagger-ui:
     always-include: true
+    theme: "flattop"
   # Container image built with Quarkus Jib (no Dockerfile / Docker daemon needed at build assembly).
   container-image:
     group: monk3

@@ -1,7 +1,7 @@
 {
   "mappings": {
-    "book": {
-      "backend": "solr-books",
+    "sample": {
+      "backend": "solr-sample",
       "filter": {
         "field": "materialType",
         "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "book" }] }
@@ -9,26 +9,11 @@
       "routing": [
         {
           "conditions": [
-            { "type": "datetimeRangeWithin", "field": "publishedAt", "period": "P30D" }
+            { "type": "datetimeRangeWithin", "field": "year", "period": "P30D" }
           ],
-          "backend": "solr-books"
+          "backend": "elastic-sample"
         }
       ]
-    },
-    "article": {
-      "backend": "solr-articles",
-      "filter": {
-        "field": "materialType",
-        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "article" }] }
-      }
-    },
-    "ds": {
-      "backend": "elastic-datasets",
-      "filter": {
-        "field": "materialType",
-        "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "ds" }] }
-      }
-    },
-    "document": { "backend": "solr-collection-text" }
+    }
   }
 }

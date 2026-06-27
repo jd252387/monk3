@@ -1,7 +1,0 @@
-{
-  "mappings": {
-    "document": {
-      "backend": "solr-documents"
-    }
-  }
-}

@@ -5,10 +5,6 @@ bin/
 out/
 target/
 
-# Shared config synced into subproject resources for local runs (see */build.gradle* syncConfig)
-monk3/src/main/resources/config/
-nomad/src/main/resources/config/
-
 # Compiled / log files
 *.class
 *.log

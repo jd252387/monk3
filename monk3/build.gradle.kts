@@ -1,3 +1,5 @@
+import io.quarkus.gradle.tasks.QuarkusDev
+
 plugins {
     java
     alias(libs.plugins.quarkus)
@@ -41,30 +43,8 @@ tasks.withType<Test>().configureEach {
     workingDir = rootDir
 }
 
-// --- Local run support ---------------------------------------------------------------------------
-// The shared configuration catalog lives at the repository root (config/) and is consumed by
-// :catalog, which resolves relative paths like "config/catalog.json" against the JVM working
-// directory. For local runs we copy the shared config into this project's resources and point the
-// dev/run working directory at them, so `quarkusDev` / `quarkusRun` find the catalog with no manual
-// copy step. The synced copy is build output (git-ignored); edit the originals under <root>/config.
-val syncConfig by tasks.registering(Sync::class) {
-    description = "Copies the shared repository-root config/ into this project's resources for local runs."
-    from(rootProject.layout.projectDirectory.dir("config")) {
-        exclude("old/**")
-    }
-    into(layout.projectDirectory.dir("src/main/resources/config"))
-}
-
-tasks.named("processResources") {
-    dependsOn(syncConfig)
-}
-
-tasks.named<io.quarkus.gradle.tasks.QuarkusDev>("quarkusDev") {
-    dependsOn(syncConfig)
-    workingDirectory.set(layout.projectDirectory.dir("src/main/resources").asFile)
-}
-
-tasks.named<io.quarkus.gradle.tasks.QuarkusRun>("quarkusRun") {
-    dependsOn(syncConfig)
-    workingDirectory.set(layout.projectDirectory.dir("src/main/resources").asFile)
+tasks.withType<QuarkusDev>().configureEach {
+    // Dev mode reads the shared config/ at the repository root via relative paths (e.g.
+    // ./config/catalog.json); run from the root so those paths resolve, like the Test tasks above.
+    setWorkingDir(rootDir.absolutePath)
 }
