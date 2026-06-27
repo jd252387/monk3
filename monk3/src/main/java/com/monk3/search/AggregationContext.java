@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk3.model.Aggregation;
+import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +18,8 @@ public record AggregationContext(
         Map<String, QueryParseContext> contextsByMaterialType,
         String aggregationName,
         ObjectNode namedQueries) {
+
+    private static final String SOLR_NEST_PATH_FIELD = "_nest_path_";
 
     /**
      * Context for translating a query that references its own fields (rather than a single facet
@@ -54,6 +58,83 @@ public record AggregationContext(
         return node;
     }
 
+    /**
+     * Resolves {@code logicalName} as a subdocument field and returns the domain for a nested
+     * aggregation: a child {@link AggregationContext} whose per-material-type contexts have descended
+     * into the subdocument (so sub-aggregations resolve their fields within it), together with the
+     * engine-specific path/mask used to build the wrapping aggregation. Mirrors the subdocument
+     * resolution and nest-path/block-mask derivation in {@code BooleanQueryData.translate}.
+     */
+    public NestedDomain enterNested(String logicalName, String aggType, SearchEngine engine) {
+        Map<String, QueryParseContext> nestedContexts = new LinkedHashMap<>();
+        Set<String> paths = new LinkedHashSet<>();
+        String elasticsearchPath = null;
+        String solrBlockMask = null;
+        String solrNestPath = null;
+        for (Map.Entry<String, QueryParseContext> entry : contextsByMaterialType.entrySet()) {
+            String materialType = entry.getKey();
+            QueryParseContext context = entry.getValue();
+            MappedField mappedField = context.findMappedField(logicalName)
+                    .orElseThrow(() -> missingFieldException(context, logicalName, materialType));
+            if (!mappedField.isSubdocument()) {
+                throw new QueryTranslationException(
+                        "Aggregation type '" + aggType + "' requires a subdocument field; '" + logicalName
+                                + "' is not a subdocument field for material type '" + materialType + "'");
+            }
+            DocumentMapping childDocument = context.requireDocument(mappedField.subdocumentType());
+            String childPath = mappedField.searchField();
+            switch (engine) {
+                case ELASTICSEARCH -> {
+                    String fullPath = context.nestedPath() == null
+                            ? childPath
+                            : context.nestedPath() + "." + childPath;
+                    paths.add(fullPath);
+                    elasticsearchPath = fullPath;
+                    nestedContexts.put(materialType, context.withNestedDocument(childDocument, fullPath));
+                }
+                case SOLR -> {
+                    String parentNestPath = context.solrNestPath();
+                    String fullNestPath = parentNestPath == null
+                            ? childPath
+                            : parentNestPath + "/" + childPath;
+                    paths.add(fullNestPath);
+                    solrNestPath = fullNestPath;
+                    // The block mask must match the parent documents whose children this domain selects:
+                    // the configured root identifier at the top level, or the parent hierarchy's nest path.
+                    solrBlockMask = parentNestPath == null
+                            ? solrRootBlockMask()
+                            : SOLR_NEST_PATH_FIELD + ":/" + parentNestPath;
+                    nestedContexts.put(materialType, context.withSolrNestedDocument(childDocument, fullNestPath));
+                }
+            }
+        }
+        if (paths.size() > 1) {
+            throw new QueryTranslationException("Nested aggregation field '" + logicalName
+                    + "' resolves to different nested paths across the requested material types: " + paths);
+        }
+        return new NestedDomain(
+                new AggregationContext(nestedContexts, aggregationName, namedQueries),
+                elasticsearchPath, solrBlockMask, solrNestPath);
+    }
+
+    /**
+     * Returns the Solr block mask matching the root documents (the configured root {@code identifier}),
+     * registering the translated identifier under the root-level {@code queries} block so a
+     * {@code blockChildren} domain can reference it via local params. Throws when the root document
+     * declares no identifier (it is required as the block mask for root-level nested aggregations).
+     */
+    public String solrRootBlockMask() {
+        QueryParseContext context = queryContext();
+        JsonNode rootIdentifier = context.solrRootIdentifier();
+        if (rootIdentifier == null) {
+            throw new QueryTranslationException("Root document for material type '"
+                    + context.mapping().materialType() + "' does not declare an 'identifier', which is required"
+                    + " as the Solr block mask for root-level nested aggregations");
+        }
+        namedQueries.set(QueryParseContext.ROOT_IDENTIFIER_KEY, rootIdentifier);
+        return "{!v=$" + QueryParseContext.ROOT_IDENTIFIER_KEY + "}";
+    }
+
     public ResolvedFacetField requireFacetField(String logicalName, String aggType, Set<FieldType> supportedTypes) {
         Set<Resolution> resolutions = new LinkedHashSet<>();
         ResolvedFacetField resolved = null;
@@ -77,9 +158,9 @@ public record AggregationContext(
                         "Aggregation field '" + logicalName + "' is not aggregatable for material type '"
                                 + materialType + "'");
             }
-            resolutions.add(new Resolution(mappedField.searchField(), mappedField.type()));
+            resolutions.add(new Resolution(context.facetField(mappedField), mappedField.type()));
             if (resolved == null) {
-                resolved = new ResolvedFacetField(mappedField.searchField(), context.withField(mappedField));
+                resolved = new ResolvedFacetField(context.facetField(mappedField), context.withField(mappedField));
             }
         }
         if (resolutions.size() > 1) {
@@ -113,5 +194,14 @@ public record AggregationContext(
     }
 
     public record ResolvedFacetField(String searchField, QueryParseContext payloadContext) {
+    }
+
+    /**
+     * The domain a nested aggregation switches into: the child {@link AggregationContext} for its
+     * sub-aggregations, plus the engine-specific addressing — {@code path} for the Elasticsearch
+     * {@code nested} aggregation, and {@code blockMask} + {@code nestPath} for the Solr
+     * {@code blockChildren} domain change (the other engine's fields are null).
+     */
+    public record NestedDomain(AggregationContext context, String path, String blockMask, String nestPath) {
     }
 }

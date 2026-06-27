@@ -610,6 +610,178 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesNestedAggregationToElasticsearchNestedAggregation() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested chapter aggregation ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "field": "chapters" },
+                              "aggs": {
+                                "byPageCount": { "aggType": "terms", "args": { "field": "pageCount", "size": 5 } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.aggs.byChapter.nested.path", equalTo("chapters"))
+                .body("[0].body.aggs.byChapter.aggs.byPageCount.terms.field", equalTo("chapters.page_count"))
+                .body("[0].body.aggs.byChapter.aggs.byPageCount.terms.size", equalTo(5));
+    }
+
+    @Test
+    void parsesNestedAggregationToSolrBlockChildrenDomain() {
+        // Recent publishedAt range routes `book` to solr-books; the nested aggregation changes the
+        // facet domain to the chapters subdocuments via a blockChildren domain masked by the root identifier.
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested chapter aggregation Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "field": "chapters" },
+                              "aggs": {
+                                "byPageCount": { "aggType": "terms", "args": { "field": "pageCount", "size": 5 } }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.facet.byChapter.type", equalTo("query"))
+                .body("[0].body.facet.byChapter.q", equalTo("_nest_path_:/chapters"))
+                .body("[0].body.facet.byChapter.domain.blockChildren", equalTo("{!v=$root_identifier}"))
+                .body("[0].body.facet.byChapter.facet.byPageCount.type", equalTo("terms"))
+                // Solr child fields keep plain names; the nest path is expressed by the domain, not a dotted prefix.
+                .body("[0].body.facet.byChapter.facet.byPageCount.field", equalTo("page_count"))
+                .body("[0].body.facet.byChapter.facet.byPageCount.limit", equalTo(5))
+                .body("[0].body.queries.root_identifier.field.f", equalTo("material_type"))
+                .body("[0].body.queries.root_identifier.field.query", equalTo("book"));
+    }
+
+    @Test
+    void parsesDeeplyNestedAggregationToElasticsearchNestedAggregations() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Deep nested chapter/page aggregation ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "field": "chapters" },
+                              "aggs": {
+                                "byPage": {
+                                  "aggType": "nested",
+                                  "args": { "field": "pages" },
+                                  "aggs": {
+                                    "byWords": { "aggType": "terms", "args": { "field": "num_words" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byChapter.nested.path", equalTo("chapters"))
+                .body("[0].body.aggs.byChapter.aggs.byPage.nested.path", equalTo("chapters.pages"))
+                .body("[0].body.aggs.byChapter.aggs.byPage.aggs.byWords.terms.field", equalTo("chapters.pages.num_words"));
+    }
+
+    @Test
+    void parsesDeeplyNestedAggregationToSolrBlockChildrenDomains() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Deep nested chapter/page aggregation Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "field": "chapters" },
+                              "aggs": {
+                                "byPage": {
+                                  "aggType": "nested",
+                                  "args": { "field": "pages" },
+                                  "aggs": {
+                                    "byWords": { "aggType": "terms", "args": { "field": "num_words" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                // outer domain (root -> chapters) masks blockChildren against the root identifier
+                .body("[0].body.facet.byChapter.q", equalTo("_nest_path_:/chapters"))
+                .body("[0].body.facet.byChapter.domain.blockChildren", equalTo("{!v=$root_identifier}"))
+                // inner domain (chapters -> pages) masks against the parent chapters' nest path
+                .body("[0].body.facet.byChapter.facet.byPage.q", equalTo("_nest_path_:/chapters/pages"))
+                .body("[0].body.facet.byChapter.facet.byPage.domain.blockChildren", equalTo("_nest_path_:/chapters"))
+                .body("[0].body.facet.byChapter.facet.byPage.facet.byWords.type", equalTo("terms"))
+                .body("[0].body.facet.byChapter.facet.byPage.facet.byWords.field", equalTo("num_words"))
+                .body("[0].body.queries.root_identifier.field.query", equalTo("book"));
+    }
+
+    @Test
     void parseEmitsElasticsearchResultOptionsAndAggregations() {
         given()
                 .contentType(ContentType.JSON)
@@ -1903,6 +2075,98 @@ class QueryResourceTest {
     }
 
     @Test
+    void executesNestedAggregationAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested aggregation book search ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "field": "chapters" },
+                              "aggs": {
+                                "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.byChapter.value", equalTo(12))
+                .body("aggregations.'elastic-books'.byChapter.aggregations.byPageCount.buckets[0].key", equalTo(10.0f))
+                .body("aggregations.'elastic-books'.byChapter.aggregations.byPageCount.buckets[0].count", equalTo(7))
+                .body("aggregations.'elastic-books'.byChapter.aggregations.byPageCount.buckets[1].key", equalTo(20.0f))
+                .body("aggregations.'elastic-books'.byChapter.aggregations.byPageCount.buckets[1].count", equalTo(5));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"byChapter\":{\"nested\":{\"path\":\"chapters\"},"
+                        + "\"aggs\":{\"byPageCount\":{\"terms\":{\"field\":\"chapters.page_count\"}}}}}"));
+    }
+
+    @Test
+    void executesNestedAggregationAgainstSolr() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Nested aggregation book search Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "field": "chapters" },
+                              "aggs": {
+                                "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'solr-books'.byChapter.value", equalTo(12))
+                .body("aggregations.'solr-books'.byChapter.aggregations.byPageCount.buckets[0].key", equalTo(10))
+                .body("aggregations.'solr-books'.byChapter.aggregations.byPageCount.buckets[0].count", equalTo(7))
+                .body("aggregations.'solr-books'.byChapter.aggregations.byPageCount.buckets[1].key", equalTo(20))
+                .body("aggregations.'solr-books'.byChapter.aggregations.byPageCount.buckets[1].count", equalTo(5));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"facet\":{\"byChapter\":{\"type\":\"query\",\"q\":\"_nest_path_:/chapters\","
+                        + "\"domain\":{\"blockChildren\":\"{!v=$root_identifier}\"},"
+                        + "\"facet\":{\"byPageCount\":{\"type\":\"terms\",\"field\":\"page_count\"}}}}"));
+        assertThat(requests.getFirst().body(), containsString("\"root_identifier\":"));
+    }
+
+    @Test
     void searchWithoutAggregationsOmitsAggregationsInResponse() {
         given()
                 .contentType(ContentType.JSON)
@@ -2163,6 +2427,15 @@ class QueryResourceTest {
         assertAggregationTranslationError("""
                 {"byVirtual": {"aggType": "terms", "args": {"field": "recentBook"}}}
                 """, "Virtual field 'recentBook' cannot be used in aggregations");
+
+        assertAggregationTranslationError("""
+                {"byYear": {"aggType": "nested", "args": {"field": "year"}, "aggs": {"perYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "Aggregation type 'nested' requires a subdocument field; 'year' is not a subdocument field");
+
+        // Leaf-field capability checks still apply inside a nested aggregation's subdocument domain.
+        assertAggregationTranslationError("""
+                {"byChapter": {"aggType": "nested", "args": {"field": "chapters"}, "aggs": {"byTitle": {"aggType": "terms", "args": {"field": "title"}}}}}
+                """, "Aggregation type 'terms' is not supported for field 'title' with mapping type 'freetext'");
     }
 
     @Test
@@ -2305,6 +2578,14 @@ class QueryResourceTest {
         assertAggregationStructureError("""
                 {"bad": {"aggType": "terms", "args": {"field": "year"}, "aggs": {"child": {"aggType": "geo", "args": {"field": "year"}}}}}
                 """, "Unsupported aggregation type 'geo'");
+
+        assertAggregationStructureError("""
+                {"byChapter": {"aggType": "nested", "args": {"field": "chapters"}}}
+                """, "Nested aggregation requires one or more sub-aggregations");
+
+        assertAggregationStructureError("""
+                {"byChapter": {"aggType": "nested", "args": {"field": "chapters", "foo": 1}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
+                """, "Unknown nested aggregation property: foo");
     }
 
     @Test
@@ -2651,7 +2932,8 @@ class QueryResourceTest {
                         "#/$defs/SumAggregation",
                         "#/$defs/AvgAggregation",
                         "#/$defs/MinAggregation",
-                        "#/$defs/MaxAggregation"
+                        "#/$defs/MaxAggregation",
+                        "#/$defs/NestedAggregation"
                 ))
                 .body("$defs.TermsAggregation.properties.aggType.const", equalTo("terms"))
                 .body("$defs.UniqueAggregation.properties.aggType.const", equalTo("unique"))
@@ -2662,6 +2944,9 @@ class QueryResourceTest {
                 .body("$defs.AvgAggregation.properties.aggType.const", equalTo("avg"))
                 .body("$defs.MinAggregation.properties.aggType.const", equalTo("min"))
                 .body("$defs.MaxAggregation.properties.aggType.const", equalTo("max"))
+                .body("$defs.NestedAggregation.properties.aggType.const", equalTo("nested"))
+                .body("$defs.NestedAggregation.required", containsInAnyOrder("aggType", "args", "aggs"))
+                .body("$defs.NestedAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
                 .body("$defs.FilterAggregation.properties.args.properties.query.items.$ref", equalTo("#/$defs/QueryNode"))
                 .body("$defs.RangeAggregation.properties.args.required", containsInAnyOrder("field", "interval", "from", "to"))
                 .body("$defs.SubfacetsAggregation.properties.args.properties.filters.additionalProperties.$ref",

@@ -66,8 +66,9 @@
     },
     "pageCount": {
       "type": "number",
-      "destinationField": "page_count"
-    }, 
+      "destinationField": "page_count",
+      "aggregatable": true
+    },
     "pages": {
       "type": "subdocument",
       "subdocumentType": "page",
@@ -81,7 +82,8 @@
     },
     "num_words": {
       "type": "number",
-      "destinationField": "num_words"
+      "destinationField": "num_words",
+      "aggregatable": true
     }
   }
 }
