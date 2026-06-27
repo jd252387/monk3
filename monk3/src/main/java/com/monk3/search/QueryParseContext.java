@@ -33,6 +33,9 @@ public record QueryParseContext(
     /** Key under the Solr root-level {@code queries} block holding the translated root identifier query. */
     public static final String ROOT_IDENTIFIER_KEY = "root_identifier";
 
+    /** Solr field holding a document's nest path; used as the block-join mask and the domain scope. */
+    public static final String SOLR_NEST_PATH_FIELD = "_nest_path_";
+
     public static QueryParseContext root(
             SearchMapping mapping,
             VirtualMapping virtualMapping,
@@ -71,12 +74,36 @@ public record QueryParseContext(
     }
 
     /**
-     * Registers the translated root identifier under the Solr {@code queries} block and returns the
-     * local-params reference (e.g. {@code {!v=$root_identifier}}) to use as a {@code {!parent}} block mask.
+     * Returns the translated root identifier query, used as the Solr {@code {!parent}} / {@code blockChildren}
+     * block mask matching the root documents. Throws when the root document declares no {@code identifier}
+     * (it is required as the block mask for root-level nested queries and aggregations).
      */
-    public String registerSolrRootBlockMask() {
-        solrNamedQueries.set(ROOT_IDENTIFIER_KEY, solrRootIdentifier);
+    public JsonNode requireSolrRootIdentifier() {
+        if (solrRootIdentifier == null) {
+            throw new QueryTranslationException("Root document for material type '" + mapping.materialType()
+                    + "' does not declare an 'identifier', which is required as the Solr block mask for"
+                    + " root-level nested queries and aggregations");
+        }
+        return solrRootIdentifier;
+    }
+
+    /**
+     * Registers the translated root identifier under this context's Solr {@code queries} block and returns
+     * the local-params reference (e.g. {@code {!v=$root_identifier}}) to use as a {@code {!parent}} block mask.
+     */
+    public String requireSolrRootBlockMask() {
+        solrNamedQueries.set(ROOT_IDENTIFIER_KEY, requireSolrRootIdentifier());
         return "{!v=$" + ROOT_IDENTIFIER_KEY + "}";
+    }
+
+    /** Appends {@code childPath} to this context's Solr nest path (e.g. {@code chapters} → {@code chapters/pages}). */
+    public String solrChildNestPath(String childPath) {
+        return solrNestPath == null ? childPath : solrNestPath + "/" + childPath;
+    }
+
+    /** The block mask selecting this context's nest level (e.g. {@code _nest_path_:/chapters}). */
+    public String solrNestPathMask() {
+        return SOLR_NEST_PATH_FIELD + ":/" + solrNestPath;
     }
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {

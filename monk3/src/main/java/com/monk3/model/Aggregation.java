@@ -17,12 +17,11 @@ import java.util.Set;
 
 @Schema(description = "A named facet/aggregation computed per backend over root document fields",
         oneOf = {TermsAggregation.class, UniqueAggregation.class, RangeAggregation.class, SubfacetsAggregation.class,
-                FilterAggregation.class, SumAggregation.class, AvgAggregation.class, MinAggregation.class,
-                MaxAggregation.class, NestedAggregation.class})
+                FilterAggregation.class, MetricAggregation.class, NestedAggregation.class})
 @JsonDeserialize(using = AggregationDeserializer.class)
 public sealed interface Aggregation
         permits TermsAggregation, UniqueAggregation, RangeAggregation, SubfacetsAggregation, FilterAggregation,
-                SumAggregation, AvgAggregation, MinAggregation, MaxAggregation, NestedAggregation {
+                MetricAggregation, NestedAggregation {
     Set<FieldType> SCALAR_FIELD_TYPES =
             Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
 

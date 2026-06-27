@@ -7,25 +7,39 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.monk3.search.AggregationContext;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
+import java.util.Locale;
 import java.util.Set;
 
-@Schema(description = "Maximum of a numeric root document field", example = """
+@Schema(description = "A single-value metric (sum, avg, min, or max) over a numeric root document field", example = """
         {
-          "aggType": "max",
+          "aggType": "sum",
           "args": {
             "field": "likes"
           }
         }
         """)
-public record MaxAggregation(@NotBlank String field) implements Aggregation {
+public record MetricAggregation(
+        @NotNull Metric metric,
+        @NotBlank String field
+) implements Aggregation {
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.NUMBER);
+
+    /** The metric to compute; its {@link #aggType()} is the DSL name and the ES/Solr function name. */
+    public enum Metric {
+        SUM, AVG, MIN, MAX;
+
+        public String aggType() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     @JsonProperty
     public String aggType() {
-        return "max";
+        return metric.aggType();
     }
 
     @Override

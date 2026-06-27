@@ -19,8 +19,6 @@ public record AggregationContext(
         String aggregationName,
         ObjectNode namedQueries) {
 
-    private static final String SOLR_NEST_PATH_FIELD = "_nest_path_";
-
     /**
      * Context for translating a query that references its own fields (rather than a single facet
      * field). All material types resolve to the same backend context today (see
@@ -93,17 +91,14 @@ public record AggregationContext(
                     nestedContexts.put(materialType, context.withNestedDocument(childDocument, fullPath));
                 }
                 case SOLR -> {
-                    String parentNestPath = context.solrNestPath();
-                    String fullNestPath = parentNestPath == null
-                            ? childPath
-                            : parentNestPath + "/" + childPath;
+                    String fullNestPath = context.solrChildNestPath(childPath);
                     paths.add(fullNestPath);
                     solrNestPath = fullNestPath;
                     // The block mask must match the parent documents whose children this domain selects:
                     // the configured root identifier at the top level, or the parent hierarchy's nest path.
-                    solrBlockMask = parentNestPath == null
+                    solrBlockMask = context.solrNestPath() == null
                             ? solrRootBlockMask()
-                            : SOLR_NEST_PATH_FIELD + ":/" + parentNestPath;
+                            : context.solrNestPathMask();
                     nestedContexts.put(materialType, context.withSolrNestedDocument(childDocument, fullNestPath));
                 }
             }
@@ -124,14 +119,7 @@ public record AggregationContext(
      * declares no identifier (it is required as the block mask for root-level nested aggregations).
      */
     public String solrRootBlockMask() {
-        QueryParseContext context = queryContext();
-        JsonNode rootIdentifier = context.solrRootIdentifier();
-        if (rootIdentifier == null) {
-            throw new QueryTranslationException("Root document for material type '"
-                    + context.mapping().materialType() + "' does not declare an 'identifier', which is required"
-                    + " as the Solr block mask for root-level nested aggregations");
-        }
-        namedQueries.set(QueryParseContext.ROOT_IDENTIFIER_KEY, rootIdentifier);
+        namedQueries.set(QueryParseContext.ROOT_IDENTIFIER_KEY, queryContext().requireSolrRootIdentifier());
         return "{!v=$" + QueryParseContext.ROOT_IDENTIFIER_KEY + "}";
     }
 
