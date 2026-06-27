@@ -141,14 +141,21 @@ public class QueryTranslationService {
     }
 
     public AggregationTranslation translateAggregations(BackendTarget target, Map<String, Aggregation> aggs) {
+        SearchEngine engine = target.engine();
         QueryParseContext context = contextForBackend(target.name());
+        if (engine == SearchEngine.SOLR) {
+            // A root-level nested aggregation masks its blockChildren domain against the root identifier,
+            // so make the translated identifier available on the context (as the main query translation does).
+            context = context.withSolrRootIdentifier(translateRootIdentifier(context, engine));
+        }
+        QueryParseContext backendContext = context;
         Map<String, QueryParseContext> contextsByMaterialType = target.materialTypes().stream()
-                .collect(Collectors.toMap(mt -> mt, mt -> context));
+                .collect(Collectors.toMap(mt -> mt, mt -> backendContext));
         ObjectNode aggregations = JsonNodeFactory.instance.objectNode();
         ObjectNode namedQueries = JsonNodeFactory.instance.objectNode();
         aggs.forEach((name, aggregation) -> {
             AggregationContext aggContext = new AggregationContext(contextsByMaterialType, name, namedQueries);
-            aggregations.set(name, aggregation.translate(target.engine(), aggContext));
+            aggregations.set(name, aggregation.translate(engine, aggContext));
         });
         return new AggregationTranslation(aggregations, namedQueries);
     }

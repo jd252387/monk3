@@ -108,6 +108,9 @@
         },
         {
           "$ref": "#/$defs/MaxAggregation"
+        },
+        {
+          "$ref": "#/$defs/NestedAggregation"
         }
       ]
     },
@@ -401,6 +404,38 @@
         "aggs": {
           "$ref": "#/$defs/Aggregations",
           "description": "Optional sub-aggregations run over the filter's matching documents."
+        }
+      }
+    },
+    "NestedAggregation": {
+      "type": "object",
+      "description": "Runs its sub-aggregations within the domain of a subdocument (nested) field. Translates to an Elasticsearch nested aggregation and a Solr blockChildren domain change.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args",
+        "aggs"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "nested"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "Subdocument field whose nested documents the sub-aggregations run over."
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Sub-aggregations run within the nested subdocument domain. At least one is required."
         }
       }
     },

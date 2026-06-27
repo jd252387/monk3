@@ -31,7 +31,7 @@ public record QueryParseContext(
         EmbeddingClient embeddingClient
 ) {
     /** Key under the Solr root-level {@code queries} block holding the translated root identifier query. */
-    private static final String ROOT_IDENTIFIER_KEY = "root_identifier";
+    public static final String ROOT_IDENTIFIER_KEY = "root_identifier";
 
     public static QueryParseContext root(
             SearchMapping mapping,
@@ -147,6 +147,17 @@ public record QueryParseContext(
                             + "' with mapping type '" + typeName(currentField.type()) + "'");
         }
         String fieldName = MorphologyResolver.resolveSearchField(currentField, morphology);
+        return nestedPath != null ? nestedPath + "." + fieldName : fieldName;
+    }
+
+    /**
+     * Resolves the physical facet field for {@code field}, applying the Elasticsearch nested-path prefix
+     * when this context has descended into a subdocument (e.g. {@code chapters.page_count}). For Solr
+     * nested contexts {@code nestedPath} stays null, so the plain field name is returned and the nest
+     * path is expressed via the facet domain instead.
+     */
+    public String facetField(MappedField field) {
+        String fieldName = field.searchField();
         return nestedPath != null ? nestedPath + "." + fieldName : fieldName;
     }
 

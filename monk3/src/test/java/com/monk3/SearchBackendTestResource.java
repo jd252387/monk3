@@ -107,6 +107,15 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                               { "key": 2010.0, "doc_count": 3 }
                             ]
                           }
+                        },
+                        "byChapter": {
+                          "doc_count": 12,
+                          "byPageCount": {
+                            "buckets": [
+                              { "key": 10.0, "doc_count": 7 },
+                              { "key": 20.0, "doc_count": 5 }
+                            ]
+                          }
                         }
                       }
                     }
@@ -179,6 +188,18 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                             "book_year": 2026
                           }
                         ]
+                      },
+                      "facets": {
+                        "count": 1,
+                        "byChapter": {
+                          "count": 12,
+                          "byPageCount": {
+                            "buckets": [
+                              { "val": 10, "count": 7 },
+                              { "val": 20, "count": 5 }
+                            ]
+                          }
+                        }
                       }
                     }
                     """));

@@ -12,6 +12,7 @@ import com.monk3.model.AvgAggregation;
 import com.monk3.model.FilterAggregation;
 import com.monk3.model.MaxAggregation;
 import com.monk3.model.MinAggregation;
+import com.monk3.model.NestedAggregation;
 import com.monk3.model.QueryNode;
 import com.monk3.model.QueryPayload;
 import com.monk3.model.RangeAggregation;
@@ -39,6 +40,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static final Set<String> RANGE_ARGS = Set.of("field", "interval", "from", "to");
     private static final Set<String> SUBFACETS_ARGS = Set.of("field", "filters");
     private static final Set<String> FILTER_ARGS = Set.of("query");
+    private static final Set<String> NESTED_ARGS = Set.of("field");
 
     @Override
     public Aggregation deserialize(JsonParser parser, DeserializationContext context) throws IOException {
@@ -67,6 +69,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
             case "range" -> readRange(parser, args, subAggregations);
             case "subfacets" -> readSubfacets(parser, mapper, args, subAggregations);
             case "filter" -> readFilter(parser, mapper, args, subAggregations);
+            case "nested" -> readNested(parser, args, subAggregations);
             case "unique" -> {
                 rejectSubAggregations(parser, subAggregations, aggType);
                 yield readUnique(parser, args);
@@ -208,6 +211,16 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
         return new FilterAggregation(List.copyOf(nodes), subAggregations);
     }
 
+    private static NestedAggregation readNested(
+            JsonParser parser, JsonNode args, Map<String, Aggregation> subAggregations) throws JsonMappingException {
+        rejectUnknownFields(parser, args, NESTED_ARGS, "nested aggregation");
+        if (subAggregations.isEmpty()) {
+            throw MismatchedInputException.from(parser, Object.class,
+                    "Nested aggregation requires one or more sub-aggregations");
+        }
+        return new NestedAggregation(readRequiredField(parser, args), subAggregations);
+    }
+
     private static String readRequiredField(JsonParser parser, JsonNode args) throws JsonMappingException {
         JsonNode fieldNode = args.get("field");
         if (fieldNode == null || fieldNode.isNull()) {
@@ -234,6 +247,6 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static String unsupportedTypeMessage(String aggType) {
         return "Unsupported aggregation type '" + aggType
                 + "'. Supported aggregation types are 'terms', 'unique', 'range', 'subfacets', 'filter', 'sum', 'avg',"
-                + " 'min', and 'max'.";
+                + " 'min', 'max', and 'nested'.";
     }
 }
