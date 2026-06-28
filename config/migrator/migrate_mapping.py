@@ -83,6 +83,11 @@ BOOLEAN_PATH_SUFFIX = ("_b", "_bs")
 # (e.g. a "term" filterType on a path like "year_i").
 NUMBER_PATH_SUFFIX = ("_i", "_is")
 
+# Solr dynamic-field suffix marking a sortable/facetable string field ("_ssf").
+# A physical field whose `path` ends with this is marked "aggregatable": true in
+# the new mapping (aggregatable defaults to false otherwise).
+AGGREGATABLE_PATH_SUFFIX = ("_ssf",)
+
 # Keys that identify a real field-config object. If a field's value is a dict
 # lacking all of these, it is assumed to be wrapped under an arbitrary key
 # (e.g. "mapping_name") and the first nested value is unwrapped.
@@ -328,6 +333,11 @@ def migrate(old_path: str, output_dir: str, material_type: str) -> None:
             "type": new_type,
             "destinationField": path,
         }
+
+        # A "_ssf"-suffixed Solr path is a sortable/facetable string field, so the
+        # new physical field is marked aggregatable.
+        if path.endswith(AGGREGATABLE_PATH_SUFFIX):
+            physical[field_name]["aggregatable"] = True
 
     # ── 3. Pass 2 — build virtual fields ─────────────────────────────
 

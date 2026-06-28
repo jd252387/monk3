@@ -12,6 +12,7 @@ import java.util.Map;
 
 @Schema(description = "A search request that executes one or more queries across configured backends and returns merged results", example = """
         {
+          "username": "alice",
           "query": [{
             "id": "q1",
             "name": "Recent ML publications",
@@ -52,6 +53,8 @@ import java.util.Map;
         }
         """)
 public record SearchExecutionRequest(
+        @NotBlank @Schema(description = "Identity of the calling user; forwarded to Solr backends as the 'uc' request param, ignored by Elasticsearch", example = "alice")
+        String username,
         @NotEmpty @Schema(description = "The search queries to execute; queries targeting the same backend are merged with a boolean should")
         List<@NotNull @Valid SearchQueryRequest> query,
         @NotEmpty @Schema(description = "Field names to project in the response") List<@NotBlank String> fields,

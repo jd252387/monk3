@@ -139,6 +139,9 @@ public class SearchExecutionService {
         if (!namedQueries.isEmpty()) {
             body.set("queries", namedQueries);
         }
+        if (target.engine() == SearchEngine.SOLR) {
+            body.putObject("params").put("uc", request.username());
+        }
         return body;
     }
 

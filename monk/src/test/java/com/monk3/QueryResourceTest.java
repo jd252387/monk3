@@ -650,6 +650,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested chapter aggregation ES",
                             "materialTypes": ["book"],
@@ -689,6 +690,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested chapter aggregation Solr",
                             "materialTypes": ["book"],
@@ -732,6 +734,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Deep nested chapter/page aggregation ES",
                             "materialTypes": ["book"],
@@ -774,6 +777,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Deep nested chapter/page aggregation Solr",
                             "materialTypes": ["book"],
@@ -822,6 +826,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "ES full body",
                             "materialTypes": ["book"],
@@ -847,7 +852,9 @@ class QueryResourceTest {
                 .body("[0].body.size", equalTo(25))
                 .body("[0].body._source", containsInAnyOrder("id", "book_title", "book_year"))
                 .body("[0].body.aggs.byAuthor.terms.field", equalTo("book_author"))
-                .body("[0].body.aggs.byAuthor.terms.size", equalTo(5));
+                .body("[0].body.aggs.byAuthor.terms.size", equalTo(5))
+                .body("[0].body", not(hasKey("uc")))
+                .body("[0].body", not(hasKey("params")));
     }
 
     @Test
@@ -878,6 +885,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Solr full body",
                             "materialTypes": ["article"],
@@ -900,6 +908,7 @@ class QueryResourceTest {
                 .body("[0].backend", equalTo("solr-articles"))
                 .body("[0].engine", equalTo("SOLR"))
                 .body("[0].body.limit", equalTo(15))
+                .body("[0].body.params.uc", equalTo("tester"))
                 .body("[0].body.fields[0]", equalTo("score"))
                 .body("[0].body.fields", containsInAnyOrder("score", "id", "article_headline", "article_year"))
                 .body("[0].body.facet.byYear.type", equalTo("terms"))
@@ -913,6 +922,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "ES metrics",
                             "materialTypes": ["book"],
@@ -947,6 +957,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Solr metrics",
                             "materialTypes": ["article"],
@@ -981,6 +992,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Year histogram",
                             "materialTypes": ["book"],
@@ -1013,6 +1025,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Published subfacets Solr",
                             "materialTypes": ["article"],
@@ -1055,6 +1068,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Subfacets on virtual field ES",
                             "materialTypes": ["book"],
@@ -1098,6 +1112,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Subfacets on virtual field Solr",
                             "materialTypes": ["book"],
@@ -1145,6 +1160,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Filter aggregation on virtual field ES",
                             "materialTypes": ["book"],
@@ -1182,6 +1198,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Filter aggregation ES",
                             "materialTypes": ["book"],
@@ -1221,6 +1238,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Filter aggregation Solr",
                             "materialTypes": ["article"],
@@ -1265,6 +1283,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Single-node filter aggregation",
                             "materialTypes": ["book"],
@@ -1301,6 +1320,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested terms ES",
                             "materialTypes": ["book"],
@@ -1337,6 +1357,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested terms Solr",
                             "materialTypes": ["article"],
@@ -1373,6 +1394,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested subfacets Solr",
                             "materialTypes": ["article"],
@@ -1416,6 +1438,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested filter Solr",
                             "materialTypes": ["article"],
@@ -1462,6 +1485,7 @@ class QueryResourceTest {
                     .contentType(ContentType.JSON)
                     .body("""
                             {
+                              "username": "tester",
                               "query": [{
                                 "name": "Merged search",
                                 "materialTypes": ["book", "article"],
@@ -1527,6 +1551,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Faceted book search",
                             "materialTypes": ["book"],
@@ -1568,6 +1593,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Faceted article search",
                             "materialTypes": ["article"],
@@ -1609,6 +1635,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Metric book search",
                             "materialTypes": ["book"],
@@ -1647,6 +1674,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Metric article search",
                             "materialTypes": ["article"],
@@ -1684,6 +1712,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Year histogram",
                             "materialTypes": ["book"],
@@ -1722,6 +1751,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Year range facet",
                             "materialTypes": ["article"],
@@ -1757,6 +1787,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Published subfacets",
                             "materialTypes": ["book"],
@@ -1805,6 +1836,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Published subfacets Solr",
                             "materialTypes": ["article"],
@@ -1852,6 +1884,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Cross-backend facets",
                             "materialTypes": ["book", "article"],
@@ -1884,6 +1917,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Filter aggregation counts",
                             "materialTypes": ["book", "article"],
@@ -1923,6 +1957,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested terms book search",
                             "materialTypes": ["book"],
@@ -1973,6 +2008,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested terms article search",
                             "materialTypes": ["article"],
@@ -2021,6 +2057,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested subfacets book search",
                             "materialTypes": ["book"],
@@ -2073,6 +2110,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested filter book search",
                             "materialTypes": ["book"],
@@ -2117,6 +2155,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested aggregation book search ES",
                             "materialTypes": ["book"],
@@ -2162,6 +2201,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Nested aggregation book search Solr",
                             "materialTypes": ["book"],
@@ -2207,6 +2247,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Plain search",
                             "materialTypes": ["book"],
@@ -2231,6 +2272,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "No matches",
                             "materialTypes": ["emptyset"],
@@ -2496,11 +2538,34 @@ class QueryResourceTest {
     }
 
     @Test
+    void rejectsRequestWithoutUsername() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "query": [{
+                            "name": "Missing username",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"]
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
     void rejectsProjectionOfNonFetchableField() {
         given()
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Project a non-fetchable field",
                             "materialTypes": ["book"],
@@ -2533,6 +2598,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Aggregate an aggregation-only field",
                             "materialTypes": ["book"],
@@ -2629,6 +2695,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Bad subfacet filter",
                             "materialTypes": ["book"],
@@ -2673,6 +2740,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Aggregation error",
                             "materialTypes": ["book"],
@@ -3347,6 +3415,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Recent books search",
                             "materialTypes": ["book"],
@@ -3381,6 +3450,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [{
                             "name": "Old books search",
                             "materialTypes": ["book"],
@@ -3477,6 +3547,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [
                             {
                               "name": "Java books",
@@ -3520,6 +3591,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [
                             {
                               "name": "Java books",
@@ -3585,6 +3657,7 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("""
                         {
+                          "username": "tester",
                           "query": [],
                           "fields": ["title"]
                         }
@@ -3604,6 +3677,7 @@ class QueryResourceTest {
                     .contentType(ContentType.JSON)
                     .body("""
                             {
+                              "username": "tester",
                               "query": [{
                                 "name": "Merged search",
                                 "materialTypes": ["book", "book_elastic"],
@@ -3764,6 +3838,7 @@ class QueryResourceTest {
     private static String parseRequest(String query) {
         return """
                 {
+                  "username": "tester",
                   "query": [%s],
                   "fields": ["title"]
                 }
