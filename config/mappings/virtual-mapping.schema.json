@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema",
-  "description": "Defines virtual fields for a material type. Virtual fields exist only in the query API surface — they expand into real monk QueryNode templates when queried. Document block names (e.g. 'root', 'chapter') must match blocks declared in the corresponding mapping.json file.",
+  "description": "Defines virtual fields for a material type. Virtual fields exist only in the query API surface — they expand into real monk3 QueryNode templates when queried. Document block names (e.g. 'root', 'chapter') must match blocks declared in the corresponding mapping.json file.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -34,8 +34,8 @@
           "enum": ["string", "freetext", "number", "datetime", "boolean", "predicate", "subquery"]
         },
         "expansion": {
-          "description": "A monk QueryNode template (same structure as the 'query' field in SearchQueryRequest). String values may contain '{{data}}' as a whole-string placeholder, replaced at query time with the entire incoming QueryPayload JSON object. Only whole-string placeholders are supported (e.g. \"{{data}}\", not \"prefix-{{data}}\"). For 'predicate' fields the expansion is fully static and must NOT contain '{{data}}'. Expansion templates may only reference real mapped fields — not other virtual fields.",
-          "$ref": "../../monk/src/main/resources/search-query-dsl.schema.json#/$defs/QueryNode"
+          "description": "A monk3 QueryNode template (same structure as the 'query' field in SearchQueryRequest). String values may contain '{{data}}' as a whole-string placeholder, replaced at query time with the entire incoming QueryPayload JSON object. Only whole-string placeholders are supported (e.g. \"{{data}}\", not \"prefix-{{data}}\"). For 'predicate' fields the expansion is fully static and must NOT contain '{{data}}'. Expansion templates may only reference real mapped fields — not other virtual fields.",
+          "$ref": "../../monk3/src/main/resources/search-query-dsl.schema.json#/$defs/QueryNode"
         }
       }
     }

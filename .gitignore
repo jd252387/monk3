@@ -13,6 +13,7 @@ target/
 # IDEs
 .idea/
 *.iml
+*.pyc
 
 # Quarkus
 .quarkus/

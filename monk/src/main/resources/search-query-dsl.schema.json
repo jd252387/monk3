@@ -778,33 +778,25 @@
           "description": "Exclusive upper bound."
         }
       },
-      "allOf": [
+      "anyOf": [
         {
-          "anyOf": [
-            {
-              "required": [
-                "gte"
-              ]
-            },
-            {
-              "required": [
-                "gt"
-              ]
-            }
+          "required": [
+            "gte"
           ]
         },
         {
-          "anyOf": [
-            {
-              "required": [
-                "lte"
-              ]
-            },
-            {
-              "required": [
-                "lt"
-              ]
-            }
+          "required": [
+            "gt"
+          ]
+        },
+        {
+          "required": [
+            "lte"
+          ]
+        },
+        {
+          "required": [
+            "lt"
           ]
         }
       ],
@@ -853,33 +845,25 @@
           "description": "Exclusive upper timestamp bound."
         }
       },
-      "allOf": [
+      "anyOf": [
         {
-          "anyOf": [
-            {
-              "required": [
-                "gte"
-              ]
-            },
-            {
-              "required": [
-                "gt"
-              ]
-            }
+          "required": [
+            "gte"
           ]
         },
         {
-          "anyOf": [
-            {
-              "required": [
-                "lte"
-              ]
-            },
-            {
-              "required": [
-                "lt"
-              ]
-            }
+          "required": [
+            "gt"
+          ]
+        },
+        {
+          "required": [
+            "lte"
+          ]
+        },
+        {
+          "required": [
+            "lt"
           ]
         }
       ],

@@ -15,13 +15,6 @@
       "primaryKey": "id",
       "physical": "config/mappings/sample.mapping.json",
       "defaultSize": 20
-    },
-    "solr-documents": {
-      "engine": "SOLR",
-      "url": "http://solr1:8983/solr",
-      "collection": "documents",
-      "primaryKey": "id",
-      "physical": "config/mappings/document.mapping.json"
     }
   }
 }

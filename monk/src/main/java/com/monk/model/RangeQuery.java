@@ -40,9 +40,12 @@ public sealed interface RangeQuery<T> extends QueryPayload permits RangeQuery.Nu
         return lte() != null ? lte() : lt();
     }
 
-    @AssertTrue(message = "range queries require exactly one lower bound and exactly one upper bound")
+    @AssertTrue(message = "range queries allow at most one lower bound and at most one upper bound, and require at least one bound")
     default boolean hasValidBounds() {
-        return (gte() != null) != (gt() != null) && (lte() != null) != (lt() != null);
+        boolean atMostOneLower = gte() == null || gt() == null;
+        boolean atMostOneUpper = lte() == null || lt() == null;
+        boolean hasAnyBound = gte() != null || gt() != null || lte() != null || lt() != null;
+        return atMostOneLower && atMostOneUpper && hasAnyBound;
     }
 
     @Override

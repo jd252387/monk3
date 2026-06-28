@@ -431,6 +431,41 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesSingleBoundRangeQueryAsOpenEndedRange() {
+        // A range with only a lower bound is unbounded above: ES emits just `gt`,
+        // and Solr's frange omits the upper bound entirely.
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Open-ended range query",
+                          "materialTypes": ["book", "article"],
+                          "query": {
+                            "field": "year",
+                            "data": {
+                              "type": "range",
+                              "gt": 2000
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].range.book_year.gt", equalTo(2000))
+                .body("[0].body.query.bool.must[0].range.book_year", not(hasKey("lt")))
+                .body("[0].body.query.bool.must[0].range.book_year", not(hasKey("lte")))
+                .body("[1].engine", equalTo("SOLR"))
+                .body("[1].body.query.bool.must[0].frange.query", equalTo("article_year"))
+                .body("[1].body.query.bool.must[0].frange.l", equalTo(2000))
+                .body("[1].body.query.bool.must[0].frange.incl", equalTo(false))
+                .body("[1].body.query.bool.must[0].frange", not(hasKey("u")))
+                .body("[1].body.query.bool.must[0].frange", not(hasKey("incu")));
+    }
+
+    @Test
     void routesMultipleMaterialTypesToTheirRespectiveBackends() {
         given()
                 .contentType(ContentType.JSON)
@@ -2739,17 +2774,6 @@ class QueryResourceTest {
 
         assertBadRequest("""
                 {
-                  "name": "Missing upper bound",
-                  "materialTypes": ["book"],
-                  "query": {
-                    "field": "year",
-                    "data": {"type": "range", "gte": 1}
-                  }
-                }
-                """);
-
-        assertBadRequest("""
-                {
                   "name": "Conflicting lower bounds",
                   "materialTypes": ["book"],
                   "query": {
@@ -2985,10 +3009,9 @@ class QueryResourceTest {
                 .body("$defs.NumericRangeQuery.properties.type.const", equalTo("range"))
                 .body("$defs.NumericRangeQuery.properties.lte.type", equalTo("number"))
                 .body("$defs.DatetimeRangeQuery.properties.lte.type", equalTo("string"))
-                .body("$defs.NumericRangeQuery", hasKey("allOf"))
+                .body("$defs.NumericRangeQuery", hasKey("anyOf"))
                 .body("$defs.NumericRangeQuery", hasKey("not"))
-                .body("$defs.NumericRangeQuery.allOf[0].anyOf.required[0]", hasItem("gte"))
-                .body("$defs.NumericRangeQuery.allOf[1].anyOf.required[0]", hasItem("lte"))
+                .body("$defs.NumericRangeQuery.anyOf.required", hasItems(hasItem("gte"), hasItem("lt")))
                 .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gte"))
                 .body("$defs.NumericRangeQuery.not.anyOf.required[0]", hasItem("gt"));
     }

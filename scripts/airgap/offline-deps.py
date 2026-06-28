@@ -6,6 +6,10 @@ offline-deps.py — build and ship a complete offline Gradle dependency bundle.
              for all subprojects on an internet-connected machine, grab the Gradle
              distribution, and zip it all up.
 
+  artifact   Download one or more Maven artifacts by their Gradle implementation
+             string (group:artifact:version) straight from a Maven repository —
+             no Gradle project required — and zip them into the same bundle format.
+
   upload     Push a previously built bundle into Artifactory from inside the air-gapped
              network using the JFrog CLI (jf).
 
@@ -320,6 +324,123 @@ def cmd_upload(cfg: Config, bundle: str | None) -> None:
     log("Upload complete.")
 
 
+# ── artifact ─────────────────────────────────────────────────────────────────
+MAVEN_CENTRAL = "https://repo1.maven.org/maven2"
+
+
+@dataclass
+class Coordinate:
+    """A Maven coordinate parsed from Gradle notation: group:artifact:version[:classifier][@ext]."""
+    group: str
+    artifact: str
+    version: str
+    classifier: str | None
+    extension: str
+
+    @property
+    def path(self) -> str:  # group/with/slashes/artifact/version
+        return "/".join([*self.group.split("."), self.artifact, self.version])
+
+    def filename(self, classifier: str | None = None, extension: str | None = None) -> str:
+        suffix = f"-{classifier}" if classifier else ""
+        return f"{self.artifact}-{self.version}{suffix}.{extension or self.extension}"
+
+    def __str__(self) -> str:
+        spec = f"{self.group}:{self.artifact}:{self.version}"
+        if self.classifier:
+            spec += f":{self.classifier}"
+        return spec + (f"@{self.extension}" if self.extension != "jar" else "")
+
+
+def parse_coordinate(spec: str) -> Coordinate:
+    spec = spec.strip()
+    extension = "jar"
+    if "@" in spec:
+        spec, extension = spec.rsplit("@", 1)
+    parts = spec.split(":")
+    if len(parts) < 3 or not all(parts[:3]):
+        die(f"Invalid coordinate '{spec}': expected group:artifact:version[:classifier][@ext]")
+    classifier = parts[3] if len(parts) >= 4 and parts[3] else None
+    return Coordinate(parts[0], parts[1], parts[2], classifier, extension)
+
+
+def download_optional(url: str, dest: Path) -> bool:
+    """Best-effort download: return False (leaving nothing behind) instead of dying on 404/error."""
+    try:
+        with urllib.request.urlopen(url) as resp, open(dest, "wb") as out:
+            shutil.copyfileobj(resp, out)
+        return True
+    except Exception:  # noqa: BLE001 — optional file; its absence is not fatal
+        dest.unlink(missing_ok=True)
+        return False
+
+
+def fetch_artifact(cfg: Config, coord: Coordinate, repo_url: str, with_sources: bool) -> int:
+    """Download one coordinate into the Maven-layout offline-repo. Returns the file count."""
+    base = f"{repo_url.rstrip('/')}/{coord.path}"
+    dest_dir = cfg.offline_repo_dir.joinpath(*coord.group.split("."), coord.artifact, coord.version)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    # The main artifact is required; the pom, .module, and -sources/-javadoc jars are best-effort.
+    main = coord.filename(classifier=coord.classifier)
+    main_dest = dest_dir / main
+    if main_dest.exists():
+        log(f"  {main} already present")
+    else:
+        log(f"  {main}")
+        download(f"{base}/{main}", main_dest)
+    count = 1
+
+    optionals = [] if coord.extension == "pom" else [coord.filename(extension="pom")]
+    optionals.append(coord.filename(extension="module"))
+    if with_sources:
+        optionals += [coord.filename(classifier="sources", extension="jar"),
+                      coord.filename(classifier="javadoc", extension="jar")]
+
+    for name in optionals:
+        dest = dest_dir / name
+        if dest.exists():
+            count += 1
+        elif download_optional(f"{base}/{name}", dest):
+            log(f"  {name}")
+            count += 1
+
+    return count
+
+
+def prompt_coordinates() -> list[str]:
+    log("Enter Gradle implementation strings (group:artifact:version), one per line; blank line to finish:")
+    coords: list[str] = []
+    try:
+        while True:
+            line = input("  > ").strip()
+            if not line:
+                break
+            coords.append(line)
+    except EOFError:
+        pass
+    return coords
+
+
+def cmd_artifact(cfg: Config, coords: list[str], repo_url: str, with_sources: bool) -> None:
+    coords = coords or prompt_coordinates()
+    if not coords:
+        die("No coordinates provided.")
+
+    cfg.offline_repo_dir.mkdir(parents=True, exist_ok=True)
+    total = 0
+    for spec in coords:
+        coord = parse_coordinate(spec)
+        log(f"Fetching {coord} from {repo_url}")
+        total += fetch_artifact(cfg, coord, repo_url, with_sources)
+    log(f"Staged {total} files into {cfg.offline_repo_dir}")
+
+    log(f"Zipping bundle -> {cfg.output_zip}")
+    cfg.output_zip.unlink(missing_ok=True)
+    make_bundle_zip(cfg)
+    log(f"Done. Bundle: {cfg.output_zip} ({human_size(cfg.output_zip.stat().st_size)})")
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 def build_parser(cfg: Config) -> argparse.ArgumentParser:
     epilog = f"""\
@@ -336,6 +457,10 @@ Environment (upload):
   ARTIFACTORY_TOKEN        Access token (preferred), or
   ARTIFACTORY_USER / ARTIFACTORY_PASSWORD
   JFROG_SERVER_ID          Use a preconfigured 'jf' server-id instead of URL/credentials.
+
+Environment (artifact):
+  MAVEN_REPO_URL   Maven repo base URL to download from (default: {MAVEN_CENTRAL})
+                   OUTPUT_ZIP / STAGE_DIR are shared with 'download'.
 """
     parser = argparse.ArgumentParser(
         prog=Path(__file__).name,
@@ -364,6 +489,31 @@ Environment (upload):
         nargs="?",
         help="Bundle zip or directory to upload (default: STAGE_DIR).",
     )
+
+    art = sub.add_parser(
+        "artifact",
+        help="Download Maven artifacts by Gradle coordinate (no Gradle project needed) and zip them.",
+    )
+    art.add_argument(
+        "coords",
+        nargs="*",
+        metavar="group:artifact:version",
+        help="One or more Gradle implementation strings. If omitted, you'll be prompted to enter them.",
+    )
+    art.add_argument(
+        "--repo",
+        default=_env("MAVEN_REPO_URL", MAVEN_CENTRAL),
+        help=f"Maven repository base URL to download from (default: {MAVEN_CENTRAL}).",
+    )
+    art.add_argument(
+        "--no-sources",
+        action="store_true",
+        help="Skip the -sources and -javadoc jars (fetch only the main artifact, pom, and .module).",
+    )
+    art.add_argument(
+        "-o", "--output",
+        help="Output bundle zip path (default: same as download, $OUTPUT_ZIP).",
+    )
     return parser
 
 
@@ -376,6 +526,10 @@ def main(argv: list[str]) -> None:
         cmd_download(cfg, args.no_tests)
     elif args.mode == "upload":
         cmd_upload(cfg, args.bundle)
+    elif args.mode == "artifact":
+        if args.output:
+            cfg.output_zip = Path(args.output)
+        cmd_artifact(cfg, args.coords, args.repo, not args.no_sources)
     else:
         parser.print_help()
 

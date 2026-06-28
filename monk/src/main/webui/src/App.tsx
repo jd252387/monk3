@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AppShell,
   Badge,
@@ -10,7 +10,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import Editor from '@monaco-editor/react';
+import Editor, { type OnMount } from '@monaco-editor/react';
 import { runQuery, type QueryEndpoint, type QueryResult } from './api';
 import { loadSchema } from './schema';
 
@@ -31,6 +31,8 @@ const SAMPLE = `{
   "fields": ["title", "category", "price"],
   "size": 10
 }`;
+
+const STORAGE_KEY = 'monk.queryConsole.requestBody';
 
 const EDITOR_OPTIONS = {
   minimap: { enabled: false },
@@ -59,7 +61,9 @@ function prettyPrint(text: string): string {
 }
 
 export default function App() {
-  const [query, setQuery] = useState(SAMPLE);
+  const [query, setQuery] = useState(
+    () => localStorage.getItem(STORAGE_KEY) ?? SAMPLE,
+  );
   const [result, setResult] = useState<QueryResult | null>(null);
   const [running, setRunning] = useState<QueryEndpoint | null>(null);
   const [schemaStatus, setSchemaStatus] = useState<SchemaStatus>('loading');
@@ -68,7 +72,12 @@ export default function App() {
     loadSchema().then((ok) => setSchemaStatus(ok ? 'loaded' : 'unavailable'));
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, query);
+  }, [query]);
+
   async function run(endpoint: QueryEndpoint) {
+    if (running !== null) return;
     setRunning(endpoint);
     try {
       setResult(await runQuery(endpoint, query));
@@ -78,6 +87,36 @@ export default function App() {
       setRunning(null);
     }
   }
+
+  // Keep a stable reference to the latest `run` so editor commands and the
+  // window listener (registered once) always call the current closure.
+  const runRef = useRef(run);
+  runRef.current = run;
+
+  // Register hotkeys on the editor itself so they fire while it's focused and
+  // override Monaco's default Ctrl+Enter ("insert line below") binding.
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
+      runRef.current('parse'),
+    );
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+      () => runRef.current('search'),
+    );
+  };
+
+  // Fallback for when focus is outside a Monaco editor (e.g. a button); the
+  // editors handle the shortcut themselves via the commands registered above.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey)) return;
+      if (e.target instanceof Element && e.target.closest('.monaco-editor')) return;
+      e.preventDefault();
+      runRef.current(e.shiftKey ? 'search' : 'parse');
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const schemaBadge = {
     loading: (
@@ -117,21 +156,25 @@ export default function App() {
             >
               API docs
             </Button>
-            <Button
-              variant="default"
-              onClick={() => run('parse')}
-              loading={running === 'parse'}
-              disabled={running !== null}
-            >
-              Parse
-            </Button>
-            <Button
-              onClick={() => run('search')}
-              loading={running === 'search'}
-              disabled={running !== null}
-            >
-              Search
-            </Button>
+            <Tooltip label="Ctrl+Enter">
+              <Button
+                variant="default"
+                onClick={() => run('parse')}
+                loading={running === 'parse'}
+                disabled={running !== null}
+              >
+                Parse
+              </Button>
+            </Tooltip>
+            <Tooltip label="Ctrl+Shift+Enter">
+              <Button
+                onClick={() => run('search')}
+                loading={running === 'search'}
+                disabled={running !== null}
+              >
+                Search
+              </Button>
+            </Tooltip>
           </Group>
         </Group>
       </AppShell.Header>
@@ -155,6 +198,7 @@ export default function App() {
                 theme="vs-dark"
                 value={query}
                 onChange={(value) => setQuery(value ?? '')}
+                onMount={handleEditorMount}
                 options={EDITOR_OPTIONS}
               />
             </Box>

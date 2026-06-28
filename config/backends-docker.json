@@ -5,7 +5,7 @@
       "url": "http://localhost:9200",
       "index": "sample",
       "primaryKey": "id",
-      "physical": "/monk3/mappings/sample",
+      "physical": "config/mappings/sample.mapping.json",
       "defaultSize": 10
     },
     "solr-sample": {
@@ -13,7 +13,7 @@
       "url": "http://localhost:8983/solr",
       "collection": "sample",
       "primaryKey": "id",
-      "physical": "/monk3/mappings/sample",
+      "physical": "config/mappings/sample.mapping.json",
       "defaultSize": 20
     }
   }
