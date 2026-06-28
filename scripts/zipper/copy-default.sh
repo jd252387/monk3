@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # copy-default.sh — Convenience wrapper around copy-by-ext.sh with project
-# defaults: copy yaml/java/kts sources into ./extracted, skipping build output,
-# then zip ./extracted into ./extracted.zip.
+# defaults: copy yaml/java/kts sources into ./extracted, skipping build output
+# and the subproject build.gradle.kts files, then zip ./extracted into
+# ./extracted.zip.
 #
 # Any extra arguments are forwarded to copy-by-ext.sh, so you can still pass
 # a SOURCE directory or flags like --dry-run / --flatten, e.g.:
@@ -16,9 +17,10 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dest="extracted"
 
 "$script_dir/copy-by-ext.sh" \
-    --ext yaml,java,kts,json,gradle \
+    --ext yaml,java,kts,json,gradle,py,toml \
     --dest "$dest" \
     --exclude bin,build,.vscode,.quarkus,docker,extracted \
+    --exclude-file nomad/build.gradle.kts,catalog/build.gradle.kts,monk/build.gradle.kts \
     "../.."
 
 # Nothing was actually copied on a dry run, so there's nothing to zip.

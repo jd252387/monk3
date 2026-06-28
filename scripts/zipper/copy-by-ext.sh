@@ -14,6 +14,10 @@
 #   -d, --dest DIR        Destination directory. Required.
 #   -x, --exclude DIRS    Comma-separated folder names/paths to exclude.
 #                         May be given multiple times.
+#   -X, --exclude-file FILES
+#                         Comma-separated individual file paths, relative to
+#                         SOURCE, to exclude (e.g. "monk/build.gradle.kts").
+#                         May be given multiple times.
 #   -f, --flatten         Copy all files into DEST without recreating the
 #                         source directory structure.
 #   -n, --dry-run         Show what would be copied without copying.
@@ -25,6 +29,7 @@
 # Examples:
 #   ./copy-by-ext.sh -e json,md -d /tmp/out
 #   ./copy-by-ext.sh -e .java -d ./out -x build,.git,target src
+#   ./copy-by-ext.sh -e kts -d ./out -X monk/build.gradle.kts,nomad/build.gradle.kts ../..
 #   ./copy-by-ext.sh --ext png,jpg --dest ./images --flatten --dry-run .
 
 set -euo pipefail
@@ -37,6 +42,7 @@ usage() {
 # --- defaults ---------------------------------------------------------------
 exts=()
 excludes=()
+exclude_files=()
 dest=""
 source_dir="."
 flatten=0
@@ -57,6 +63,11 @@ while [[ $# -gt 0 ]]; do
         -x|--exclude)
             IFS=',' read -ra parts <<< "$2"
             excludes+=("${parts[@]}")
+            shift 2
+            ;;
+        -X|--exclude-file)
+            IFS=',' read -ra parts <<< "$2"
+            exclude_files+=("${parts[@]}")
             shift 2
             ;;
         -f|--flatten)
@@ -101,6 +112,9 @@ if [[ ! -d "$source_dir" ]]; then
     exit 1
 fi
 
+# Drop a trailing slash so path anchoring and rel-path stripping stay consistent.
+[[ "$source_dir" != "/" ]] && source_dir="${source_dir%/}"
+
 # Normalise extensions: strip a leading dot, drop empties.
 norm_exts=()
 for e in "${exts[@]}"; do
@@ -111,9 +125,10 @@ done
 # --- build the find expression ----------------------------------------------
 find_args=("$source_dir")
 
-# Prune excluded directories. Matches either a path segment by name
-# (e.g. "build") or a path prefix (e.g. "src/test").
-if [[ ${#excludes[@]} -gt 0 ]]; then
+# Prune excluded directories and individual files. Directories match either a
+# path segment by name (e.g. "build") or a path prefix (e.g. "src/test"); files
+# match a single path anchored at SOURCE (e.g. "monk/build.gradle.kts").
+if [[ ${#excludes[@]} -gt 0 || ${#exclude_files[@]} -gt 0 ]]; then
     find_args+=("(")
     first=1
     for x in "${excludes[@]}"; do
@@ -121,6 +136,15 @@ if [[ ${#excludes[@]} -gt 0 ]]; then
         [[ -z "$x" ]] && continue
         [[ $first -eq 0 ]] && find_args+=("-o")
         find_args+=(-name "$x" -o -path "*/$x" -o -path "*/$x/*")
+        first=0
+    done
+    for f in "${exclude_files[@]}"; do
+        f="${f#./}"
+        f="${f#/}"
+        f="${f%/}"
+        [[ -z "$f" ]] && continue
+        [[ $first -eq 0 ]] && find_args+=("-o")
+        find_args+=(-path "$source_dir/$f")
         first=0
     done
     find_args+=(")" -prune -o)
