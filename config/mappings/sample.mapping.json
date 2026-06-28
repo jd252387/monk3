@@ -1,5 +1,7 @@
 {
+  "$schema": "./mappings.schema.json",
   "root": {
+    "identifier": {"field": "title", "data": {"type": "text", "phrases": [{"type": "phrase", "value": "book"}]}},
     "materialType": {
       "type": "string",
       "destinationField": "material_type"
@@ -8,7 +10,8 @@
       "type": "freetext"
     },
     "category": {
-      "type": "string"
+      "type": "string",
+      "aggregatable": true
     },
     "price": {
       "type": "number"
@@ -18,6 +21,22 @@
     },
     "year": {
       "type": "datetime"
+    },
+    "subdocuments": {
+      "type": "subdocument",
+      "subdocumentType": "subdoc",
+      "destinationField": "subdocs"
+    }
+  }, 
+  "subdoc": {
+    "chapter": {
+      "type": "string",
+      "destinationField": "chapter", 
+      "aggregatable": true
+    },
+    "page": {
+      "type": "number",
+      "destinationField": "page"
     }
   }
 }

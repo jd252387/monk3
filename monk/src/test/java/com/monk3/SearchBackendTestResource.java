@@ -7,6 +7,7 @@ import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,6 +29,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
     private ExecutorService executor;
     private Path backendsFile;
     private Path catalogFile;
+    private Path datasourcesFile;
 
     @Override
     public Map<String, String> start() {
@@ -214,13 +216,22 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             server.setExecutor(executor);
             server.start();
             String baseUrl = "http://localhost:" + server.getAddress().getPort();
+            // Resolve the test-owned mapping fixtures (monk/src/test/resources/config/mappings,
+            // exploded under build/resources/test) from the classpath so the catalog reads them by
+            // absolute path — the tests no longer depend on the repo-root config/ or the working dir.
+            Path mappingsDir = testMappingsDir();
+            String bookMapping = mappingsDir.resolve("book.mapping.json").toString();
+            String bookVirtual = mappingsDir.resolve("book.virtual.json").toString();
+            String articleMapping = mappingsDir.resolve("article.mapping.json").toString();
+            String datasetMapping = mappingsDir.resolve("dataset.mapping.json").toString();
             String backendsJson = """
                     {"backends":{
-                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","primaryKey":"id","physical":"config/mappings/book.mapping.json","virtual":"config/mappings/book.virtual.json"},
-                      "elastic-empty":{"engine":"ELASTICSEARCH","url":"%s/es","index":"empty","primaryKey":"id","physical":"config/mappings/dataset.mapping.json"},
-                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles","primaryKey":"id","physical":"config/mappings/article.mapping.json"},
-                      "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books","primaryKey":"id","physical":"config/mappings/book.mapping.json","virtual":"config/mappings/book.virtual.json"}
-                    }}""".formatted(baseUrl, baseUrl, baseUrl, baseUrl);
+                      "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","primaryKey":"id","physical":"%s","virtual":"%s"},
+                      "elastic-empty":{"engine":"ELASTICSEARCH","url":"%s/es","index":"empty","primaryKey":"id","physical":"%s"},
+                      "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles","primaryKey":"id","physical":"%s"},
+                      "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books","primaryKey":"id","physical":"%s","virtual":"%s"}
+                    }}""".formatted(baseUrl, bookMapping, bookVirtual, baseUrl, datasetMapping,
+                            baseUrl, articleMapping, baseUrl, bookMapping, bookVirtual);
             backendsFile = Files.createTempFile("monk-test-backends", ".json");
             Files.writeString(backendsFile, backendsJson);
 
@@ -246,13 +257,28 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             catalogFile = Files.createTempFile("monk-test-catalog", ".json");
             Files.writeString(catalogFile, catalogJson);
 
+            // monk is query-side and ignores datasources, but the catalog still parses the file when
+            // the property is set. Point it at an empty test-owned document so it never falls back to
+            // the repo-root config/datasources.json.
+            datasourcesFile = Files.createTempFile("monk-test-datasources", ".json");
+            Files.writeString(datasourcesFile, "{\"datasources\":{}}");
+
             return Map.of(
                     "indexer.catalog.source", "FILE",
                     "indexer.catalog.file.backends", backendsFile.toAbsolutePath().toString(),
                     "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString(),
+                    "indexer.catalog.file.datasources", datasourcesFile.toAbsolutePath().toString(),
                     "monk.embedding.url", baseUrl + "/embedding/embed");
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to start search backend test server", exception);
+        }
+    }
+
+    private static Path testMappingsDir() {
+        try {
+            return Path.of(SearchBackendTestResource.class.getResource("/config/mappings").toURI());
+        } catch (URISyntaxException exception) {
+            throw new IllegalStateException("Failed to resolve test mapping fixtures", exception);
         }
     }
 
@@ -266,6 +292,7 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
         }
         deleteQuietly(backendsFile);
         deleteQuietly(catalogFile);
+        deleteQuietly(datasourcesFile);
     }
 
     private static void deleteQuietly(Path file) {

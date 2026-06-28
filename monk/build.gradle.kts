@@ -39,9 +39,9 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
-    // Relative catalog paths (e.g. config/mappings/*.json) resolve against the JVM working
-    // directory; run from the repository root so they resolve as they did before the move.
-    workingDir = rootDir
+    // Tests are standalone: SearchBackendTestResource bundles its own catalog/backends/mappings
+    // fixtures (src/test/resources/config/mappings) and points the catalog at them by absolute
+    // path, so the suite reads nothing from the repo-root config/ and needs no special working dir.
 }
 
 tasks.withType<QuarkusDev>().configureEach {

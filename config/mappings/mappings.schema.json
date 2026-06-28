@@ -46,8 +46,8 @@
             "type": "object",
             "properties": {
                 "identifier": {
-                    "description": "A monk3 DSL query that identifies documents of this type. Used as the Solr root block mask ('which' local param) for root-level nested queries. Only meaningful on the 'root' document.",
-                    "type": "object"
+                    "description": "A monk DSL query that identifies documents of this type. Used as the Solr root block mask ('which' local param) for root-level nested queries. Only meaningful on the 'root' document.",
+                    "$ref": "../../monk/src/main/resources/search-query-dsl.schema.json#/$defs/QueryNode"
                 }
             },
             "additionalProperties": {

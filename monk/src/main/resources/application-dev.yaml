@@ -2,4 +2,5 @@ indexer:
   catalog:
     source: FILE
     file:
-      backends: "./config/backends-local.json"
+      config: "./config/catalog.json"
+      backends: "./config/backends.json"
