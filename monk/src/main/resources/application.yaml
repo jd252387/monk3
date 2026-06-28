@@ -39,6 +39,8 @@ quarkus:
     # The app is compiled to Java 25 bytecode, so the runtime base image must ship a Java 25 JRE
     # (Quarkus' default UBI base image is Java 21).
     base-jvm-image: eclipse-temurin:25-jre
+  dev-ui:
+    allow-extension-management: false
 
 indexer:
   catalog:
