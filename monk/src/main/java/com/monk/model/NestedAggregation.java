@@ -14,20 +14,22 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
+import java.util.List;
 import java.util.Map;
 
 @Schema(description = "Runs its sub-aggregations within the domain of a subdocument (nested) field; "
-        + "translates to an Elasticsearch nested aggregation and a Solr blockChildren domain change", example = """
+        + "the path is an ordered list of subdocument fields forming the hierarchy to descend into. "
+        + "Translates to an Elasticsearch nested aggregation and a Solr blockChildren domain change", example = """
         {
           "aggType": "nested",
-          "args": { "field": "chapters" },
+          "args": { "path": ["chapters", "pages"] },
           "aggs": {
-            "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
+            "byWordCount": { "aggType": "terms", "args": { "field": "wordCount" } }
           }
         }
         """)
 public record NestedAggregation(
-        @NotBlank String field,
+        @NotEmpty List<@NotBlank String> path,
         @NotEmpty Map<String, @NotNull @Valid Aggregation> subAggregations
 ) implements Aggregation {
     @JsonProperty
@@ -37,7 +39,7 @@ public record NestedAggregation(
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        NestedDomain domain = context.enterNested(field, aggType(), SearchEngine.ELASTICSEARCH);
+        NestedDomain domain = context.enterNested(path, aggType(), SearchEngine.ELASTICSEARCH);
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.putObject("nested").put("path", domain.path());
         root.set("aggs", domain.context().translateChildren(SearchEngine.ELASTICSEARCH, subAggregations));
@@ -46,7 +48,7 @@ public record NestedAggregation(
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        NestedDomain domain = context.enterNested(field, aggType(), SearchEngine.SOLR);
+        NestedDomain domain = context.enterNested(path, aggType(), SearchEngine.SOLR);
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "query");
         // Scope the changed domain to this nest level; blockChildren alone returns all descendants.

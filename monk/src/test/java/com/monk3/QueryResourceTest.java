@@ -663,7 +663,7 @@ class QueryResourceTest {
                           "aggs": {
                             "byChapter": {
                               "aggType": "nested",
-                              "args": { "field": "chapters" },
+                              "args": { "path": ["chapters"] },
                               "aggs": {
                                 "byPageCount": { "aggType": "terms", "args": { "field": "pageCount", "size": 5 } }
                               }
@@ -703,7 +703,7 @@ class QueryResourceTest {
                           "aggs": {
                             "byChapter": {
                               "aggType": "nested",
-                              "args": { "field": "chapters" },
+                              "args": { "path": ["chapters"] },
                               "aggs": {
                                 "byPageCount": { "aggType": "terms", "args": { "field": "pageCount", "size": 5 } }
                               }
@@ -747,11 +747,11 @@ class QueryResourceTest {
                           "aggs": {
                             "byChapter": {
                               "aggType": "nested",
-                              "args": { "field": "chapters" },
+                              "args": { "path": ["chapters"] },
                               "aggs": {
                                 "byPage": {
                                   "aggType": "nested",
-                                  "args": { "field": "pages" },
+                                  "args": { "path": ["pages"] },
                                   "aggs": {
                                     "byWords": { "aggType": "terms", "args": { "field": "num_words" } }
                                   }
@@ -790,11 +790,11 @@ class QueryResourceTest {
                           "aggs": {
                             "byChapter": {
                               "aggType": "nested",
-                              "args": { "field": "chapters" },
+                              "args": { "path": ["chapters"] },
                               "aggs": {
                                 "byPage": {
                                   "aggType": "nested",
-                                  "args": { "field": "pages" },
+                                  "args": { "path": ["pages"] },
                                   "aggs": {
                                     "byWords": { "aggType": "terms", "args": { "field": "num_words" } }
                                   }
@@ -817,6 +817,86 @@ class QueryResourceTest {
                 .body("[0].body.facet.byChapter.facet.byPage.domain.blockChildren", equalTo("_nest_path_:/chapters"))
                 .body("[0].body.facet.byChapter.facet.byPage.facet.byWords.type", equalTo("terms"))
                 .body("[0].body.facet.byChapter.facet.byPage.facet.byWords.field", equalTo("num_words"))
+                .body("[0].body.queries.root_identifier.field.query", equalTo("book"));
+    }
+
+    @Test
+    void parsesCollapsedPathNestedAggregationToElasticsearchNestedAggregation() {
+        // A single nested aggregation with a multi-segment path descends straight to the deepest
+        // subdocument level (chapters -> pages) in one nested node.
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Collapsed path chapters/pages aggregation ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byPages": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters", "pages"] },
+                              "aggs": {
+                                "byWords": { "aggType": "terms", "args": { "field": "num_words" } }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byPages.nested.path", equalTo("chapters.pages"))
+                .body("[0].body.aggs.byPages.aggs.byWords.terms.field", equalTo("chapters.pages.num_words"));
+    }
+
+    @Test
+    void parsesCollapsedPathNestedAggregationToSolrBlockChildrenDomain() {
+        // The multi-segment path collapses to a single blockChildren facet masked by the root
+        // identifier; the q scopes the returned descendants to the deepest nest level.
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Collapsed path chapters/pages aggregation Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byPages": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters", "pages"] },
+                              "aggs": {
+                                "byWords": { "aggType": "terms", "args": { "field": "num_words" } }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].body.facet.byPages.type", equalTo("query"))
+                .body("[0].body.facet.byPages.q", equalTo("_nest_path_:/chapters/pages"))
+                .body("[0].body.facet.byPages.domain.blockChildren", equalTo("{!v=$root_identifier}"))
+                .body("[0].body.facet.byPages.facet.byWords.type", equalTo("terms"))
+                .body("[0].body.facet.byPages.facet.byWords.field", equalTo("num_words"))
                 .body("[0].body.queries.root_identifier.field.query", equalTo("book"));
     }
 
@@ -2168,7 +2248,7 @@ class QueryResourceTest {
                           "aggs": {
                             "byChapter": {
                               "aggType": "nested",
-                              "args": { "field": "chapters" },
+                              "args": { "path": ["chapters"] },
                               "aggs": {
                                 "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
                               }
@@ -2214,7 +2294,7 @@ class QueryResourceTest {
                           "aggs": {
                             "byChapter": {
                               "aggType": "nested",
-                              "args": { "field": "chapters" },
+                              "args": { "path": ["chapters"] },
                               "aggs": {
                                 "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
                               }
@@ -2506,12 +2586,17 @@ class QueryResourceTest {
                 """, "Virtual field 'recentBook' cannot be used in aggregations");
 
         assertAggregationTranslationError("""
-                {"byYear": {"aggType": "nested", "args": {"field": "year"}, "aggs": {"perYear": {"aggType": "terms", "args": {"field": "year"}}}}}
-                """, "Aggregation type 'nested' requires a subdocument field; 'year' is not a subdocument field");
+                {"byYear": {"aggType": "nested", "args": {"path": ["year"]}, "aggs": {"perYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "Aggregation type 'nested' requires subdocument fields in its path; 'year' is not a subdocument field");
+
+        // An intermediate segment that is not a subdocument is rejected while walking the path.
+        assertAggregationTranslationError("""
+                {"byPages": {"aggType": "nested", "args": {"path": ["chapters", "title"]}, "aggs": {"byTitle": {"aggType": "terms", "args": {"field": "title"}}}}}
+                """, "Aggregation type 'nested' requires subdocument fields in its path; 'title' is not a subdocument field");
 
         // Leaf-field capability checks still apply inside a nested aggregation's subdocument domain.
         assertAggregationTranslationError("""
-                {"byChapter": {"aggType": "nested", "args": {"field": "chapters"}, "aggs": {"byTitle": {"aggType": "terms", "args": {"field": "title"}}}}}
+                {"byChapter": {"aggType": "nested", "args": {"path": ["chapters"]}, "aggs": {"byTitle": {"aggType": "terms", "args": {"field": "title"}}}}}
                 """, "Aggregation type 'terms' is not supported for field 'title' with mapping type 'freetext'");
     }
 
@@ -2681,12 +2766,24 @@ class QueryResourceTest {
                 """, "Unsupported aggregation type 'geo'");
 
         assertAggregationStructureError("""
-                {"byChapter": {"aggType": "nested", "args": {"field": "chapters"}}}
+                {"byChapter": {"aggType": "nested", "args": {"path": ["chapters"]}}}
                 """, "Nested aggregation requires one or more sub-aggregations");
 
         assertAggregationStructureError("""
-                {"byChapter": {"aggType": "nested", "args": {"field": "chapters", "foo": 1}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
+                {"byChapter": {"aggType": "nested", "args": {"path": ["chapters"], "foo": 1}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
                 """, "Unknown nested aggregation property: foo");
+
+        assertAggregationStructureError("""
+                {"byChapter": {"aggType": "nested", "args": {}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
+                """, "Nested aggregation args path must be a non-empty array of strings");
+
+        assertAggregationStructureError("""
+                {"byChapter": {"aggType": "nested", "args": {"path": []}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
+                """, "Nested aggregation args path must be a non-empty array of strings");
+
+        assertAggregationStructureError("""
+                {"byChapter": {"aggType": "nested", "args": {"path": ["chapters", 1]}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
+                """, "Nested aggregation args path must contain only non-empty strings");
     }
 
     @Test
@@ -3038,6 +3135,9 @@ class QueryResourceTest {
                 .body("$defs.MaxAggregation.properties.aggType.const", equalTo("max"))
                 .body("$defs.NestedAggregation.properties.aggType.const", equalTo("nested"))
                 .body("$defs.NestedAggregation.required", containsInAnyOrder("aggType", "args", "aggs"))
+                .body("$defs.NestedAggregation.properties.args.required", containsInAnyOrder("path"))
+                .body("$defs.NestedAggregation.properties.args.properties.path.type", equalTo("array"))
+                .body("$defs.NestedAggregation.properties.args.properties.path.items.type", equalTo("string"))
                 .body("$defs.NestedAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
                 .body("$defs.FilterAggregation.properties.args.properties.query.items.$ref", equalTo("#/$defs/QueryNode"))
                 .body("$defs.RangeAggregation.properties.args.required", containsInAnyOrder("field", "interval", "from", "to"))

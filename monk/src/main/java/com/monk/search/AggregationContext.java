@@ -10,6 +10,7 @@ import jd.nomad.mapping.MappedField;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -57,55 +58,69 @@ public record AggregationContext(
     }
 
     /**
-     * Resolves {@code logicalName} as a subdocument field and returns the domain for a nested
-     * aggregation: a child {@link AggregationContext} whose per-material-type contexts have descended
-     * into the subdocument (so sub-aggregations resolve their fields within it), together with the
-     * engine-specific path/mask used to build the wrapping aggregation. Mirrors the subdocument
-     * resolution and nest-path/block-mask derivation in {@code BooleanQueryData.translate}.
+     * Resolves {@code path} — an ordered list of subdocument fields forming a hierarchy — and returns
+     * the domain for a nested aggregation: a child {@link AggregationContext} whose per-material-type
+     * contexts have descended into the deepest subdocument (so sub-aggregations resolve their fields
+     * within it), together with the engine-specific path/mask used to build the wrapping aggregation.
+     * Mirrors the subdocument resolution and nest-path/block-mask derivation in
+     * {@code BooleanQueryData.translate}, walking each path segment in turn.
      */
-    public NestedDomain enterNested(String logicalName, String aggType, SearchEngine engine) {
+    public NestedDomain enterNested(List<String> path, String aggType, SearchEngine engine) {
         Map<String, QueryParseContext> nestedContexts = new LinkedHashMap<>();
-        Set<String> paths = new LinkedHashSet<>();
+        Set<String> resolvedPaths = new LinkedHashSet<>();
         String elasticsearchPath = null;
         String solrBlockMask = null;
         String solrNestPath = null;
         for (Map.Entry<String, QueryParseContext> entry : contextsByMaterialType.entrySet()) {
             String materialType = entry.getKey();
-            QueryParseContext context = entry.getValue();
-            MappedField mappedField = context.findMappedField(logicalName)
-                    .orElseThrow(() -> missingFieldException(context, logicalName, materialType));
-            if (!mappedField.isSubdocument()) {
-                throw new QueryTranslationException(
-                        "Aggregation type '" + aggType + "' requires a subdocument field; '" + logicalName
-                                + "' is not a subdocument field for material type '" + materialType + "'");
+            QueryParseContext current = entry.getValue();
+            // The block mask must match the parent documents whose descendants this domain selects:
+            // the configured root identifier at the top level, or the parent hierarchy's nest path.
+            // A blockChildren domain returns all descendants and the nest-path q (built from the full
+            // walked path) scopes them to the deepest level, so the mask derives once from the
+            // starting context regardless of how many segments the path descends.
+            if (engine == SearchEngine.SOLR) {
+                solrBlockMask = current.solrNestPath() == null
+                        ? solrRootBlockMask()
+                        : current.solrNestPathMask();
             }
-            DocumentMapping childDocument = context.requireDocument(mappedField.subdocumentType());
-            String childPath = mappedField.searchField();
+            for (String segment : path) {
+                QueryParseContext segmentContext = current;
+                MappedField mappedField = segmentContext.findMappedField(segment)
+                        .orElseThrow(() -> missingFieldException(segmentContext, segment, materialType));
+                if (!mappedField.isSubdocument()) {
+                    throw new QueryTranslationException(
+                            "Aggregation type '" + aggType + "' requires subdocument fields in its path; '"
+                                    + segment + "' is not a subdocument field for material type '" + materialType + "'");
+                }
+                DocumentMapping childDocument = segmentContext.requireDocument(mappedField.subdocumentType());
+                String childPath = mappedField.searchField();
+                switch (engine) {
+                    case ELASTICSEARCH -> {
+                        String fullPath = segmentContext.nestedPath() == null
+                                ? childPath
+                                : segmentContext.nestedPath() + "." + childPath;
+                        current = segmentContext.withNestedDocument(childDocument, fullPath);
+                    }
+                    case SOLR -> current = segmentContext.withSolrNestedDocument(
+                            childDocument, segmentContext.solrChildNestPath(childPath));
+                }
+            }
             switch (engine) {
                 case ELASTICSEARCH -> {
-                    String fullPath = context.nestedPath() == null
-                            ? childPath
-                            : context.nestedPath() + "." + childPath;
-                    paths.add(fullPath);
-                    elasticsearchPath = fullPath;
-                    nestedContexts.put(materialType, context.withNestedDocument(childDocument, fullPath));
+                    resolvedPaths.add(current.nestedPath());
+                    elasticsearchPath = current.nestedPath();
                 }
                 case SOLR -> {
-                    String fullNestPath = context.solrChildNestPath(childPath);
-                    paths.add(fullNestPath);
-                    solrNestPath = fullNestPath;
-                    // The block mask must match the parent documents whose children this domain selects:
-                    // the configured root identifier at the top level, or the parent hierarchy's nest path.
-                    solrBlockMask = context.solrNestPath() == null
-                            ? solrRootBlockMask()
-                            : context.solrNestPathMask();
-                    nestedContexts.put(materialType, context.withSolrNestedDocument(childDocument, fullNestPath));
+                    resolvedPaths.add(current.solrNestPath());
+                    solrNestPath = current.solrNestPath();
                 }
             }
+            nestedContexts.put(materialType, current);
         }
-        if (paths.size() > 1) {
-            throw new QueryTranslationException("Nested aggregation field '" + logicalName
-                    + "' resolves to different nested paths across the requested material types: " + paths);
+        if (resolvedPaths.size() > 1) {
+            throw new QueryTranslationException("Nested aggregation path " + path
+                    + " resolves to different nested paths across the requested material types: " + resolvedPaths);
         }
         return new NestedDomain(
                 new AggregationContext(nestedContexts, aggregationName, namedQueries),

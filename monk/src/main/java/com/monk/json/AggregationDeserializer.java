@@ -37,7 +37,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static final Set<String> RANGE_ARGS = Set.of("field", "interval", "from", "to");
     private static final Set<String> SUBFACETS_ARGS = Set.of("field", "filters");
     private static final Set<String> FILTER_ARGS = Set.of("query");
-    private static final Set<String> NESTED_ARGS = Set.of("field");
+    private static final Set<String> NESTED_ARGS = Set.of("path");
 
     @Override
     public Aggregation deserialize(JsonParser parser, DeserializationContext context) throws IOException {
@@ -210,7 +210,24 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
             throw MismatchedInputException.from(parser, Object.class,
                     "Nested aggregation requires one or more sub-aggregations");
         }
-        return new NestedAggregation(readRequiredField(parser, args), subAggregations);
+        return new NestedAggregation(readRequiredPath(parser, args), subAggregations);
+    }
+
+    private static List<String> readRequiredPath(JsonParser parser, JsonNode args) throws JsonMappingException {
+        JsonNode pathNode = args.get("path");
+        if (pathNode == null || !pathNode.isArray() || pathNode.isEmpty()) {
+            throw MismatchedInputException.from(parser, Object.class,
+                    "Nested aggregation args path must be a non-empty array of strings");
+        }
+        List<String> path = new ArrayList<>();
+        for (JsonNode element : pathNode) {
+            if (!element.isTextual() || element.textValue().isBlank()) {
+                throw MismatchedInputException.from(parser, Object.class,
+                        "Nested aggregation args path must contain only non-empty strings");
+            }
+            path.add(element.textValue());
+        }
+        return List.copyOf(path);
     }
 
     private static String readRequiredField(JsonParser parser, JsonNode args) throws JsonMappingException {

@@ -44,7 +44,9 @@ monk is a Quarkus REST service (Java 25) that accepts a custom search query DSL 
 
 ### REST endpoints (`/queries`)
 
-- `POST /queries/parse` — accepts the same body as `/queries/search`; translates the query to Elasticsearch or Solr DSL for each configured backend
+Both `POST` endpoints take a `SearchExecutionRequest`: a `username` (forwarded to Solr backends as the `uc` request param, ignored by Elasticsearch), a list of `query` (`SearchQueryRequest`s; queries targeting the same backend are merged with a boolean `should`), the `fields` to project, an optional `size`, and an optional `aggs` map of named aggregations.
+
+- `POST /queries/parse` — accepts the same body as `/queries/search`; translates the full request (query, result fields, size, and aggregations) into each backend's native Elasticsearch or Solr body without executing it (the returned body per backend is exactly what `/queries/search` would POST)
 - `POST /queries/search` — executes against configured backends and returns merged, normalized results
 - `GET /queries/schema` — serves the bundled `search-query-dsl.schema.json`
 
@@ -52,11 +54,17 @@ monk is a Quarkus REST service (Java 25) that accepts a custom search query DSL 
 
 `SearchQueryRequest` carries a list of `materialTypes` and a root `QueryNode`. A `QueryNode` has a `field` and `data`:
 
-- **Leaf node**: non-empty `field` with `QueryPayload` data — one of `TextQuery`, `RangeQuery` (`Numeric` / `Datetime`), or `ExactQuery` (`Numeric` / `Datetime` / `BooleanValues`).
+- **Leaf node**: non-empty `field` with `QueryPayload` data — one of `TextQuery`, `RangeQuery` (`Numeric` / `Datetime`), `ExactQuery` (`Numeric` / `Datetime` / `BooleanValues`), `ExistsQuery` (field has any value), `PrefixQuery` (value starts with a prefix), or `KnnFlatQuery` (embeds free text and searches a vector field).
 - **Boolean node**: empty `field` with `BooleanQueryData` (a flat array of `QueryNode` clauses, each carrying a required `bool` of `should` (OR), `must` (AND), or `mustNot` (negation); clauses are grouped by that tag).
 - **Subdocument node**: non-empty `field` pointing to a subdocument type, with `BooleanQueryData` — translates to ES `nested` or Solr `{!parent}` queries.
 
 A `QueryNode`'s `minimumMatch` is only meaningful on boolean nodes (it sets minimum-should-match over the `should` clauses); its `bool` is only meaningful when the node is itself a clause of a boolean node.
+
+### Aggregations
+
+The request's optional `aggs` is a map of name → `Aggregation` (a sealed interface deserialized by `AggregationDeserializer`, dispatching on `aggType`), computed per backend and translated to native ES aggregations / Solr JSON facets. Each carries an `args` object and may declare nested `aggs` (sub-aggregations that run over each bucket the parent produces). Types: `terms`, `range`, `subfacets`, `filter`, `unique`, the metrics `sum` / `avg` / `min` / `max` (`MetricAggregation`), and `nested`. `unique` and the metrics reject sub-aggregations.
+
+A `nested` aggregation (`NestedAggregation`) runs its sub-aggregations within the domain of a subdocument hierarchy: its `args.path` is an ordered, non-empty list of subdocument field names to descend into (e.g. `["chapters", "pages"]`), and the sub-aggregations resolve their fields at the deepest level. It translates to an ES `nested` aggregation and a Solr `blockChildren` domain change. `AggregationContext.enterNested` walks the path segment by segment, deriving the engine path/mask the same way `BooleanQueryData.translate` does for subdocument query nodes (Solr block mask from the root `identifier` at the top level, or the parent hierarchy's nest path below it), and fails if the path resolves to different nested paths across the requested material types. An aggregation over a non-`aggregatable` field is rejected (see `FieldCapabilities` below).
 
 ### Configuration catalog and field mapping
 
@@ -88,9 +96,36 @@ Backends are configured in `config/backends.json`. Each backend declares its `en
 
 Tests are full Quarkus integration tests (`@QuarkusTest`) using REST-assured. `SearchBackendTestResource` is a `@QuarkusTestResource` that starts a mock HTTP server impersonating Elasticsearch and Solr backends.
 
-### Code style (from AGENTS.md)
+### Code style
 
-- Prefer `@RequiredArgsConstructor` with `final` fields over field injection.
-- Use records for immutable models.
-- Use `Optional<T>` as a return type for absent values; not for fields, parameters, or DTOs.
-- Stream pipelines for declarative transformations; ordinary loops when mutation or exception handling is involved.
+**General / Java**
+
+- Target Java 25 and follow the existing Quarkus project structure.
+- Prefer clear, immutable models (records) and small methods with explicit names.
+- Keep business logic out of REST resource classes when it grows beyond simple request handling.
+
+**Gradle**
+
+- Use the Gradle wrapper (`./gradlew`) for all build, test, and verification commands.
+- Prefer adding dependencies and plugin configuration in Gradle files over IDE-only setup; keep changes focused and consistent with existing conventions.
+
+**Lombok**
+
+- Use Lombok to remove low-value boilerplate, not to hide behavior.
+- Prefer constructor injection with `final` fields and `@RequiredArgsConstructor` over field injection.
+
+**Streams**
+
+- Use streams for collection transformations, filtering, grouping, and short declarative pipelines; prefer ordinary loops when mutation, branching, exception handling, or debugging would make a stream harder to read.
+- Keep pipelines small and readable; extract named helper methods instead of nesting complex lambdas.
+- Avoid side effects inside `map`, `filter`, `flatMap`, and `peek` (`peek` only for temporary diagnostics).
+- Prefer intent-revealing terminal operations (`toList`, `findFirst`, `anyMatch`, `allMatch`, `noneMatch`, `collect(groupingBy(...))`, `collect(toMap(...))`); be explicit about duplicate-key handling with `Collectors.toMap`.
+- Do not use parallel streams unless the workload is proven CPU-bound, thread-safe, and worth the complexity.
+
+**Optional**
+
+- Use `Optional<T>` as a return type when a value may legitimately be absent; not for fields, method parameters, DTO properties, or serialization contracts (unless a framework integration requires it).
+- Prefer `map`, `flatMap`, `filter`, `orElseGet`, `orElseThrow`, and `ifPresentOrElse` over manual presence checks; use `orElseGet` when the fallback is expensive or has side effects.
+- Avoid `Optional.get()` unless presence has already been guaranteed in the same local scope.
+- Do not wrap nullable collections in `Optional`; return an empty collection instead.
+- Use absence to represent "not found" / "not provided", not failure; use exceptions or result types for errors that need diagnostics.

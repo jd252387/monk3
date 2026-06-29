@@ -37,6 +37,21 @@
     "page": {
       "type": "number",
       "destinationField": "page"
+    }, 
+    "subsubdocs": {
+      "type": "subdocument",
+      "subdocumentType": "subsubdoc",
+      "destinationField": "subsubdocs"
+    }
+  },
+  "subsubdoc": {
+    "section": {
+      "type": "string",
+      "destinationField": "section"
+    },
+    "paragraph": {
+      "type": "freetext",
+      "destinationField": "paragraph"
     }
   }
 }

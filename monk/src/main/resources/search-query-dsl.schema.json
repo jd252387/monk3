@@ -409,7 +409,7 @@
     },
     "NestedAggregation": {
       "type": "object",
-      "description": "Runs its sub-aggregations within the domain of a subdocument (nested) field. Translates to an Elasticsearch nested aggregation and a Solr blockChildren domain change.",
+      "description": "Runs its sub-aggregations within the domain of a subdocument (nested) field hierarchy. Translates to an Elasticsearch nested aggregation and a Solr blockChildren domain change.",
       "additionalProperties": false,
       "required": [
         "aggType",
@@ -424,12 +424,17 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "field"
+            "path"
           ],
           "properties": {
-            "field": {
-              "type": "string",
-              "description": "Subdocument field whose nested documents the sub-aggregations run over."
+            "path": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Ordered list of subdocument fields forming the hierarchy to descend into; the sub-aggregations run over the documents at the deepest level."
             }
           }
         },
