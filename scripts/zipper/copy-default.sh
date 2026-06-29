@@ -17,10 +17,10 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dest="extracted"
 
 "$script_dir/copy-by-ext.sh" \
-    --ext yaml,java,kts,json,gradle,py,toml \
+    --ext yaml,java,kts,json,gradle,py,toml,yml \
     --dest "$dest" \
     --exclude bin,build,.vscode,.quarkus,docker,extracted \
-    --exclude-file nomad/build.gradle.kts,catalog/build.gradle.kts,monk/build.gradle.kts \
+    --exclude-file nomad/build.gradle.kts,catalog/build.gradle.kts,monk/build.gradle.kts,monk/src/main/resources/application.yaml,monk/src/main/resources/application-dev.yaml \
     "../.."
 
 # Nothing was actually copied on a dry run, so there's nothing to zip.
