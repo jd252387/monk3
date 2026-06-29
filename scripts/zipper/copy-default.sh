@@ -17,9 +17,9 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dest="extracted"
 
 "$script_dir/copy-by-ext.sh" \
-    --ext yaml,java,kts,json,gradle,py,toml,yml \
+    --ext yaml,java,kts,json,gradle,py,toml,yml,md \
     --dest "$dest" \
-    --exclude bin,build,.vscode,.quarkus,docker,extracted \
+    --exclude bin,build,.vscode,.quarkus,docker,extracted,.venv,node_modules \
     --exclude-file nomad/build.gradle.kts,catalog/build.gradle.kts,monk/build.gradle.kts,monk/src/main/resources/application.yaml,monk/src/main/resources/application-dev.yaml \
     "../.."
 
@@ -35,3 +35,7 @@ done
 rm -f "$dest.zip"
 zip -r "$dest.zip" "$dest"
 echo "Zipped '$dest' into '$dest.zip'."
+
+# Remove the staging directory now that it's archived, leaving only the zip.
+rm -rf "$dest"
+echo "Removed '$dest'."
