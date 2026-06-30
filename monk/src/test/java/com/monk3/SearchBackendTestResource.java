@@ -220,10 +220,10 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
             // exploded under build/resources/test) from the classpath so the catalog reads them by
             // absolute path — the tests no longer depend on the repo-root config/ or the working dir.
             Path mappingsDir = testMappingsDir();
-            String bookMapping = mappingsDir.resolve("book.mapping.json").toString();
-            String bookVirtual = mappingsDir.resolve("book.virtual.json").toString();
-            String articleMapping = mappingsDir.resolve("article.mapping.json").toString();
-            String datasetMapping = mappingsDir.resolve("dataset.mapping.json").toString();
+            String bookMapping = mappingsDir.resolve("book.mapping.json").toString().replace('\\', '/');
+            String bookVirtual = mappingsDir.resolve("book.virtual.json").toString().replace('\\', '/');
+            String articleMapping = mappingsDir.resolve("article.mapping.json").toString().replace('\\', '/');
+            String datasetMapping = mappingsDir.resolve("dataset.mapping.json").toString().replace('\\', '/');
             String backendsJson = """
                     {"backends":{
                       "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","primaryKey":"id","physical":"%s","virtual":"%s"},
