@@ -1,8 +1,6 @@
 package com.monk.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.monk.json.QueryNodeDeserializer;
 import com.monk.search.QueryParseContext;
 import com.monk.search.QueryTranslationException;
 import com.monk.search.SearchEngine;
@@ -27,7 +25,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
           }
         }
         """)
-@JsonDeserialize(using = QueryNodeDeserializer.class)
 public record QueryNode(
         @NotNull @Schema(description = "Logical field name; empty for boolean nodes, non-empty for leaf/subdocument nodes") String field,
         @Positive @Schema(description = "Minimum number of should-clauses that must match (boolean nodes only)") Integer minimumMatch,

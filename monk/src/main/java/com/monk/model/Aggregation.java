@@ -1,8 +1,6 @@
 package com.monk.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.monk.json.AggregationDeserializer;
 import com.monk.search.AggregationContext;
 import com.monk.search.SearchEngine;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -16,7 +14,6 @@ import java.util.Map;
 @Schema(description = "A named facet/aggregation computed per backend over root document fields",
         oneOf = {TermsAggregation.class, UniqueAggregation.class, RangeAggregation.class, SubfacetsAggregation.class,
                 FilterAggregation.class, MetricAggregation.class, NestedAggregation.class})
-@JsonDeserialize(using = AggregationDeserializer.class)
 public sealed interface Aggregation
         permits TermsAggregation, UniqueAggregation, RangeAggregation, SubfacetsAggregation, FilterAggregation,
                 MetricAggregation, NestedAggregation {

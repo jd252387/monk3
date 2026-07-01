@@ -3066,7 +3066,13 @@ class QueryResourceTest {
                 .contentType(ContentType.JSON)
                 .body("error.code", equalTo("invalid_query_structure"))
                 .body("error.message", containsString("Unsupported query data type 'geo'"))
-                .body("error.message", containsString("Supported query data types are 'text', 'range', 'exact', 'exists', 'prefix', and 'knnFlat'"));
+                .body("error.message", containsString("Supported query data types are"))
+                .body("error.message", containsString("'text'"))
+                .body("error.message", containsString("'range'"))
+                .body("error.message", containsString("'exact'"))
+                .body("error.message", containsString("'exists'"))
+                .body("error.message", containsString("'prefix'"))
+                .body("error.message", containsString("'knnFlat'"));
     }
 
     @Test

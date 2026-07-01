@@ -17,6 +17,7 @@ import com.monk.model.RangeAggregation;
 import com.monk.model.SubfacetsAggregation;
 import com.monk.model.TermsAggregation;
 import com.monk.model.UniqueAggregation;
+import jakarta.inject.Singleton;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -29,6 +30,7 @@ import java.util.Set;
 
 import static com.monk.json.QueryNodeDeserializer.rejectUnknownFields;
 
+@Singleton
 public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static final Set<String> WRAPPER_FIELDS = Set.of("aggType", "args", "aggs");
     private static final Set<String> TERMS_ARGS = Set.of("field", "size");
@@ -38,6 +40,12 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static final Set<String> SUBFACETS_ARGS = Set.of("field", "filters");
     private static final Set<String> FILTER_ARGS = Set.of("query");
     private static final Set<String> NESTED_ARGS = Set.of("path");
+
+    private final QueryNodeDeserializer queryNodeDeserializer;
+
+    AggregationDeserializer(QueryNodeDeserializer queryNodeDeserializer) {
+        this.queryNodeDeserializer = queryNodeDeserializer;
+    }
 
     @Override
     public Aggregation deserialize(JsonParser parser, DeserializationContext context) throws IOException {
@@ -155,7 +163,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
                 subAggregations);
     }
 
-    private static SubfacetsAggregation readSubfacets(
+    private SubfacetsAggregation readSubfacets(
             JsonParser parser, ObjectMapper mapper, JsonNode args, Map<String, Aggregation> subAggregations)
             throws IOException {
         rejectUnknownFields(parser, args, SUBFACETS_ARGS, "subfacets aggregation");
@@ -170,7 +178,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
         Map<String, QueryPayload> filters = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> entry : filtersNode.properties()) {
             try {
-                filters.put(entry.getKey(), QueryNodeDeserializer.readPayloadData(parser, mapper, entry.getValue()));
+                filters.put(entry.getKey(), queryNodeDeserializer.readPayloadData(parser, mapper, entry.getValue()));
             } catch (JsonMappingException exception) {
                 exception.prependPath(SubfacetsAggregation.class, entry.getKey());
                 exception.prependPath(SubfacetsAggregation.class, "filters");
@@ -180,7 +188,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
         return new SubfacetsAggregation(field, Collections.unmodifiableMap(filters), subAggregations);
     }
 
-    private static FilterAggregation readFilter(
+    private FilterAggregation readFilter(
             JsonParser parser, ObjectMapper mapper, JsonNode args, Map<String, Aggregation> subAggregations)
             throws IOException {
         rejectUnknownFields(parser, args, FILTER_ARGS, "filter aggregation");
@@ -194,7 +202,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
         List<QueryNode> nodes = new ArrayList<>();
         for (JsonNode element : queryNode) {
             try {
-                nodes.add(QueryNodeDeserializer.readNode(parser, mapper, element));
+                nodes.add(queryNodeDeserializer.readNode(parser, mapper, element));
             } catch (JsonMappingException exception) {
                 exception.prependPath(FilterAggregation.class, "query");
                 throw exception;
