@@ -3,7 +3,7 @@ package com.monk.json;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk.model.QueryPayload;
+import com.monk.model.query.QueryPayload;
 
 import java.io.IOException;
 

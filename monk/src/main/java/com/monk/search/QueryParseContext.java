@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk.mapping.FieldTypeConfig;
-import com.monk.model.QueryData;
+import com.monk.model.query.QueryData;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;

@@ -1,4 +1,4 @@
-package com.monk.model;
+package com.monk.model.agg;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk.search.AggregationContext;

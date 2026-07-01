@@ -8,11 +8,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk.model.BooleanOccur;
-import com.monk.model.BooleanQueryData;
-import com.monk.model.QueryData;
-import com.monk.model.QueryNode;
-import com.monk.model.QueryPayload;
+import com.monk.model.query.BooleanOccur;
+import com.monk.model.query.BooleanQueryData;
+import com.monk.model.query.QueryData;
+import com.monk.model.query.QueryNode;
+import com.monk.model.query.QueryPayload;
 import jakarta.inject.Singleton;
 
 import java.io.IOException;

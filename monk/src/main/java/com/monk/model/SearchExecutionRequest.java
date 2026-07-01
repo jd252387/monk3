@@ -1,5 +1,7 @@
 package com.monk.model;
 
+import com.monk.model.agg.Aggregation;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;

@@ -3,8 +3,8 @@ package com.monk.json;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.monk.model.Aggregation;
-import com.monk.model.QueryNode;
+import com.monk.model.agg.Aggregation;
+import com.monk.model.query.QueryNode;
 import io.quarkus.jackson.ObjectMapperCustomizer;
 import jakarta.inject.Singleton;
 

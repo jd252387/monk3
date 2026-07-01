@@ -1,4 +1,4 @@
-package com.monk.model;
+package com.monk.model.query;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser;

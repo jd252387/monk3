@@ -3,7 +3,7 @@ package com.monk.search;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.monk.model.Aggregation;
+import com.monk.model.agg.Aggregation;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.MappedField;

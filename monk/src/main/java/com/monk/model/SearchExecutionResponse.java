@@ -1,5 +1,7 @@
 package com.monk.model;
 
+import com.monk.model.agg.AggregationResult;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 

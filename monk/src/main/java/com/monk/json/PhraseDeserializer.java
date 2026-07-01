@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import com.monk.model.TextQuery.CapsulePhrase;
-import com.monk.model.TextQuery.Phrase;
-import com.monk.model.TextQuery.StandardPhrase;
+import com.monk.model.query.TextQuery.CapsulePhrase;
+import com.monk.model.query.TextQuery.Phrase;
+import com.monk.model.query.TextQuery.StandardPhrase;
 
 import java.io.IOException;
 import java.util.Set;

@@ -1,4 +1,6 @@
-package com.monk.model;
+package com.monk.model.agg;
+
+import com.monk.model.query.QueryNode;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;

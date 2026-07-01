@@ -1,4 +1,4 @@
-package com.monk.model;
+package com.monk.model.query;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonNode;

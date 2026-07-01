@@ -1,9 +1,9 @@
 package com.monk.routing;
 
-import com.monk.model.BooleanQueryData;
-import com.monk.model.QueryNode;
-import com.monk.model.RangeQuery;
-import com.monk.model.TextQuery;
+import com.monk.model.query.BooleanQueryData;
+import com.monk.model.query.QueryNode;
+import com.monk.model.query.RangeQuery;
+import com.monk.model.query.TextQuery;
 import com.monk.routing.QueryAnalysis;
 import com.monk.routing.QueryAnalyzer;
 

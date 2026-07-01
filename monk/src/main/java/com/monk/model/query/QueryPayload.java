@@ -1,4 +1,4 @@
-package com.monk.model;
+package com.monk.model.query;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jd.nomad.mapping.MappedField;
