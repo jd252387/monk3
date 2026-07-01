@@ -9,6 +9,7 @@ target/
 *.class
 *.log
 *.pid
+.claude
 
 # IDEs
 .idea/
