@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jd.nomad.mapping.FieldType;
 import com.monk.json.PhraseDeserializer;
 import com.monk.search.QueryJson;
 import com.monk.search.QueryParseContext;
@@ -18,7 +17,6 @@ import jakarta.validation.constraints.NotNull;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
-import java.util.Set;
 
 @Schema(description = "A free-text / phrase search query", example = """
         {
@@ -32,7 +30,6 @@ public record TextQuery(
         @Schema(description = "Optional morphology name; routes to the field's configured morphology destination field")
         String morphology
 ) implements QueryPayload {
-    private static final Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.STRING, FieldType.FREETEXT);
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     /**
@@ -100,7 +97,7 @@ public record TextQuery(
 
     private String fieldFor(QueryParseContext context, StandardPhrase phrase) {
         String effectiveMorphology = Boolean.TRUE.equals(phrase.isExact()) ? null : morphology;
-        return context.requireSearchField("text", SUPPORTED_FIELD_TYPES, effectiveMorphology);
+        return context.requireSearchField("text", effectiveMorphology);
     }
 
     /**
@@ -125,8 +122,8 @@ public record TextQuery(
                     "No krembox endpoint configured for capsule endpoint type '" + endpointType + "'");
         }
 
-        String baseField = context.requireSearchField("capsule", SUPPORTED_FIELD_TYPES);
-        String altField = context.requireSearchField("capsule", SUPPORTED_FIELD_TYPES, morphology);
+        String baseField = context.requireSearchField("text");
+        String altField = context.requireSearchField("text", morphology);
 
         ObjectNode capsuleArgs = JSON.objectNode();
         capsuleArgs.put("id", id);

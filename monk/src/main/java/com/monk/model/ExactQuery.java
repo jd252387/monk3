@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jd.nomad.mapping.FieldType;
 import com.monk.search.QueryJson;
 import com.monk.search.QueryParseContext;
 import com.monk.search.SearchEngine;
@@ -16,12 +15,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Set;
 
 @Schema(description = "An exact-match query against one or more values", oneOf = {ExactQuery.Numeric.class, ExactQuery.Datetime.class, ExactQuery.BooleanValues.class})
 public sealed interface ExactQuery<T> extends QueryPayload
         permits ExactQuery.Numeric, ExactQuery.Datetime, ExactQuery.BooleanValues {
-    Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
     JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @JsonProperty
@@ -34,7 +31,7 @@ public sealed interface ExactQuery<T> extends QueryPayload
 
     @Override
     default JsonNode toElasticsearch(QueryParseContext context) {
-        String field = context.requireSearchField("exact", SUPPORTED_FIELD_TYPES);
+        String field = context.requireSearchField("exact");
         ObjectNode root = JSON.objectNode();
         ArrayNode fieldValues = root.putObject("terms").putArray(field);
         values().stream().map(QueryJson::valueNode).forEach(fieldValues::add);
@@ -43,7 +40,7 @@ public sealed interface ExactQuery<T> extends QueryPayload
 
     @Override
     default JsonNode toSolr(QueryParseContext context) {
-        String field = context.requireSearchField("exact", SUPPORTED_FIELD_TYPES);
+        String field = context.requireSearchField("exact");
         return QueryJson.shouldOrSingle(SearchEngine.SOLR, values().stream()
                 .<JsonNode>map(value -> QueryJson.solrFieldQuery(field, value))
                 .toList());

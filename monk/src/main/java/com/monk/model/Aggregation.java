@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.monk.json.AggregationDeserializer;
 import com.monk.search.AggregationContext;
 import com.monk.search.SearchEngine;
-import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.ArrayList;
@@ -13,7 +12,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Schema(description = "A named facet/aggregation computed per backend over root document fields",
         oneOf = {TermsAggregation.class, UniqueAggregation.class, RangeAggregation.class, SubfacetsAggregation.class,
@@ -22,9 +20,6 @@ import java.util.Set;
 public sealed interface Aggregation
         permits TermsAggregation, UniqueAggregation, RangeAggregation, SubfacetsAggregation, FilterAggregation,
                 MetricAggregation, NestedAggregation {
-    Set<FieldType> SCALAR_FIELD_TYPES =
-            Set.of(FieldType.STRING, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
-
     JsonNode toElasticsearch(AggregationContext context);
 
     JsonNode toSolr(AggregationContext context);

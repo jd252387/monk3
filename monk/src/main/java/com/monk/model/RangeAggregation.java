@@ -12,12 +12,10 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.util.Map;
-import java.util.Set;
 
 @Schema(description = "Histogram of a numeric root document field, bucketed by a fixed interval between bounds", example = """
         {
@@ -47,11 +45,9 @@ public record RangeAggregation(
         return from == null || to == null || from.compareTo(to) < 0;
     }
 
-    private static final Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.NUMBER);
-
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode histogram = root.putObject("histogram");
         histogram.put("field", searchField);
@@ -67,7 +63,7 @@ public record RangeAggregation(
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "range");
         facet.put("field", searchField);

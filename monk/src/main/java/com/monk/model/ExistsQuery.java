@@ -4,11 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import jd.nomad.mapping.FieldType;
 import com.monk.search.QueryParseContext;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
-
-import java.util.Set;
 
 @Schema(description = "An exists query matching documents where the field has any value", example = """
         {
@@ -16,8 +13,6 @@ import java.util.Set;
         }
         """)
 public record ExistsQuery() implements QueryPayload {
-    private static final Set<FieldType> SUPPORTED_FIELD_TYPES =
-            Set.of(FieldType.STRING, FieldType.FREETEXT, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @JsonProperty
@@ -27,7 +22,7 @@ public record ExistsQuery() implements QueryPayload {
 
     @Override
     public JsonNode toElasticsearch(QueryParseContext context) {
-        String field = context.requireSearchField("exists", SUPPORTED_FIELD_TYPES);
+        String field = context.requireSearchField("exists");
         ObjectNode root = JSON.objectNode();
         root.putObject("exists").put("field", field);
         return root;
@@ -35,7 +30,7 @@ public record ExistsQuery() implements QueryPayload {
 
     @Override
     public JsonNode toSolr(QueryParseContext context) {
-        String field = context.requireSearchField("exists", SUPPORTED_FIELD_TYPES);
+        String field = context.requireSearchField("exists");
         return JSON.textNode(field + ":[* TO *]");
     }
 }

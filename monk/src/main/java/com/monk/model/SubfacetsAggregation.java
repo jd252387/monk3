@@ -12,14 +12,12 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jd.nomad.mapping.FieldType;
 import jd.nomad.mapping.VirtualField;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 
 @Schema(description = "A facet with one named sub-facet per filter; each filter is a query DSL payload applied to the given root document field", example = """
@@ -39,8 +37,6 @@ public record SubfacetsAggregation(
         @NotEmpty Map<String, @NotNull @Valid QueryPayload> filters,
         Map<String, @NotNull @Valid Aggregation> subAggregations
 ) implements Aggregation {
-    private static final Set<FieldType> SUPPORTED_FIELD_TYPES =
-            Set.of(FieldType.STRING, FieldType.FREETEXT, FieldType.NUMBER, FieldType.DATETIME, FieldType.BOOLEAN);
 
     @JsonProperty
     public String aggType() {
@@ -105,7 +101,7 @@ public record SubfacetsAggregation(
             return payload -> queryContext.expandVirtual(vf, payload, engine);
         }
         QueryParseContext payloadContext =
-                context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).payloadContext();
+                context.requireFacetField(field, aggType()).payloadContext();
         return payload -> payload.translate(engine, payloadContext);
     }
 

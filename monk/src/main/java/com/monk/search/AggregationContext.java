@@ -138,7 +138,7 @@ public record AggregationContext(
         return "{!v=$" + QueryParseContext.ROOT_IDENTIFIER_KEY + "}";
     }
 
-    public ResolvedFacetField requireFacetField(String logicalName, String aggType, Set<FieldType> supportedTypes) {
+    public ResolvedFacetField requireFacetField(String logicalName, String aggType) {
         Set<Resolution> resolutions = new LinkedHashSet<>();
         ResolvedFacetField resolved = null;
         for (Map.Entry<String, QueryParseContext> entry : contextsByMaterialType.entrySet()) {
@@ -151,7 +151,7 @@ public record AggregationContext(
                         "Aggregations are only supported on root document fields; '" + logicalName
                                 + "' is a subdocument field for material type '" + materialType + "'");
             }
-            if (!supportedTypes.contains(mappedField.type())) {
+            if (!context.fieldTypeConfig().forAggregation(aggType).contains(mappedField.type())) {
                 throw new QueryTranslationException(
                         "Aggregation type '" + aggType + "' is not supported for field '" + logicalName
                                 + "' with mapping type '" + QueryParseContext.typeName(mappedField.type()) + "'");

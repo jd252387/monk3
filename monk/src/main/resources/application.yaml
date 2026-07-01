@@ -55,3 +55,23 @@ monk:
     endpointName: "https://example.endpoint.com/capsules/fetch"
   embedding:
     url: "https://example.embedding.com/embed"
+  # Which mapping field types each query payload / aggregation may target. Consumed by query
+  # validation and by JSON Schema generation. Keys are the payload type()/aggType() discriminators.
+  query:
+    field-types:
+      text: [STRING, FREETEXT]
+      range: [NUMBER, DATETIME]
+      exact: [STRING, NUMBER, DATETIME, BOOLEAN]
+      exists: [STRING, FREETEXT, NUMBER, DATETIME, BOOLEAN]
+      prefix: [STRING, FREETEXT]
+      knnFlat: [VECTOR]
+  aggregation:
+    field-types:
+      terms: [STRING, NUMBER, DATETIME, BOOLEAN]
+      unique: [STRING, NUMBER, DATETIME, BOOLEAN]
+      range: [NUMBER]
+      sum: [NUMBER]
+      avg: [NUMBER]
+      min: [NUMBER]
+      max: [NUMBER]
+      subfacets: [STRING, FREETEXT, NUMBER, DATETIME, BOOLEAN]

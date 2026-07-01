@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk.mapping.FieldTypeConfig;
 import com.monk.mapping.VapiConfig;
 import com.monk.model.Aggregation;
 import com.monk.model.QueryNode;
@@ -32,6 +33,7 @@ public class QueryTranslationService {
     private final RoutingEngine routingEngine;
     private final ObjectMapper objectMapper;
     private final EmbeddingClient embeddingClient;
+    private final FieldTypeConfig fieldTypeConfig;
 
     /**
      * Routes each query's material types to backends and groups by backend. Within a single query,
@@ -166,7 +168,8 @@ public class QueryTranslationService {
                 catalogService.virtualMappingForBackend(backend).orElse(null),
                 virtualFieldExpander,
                 vapiConfig.vapi(),
-                embeddingClient);
+                embeddingClient,
+                fieldTypeConfig);
     }
 
     public record BackendTarget(

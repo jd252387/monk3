@@ -25,7 +25,7 @@ public record UniqueAggregation(@NotBlank String field) implements Aggregation {
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.putObject("cardinality").put("field", searchField);
         return root;
@@ -33,7 +33,7 @@ public record UniqueAggregation(@NotBlank String field) implements Aggregation {
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         return TextNode.valueOf("unique(" + searchField + ")");
     }
 

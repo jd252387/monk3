@@ -2623,6 +2623,29 @@ class QueryResourceTest {
     }
 
     @Test
+    void rejectsQueryPayloadOnUnsupportedFieldType() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Text query on a numeric field",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "year",
+                            "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "2020" }] }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message",
+                        containsString("Query type 'text' is not supported for field 'year' with mapping type 'number'"));
+    }
+
+    @Test
     void rejectsRequestWithoutUsername() {
         given()
                 .contentType(ContentType.JSON)
@@ -3200,6 +3223,23 @@ class QueryResourceTest {
                 .body("$defs.TermsAggregation.properties.args.properties.field.enum", hasItems("author", "year"))
                 .body("$defs.RangeAggregation.properties.args.properties.field.enum", hasItems("year"))
                 .body("$defs.SubfacetsAggregation.properties.args.properties.field.enum", hasItems("publishedAt"));
+    }
+
+    @Test
+    void schemaConstrainsFieldNamesByQueryType() {
+        given()
+                .accept("application/schema+json")
+                .when().get("/queries/schema")
+                .then()
+                .statusCode(200)
+                // A text query's field is narrowed to string/freetext fields: 'title' is freetext, 'year' is numeric.
+                .body("$defs.QueryNode.allOf.find { it['if']?.properties?.data?.properties?.type?.const == 'text' }.then.properties.field.enum",
+                        hasItem("title"))
+                .body("$defs.QueryNode.allOf.find { it['if']?.properties?.data?.properties?.type?.const == 'text' }.then.properties.field.enum",
+                        not(hasItem("year")))
+                // A range query allows numeric and datetime fields: 'year' is numeric.
+                .body("$defs.QueryNode.allOf.find { it['if']?.properties?.data?.properties?.type?.const == 'range' }.then.properties.field.enum",
+                        hasItem("year"));
     }
 
     @Test

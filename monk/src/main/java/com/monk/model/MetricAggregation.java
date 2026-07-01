@@ -8,11 +8,9 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.monk.search.AggregationContext;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.Locale;
-import java.util.Set;
 
 @Schema(description = "A single-value metric (sum, avg, min, or max) over a numeric root document field", example = """
         {
@@ -26,8 +24,6 @@ public record MetricAggregation(
         @NotNull Metric metric,
         @NotBlank String field
 ) implements Aggregation {
-    private static final Set<FieldType> SUPPORTED_FIELD_TYPES = Set.of(FieldType.NUMBER);
-
     /** The metric to compute; its {@link #aggType()} is the DSL name and the ES/Solr function name. */
     public enum Metric {
         SUM, AVG, MIN, MAX;
@@ -44,7 +40,7 @@ public record MetricAggregation(
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.putObject(aggType()).put("field", searchField);
         return root;
@@ -52,7 +48,7 @@ public record MetricAggregation(
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SUPPORTED_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         return TextNode.valueOf(aggType() + "(" + searchField + ")");
     }
 

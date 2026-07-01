@@ -3,6 +3,7 @@ package com.monk.search;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk.mapping.FieldTypeConfig;
 import com.monk.model.QueryData;
 import jd.nomad.mapping.DocumentMapping;
 import jd.nomad.mapping.FieldType;
@@ -14,7 +15,6 @@ import jd.nomad.mapping.VirtualMapping;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 public record QueryParseContext(
         SearchMapping mapping,
@@ -28,7 +28,8 @@ public record QueryParseContext(
         JsonNode solrRootIdentifier,
         ObjectNode solrNamedQueries,
         Map<String, String> vapiEndpoints,
-        EmbeddingClient embeddingClient
+        EmbeddingClient embeddingClient,
+        FieldTypeConfig fieldTypeConfig
 ) {
     /** Key under the Solr root-level {@code queries} block holding the translated root identifier query. */
     public static final String ROOT_IDENTIFIER_KEY = "root_identifier";
@@ -41,10 +42,11 @@ public record QueryParseContext(
             VirtualMapping virtualMapping,
             VirtualFieldExpander expander,
             Map<String, String> vapiEndpoints,
-            EmbeddingClient embeddingClient
+            EmbeddingClient embeddingClient,
+            FieldTypeConfig fieldTypeConfig
     ) {
         return new QueryParseContext(mapping, mapping.root(), null, null, virtualMapping, expander, null, null,
-                null, JsonNodeFactory.instance.objectNode(), vapiEndpoints, embeddingClient);
+                null, JsonNodeFactory.instance.objectNode(), vapiEndpoints, embeddingClient, fieldTypeConfig);
     }
 
     public QueryParseContext withMinimumMatch(Integer minimumMatch) {
@@ -57,20 +59,21 @@ public record QueryParseContext(
 
     public QueryParseContext withNestedDocument(DocumentMapping documentMapping, String path) {
         return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, path,
-                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
+                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient, fieldTypeConfig);
     }
 
     public QueryParseContext withSolrNestedDocument(DocumentMapping documentMapping, String solrNestPath) {
         // nestedPath stays null so Solr child leaf fields keep plain names; the nest path
         // is expressed separately via the _nest_path_ field instead of a dotted prefix.
         return new QueryParseContext(mapping, documentMapping, null, minimumMatch, virtualMapping, expander, null,
-                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
+                solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient, fieldTypeConfig);
     }
 
     /** Stores the root identifier query already translated to engine JSON, used as the root block mask. */
     public QueryParseContext withSolrRootIdentifier(JsonNode translatedIdentifier) {
         return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
-                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
+                nestedPath, solrNestPath, translatedIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient,
+                fieldTypeConfig);
     }
 
     /**
@@ -108,7 +111,8 @@ public record QueryParseContext(
 
     private QueryParseContext copy(DocumentMapping document, MappedField currentField, Integer minimumMatch) {
         return new QueryParseContext(mapping, document, currentField, minimumMatch, virtualMapping, expander,
-                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient);
+                nestedPath, solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient,
+                fieldTypeConfig);
     }
 
     public Optional<VirtualField> findVirtualField(String logicalName) {
@@ -160,15 +164,15 @@ public record QueryParseContext(
         return currentField;
     }
 
-    public String requireSearchField(String queryType, Set<FieldType> supportedTypes) {
-        return requireSearchField(queryType, supportedTypes, null);
+    public String requireSearchField(String queryType) {
+        return requireSearchField(queryType, null);
     }
 
-    public String requireSearchField(String queryType, Set<FieldType> supportedTypes, String morphology) {
+    public String requireSearchField(String queryType, String morphology) {
         if (currentField == null) {
             throw new QueryTranslationException("No mapped field is available for " + queryType + " query conversion");
         }
-        if (!supportedTypes.contains(currentField.type())) {
+        if (!fieldTypeConfig.forQuery(queryType).contains(currentField.type())) {
             throw new QueryTranslationException(
                     "Query type '" + queryType + "' is not supported for field '" + currentField.logicalName()
                             + "' with mapping type '" + typeName(currentField.type()) + "'");

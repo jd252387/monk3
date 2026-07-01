@@ -10,7 +10,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jd.nomad.mapping.FieldType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import java.util.Map;
@@ -36,7 +35,7 @@ public record TermsAggregation(
 
     @Override
     public JsonNode toElasticsearch(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         ObjectNode terms = root.putObject("terms");
         terms.put("field", searchField);
@@ -51,7 +50,7 @@ public record TermsAggregation(
 
     @Override
     public JsonNode toSolr(AggregationContext context) {
-        String searchField = context.requireFacetField(field, aggType(), SCALAR_FIELD_TYPES).searchField();
+        String searchField = context.requireFacetField(field, aggType()).searchField();
         ObjectNode facet = JsonNodeFactory.instance.objectNode();
         facet.put("type", "terms");
         facet.put("field", searchField);
