@@ -23,7 +23,7 @@ import java.util.Set;
 
 @Singleton
 public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
-    private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "bool", "data");
+    private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "bool", "data", "filtering");
 
     private final QueryPayloadRegistry payloadRegistry;
 
@@ -59,6 +59,8 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
 
         BooleanOccur bool = readBool(parser, objectNode.get("bool"));
 
+        boolean filtering = readFiltering(parser, objectNode.get("filtering"));
+
         rejectUnknownFields(parser, objectNode, NODE_FIELDS, "query node");
 
         JsonNode dataNode = objectNode.get("data");
@@ -68,11 +70,21 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             }
             // A leaf node without data is only valid for predicate virtual fields; whether
             // the field actually resolves to a predicate is checked at translation time.
-            return new QueryNode(field, minimumMatch, bool, null);
+            return new QueryNode(field, minimumMatch, bool, null, filtering);
         }
 
         QueryData data = readData(parser, mapper, field, dataNode);
-        return new QueryNode(field, minimumMatch, bool, data);
+        return new QueryNode(field, minimumMatch, bool, data, filtering);
+    }
+
+    private static boolean readFiltering(JsonParser parser, JsonNode filteringNode) throws JsonMappingException {
+        if (filteringNode == null || filteringNode.isNull()) {
+            return false;
+        }
+        if (!filteringNode.isBoolean()) {
+            throw MismatchedInputException.from(parser, Object.class, "filtering must be a boolean");
+        }
+        return filteringNode.booleanValue();
     }
 
     private static BooleanOccur readBool(JsonParser parser, JsonNode boolNode) throws JsonMappingException {

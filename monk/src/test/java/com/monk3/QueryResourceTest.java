@@ -108,6 +108,60 @@ class QueryResourceTest {
     }
 
     @Test
+    void wrapsFilteringNodeInNonScoringUncachedSolrFilter() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Solr filtering text query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "filtering": true,
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "phrase", "value": "history" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].bool.cache", equalTo(false))
+                .body("[0].body.query.bool.must[0].bool.filter[0].field.query", equalTo("history"));
+    }
+
+    @Test
+    void ignoresFilteringFlagForElasticsearch() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Elasticsearch filtering text query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "filtering": true,
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "phrase", "value": "java records" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0]", not(hasKey("bool")))
+                .body("[0].body.query.bool.must[0].match_phrase.book_title", equalTo("java records"));
+    }
+
+    @Test
     void parsesCapsulePhraseToSolrEdismaxUsingMorphologyAltField() {
         given()
                 .contentType(ContentType.JSON)

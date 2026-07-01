@@ -467,6 +467,10 @@
           "enum": ["should", "must", "mustNot"],
           "description": "How this node combines with its sibling clauses inside a boolean 'data' array: 'should' (OR), 'must' (AND), or 'mustNot' (negation). Required on every clause of a boolean node; ignored on the root node."
         },
+        "filtering": {
+          "type": "boolean",
+          "description": "When true, wrap this node's query in a non-scoring, uncached Solr filter. Solr only; ignored for Elasticsearch."
+        },
         "data": {
           "description": "When 'field' is not empty, contains an object representing the query payload to match on the specified field. When 'field' is empty or equal to the name of a document type, contains an array of clause objects representing a boolean sub-query. Each clause is a query node tagged with a 'bool' of 'should', 'must', or 'mustNot', and the clauses are grouped by that tag. In the case of a nested query (when 'field' is equal to the name of a document type), the grouped clauses must match on the same child document."
         }

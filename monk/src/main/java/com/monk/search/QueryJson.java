@@ -51,6 +51,19 @@ public final class QueryJson {
     }
 
     /**
+     * Wraps a Solr query in a non-scoring {@code bool} filter with {@code cache=false}. In Solr's JSON
+     * Query DSL, scalar keys alongside {@code filter} become local params (i.e. {@code {!bool filter=... cache=false}}),
+     * so the query constrains results without contributing to relevance and is not added to the filter cache.
+     */
+    public static ObjectNode solrCachelessFilter(JsonNode query) {
+        ObjectNode root = JSON.objectNode();
+        ObjectNode bool = root.putObject("bool");
+        bool.putArray("filter").add(query);
+        bool.put("cache", false);
+        return root;
+    }
+
+    /**
      * Builds a single {@code bool} query from pre-translated should/must/must_not clauses.
      * {@code minimumShouldMatch} is emitted only when there are should clauses. When the query is
      * purely negative (must_not only), an engine match-all clause is added to {@code must} so the

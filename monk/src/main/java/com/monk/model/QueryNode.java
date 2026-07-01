@@ -1,6 +1,7 @@
 package com.monk.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.monk.search.QueryJson;
 import com.monk.search.QueryParseContext;
 import com.monk.search.QueryTranslationException;
 import com.monk.search.SearchEngine;
@@ -29,10 +30,18 @@ public record QueryNode(
         @NotNull @Schema(description = "Logical field name; empty for boolean nodes, non-empty for leaf/subdocument nodes") String field,
         @Positive @Schema(description = "Minimum number of should-clauses that must match (boolean nodes only)") Integer minimumMatch,
         @Schema(description = "How this node combines with its siblings (required when this node is a clause of a boolean node)") BooleanOccur bool,
-        @Valid @Schema(description = "Query payload (leaf) or boolean clause list (boolean node); absent for predicate virtual fields") QueryData data
+        @Valid @Schema(description = "Query payload (leaf) or boolean clause list (boolean node); absent for predicate virtual fields") QueryData data,
+        @Schema(description = "When true (Solr only), wrap this node's query in a non-scoring bool filter with cache=false; ignored for Elasticsearch") boolean filtering
 ) {
+    public QueryNode(String field, Integer minimumMatch, BooleanOccur bool, QueryData data) {
+        this(field, minimumMatch, bool, data, false);
+    }
+
     public JsonNode translate(SearchEngine engine, QueryParseContext context) {
-        return translateData(engine, context);
+        JsonNode translated = translateData(engine, context);
+        return filtering && engine == SearchEngine.SOLR
+                ? QueryJson.solrCachelessFilter(translated)
+                : translated;
     }
 
     private JsonNode translateData(SearchEngine engine, QueryParseContext context) {
