@@ -1,16 +1,21 @@
 package com.monk.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jd.nomad.mapping.FieldType;
 import com.monk.json.PhraseDeserializer;
+import com.monk.json.QueryPayloadParser;
 import com.monk.search.QueryJson;
 import com.monk.search.QueryParseContext;
 import com.monk.search.QueryTranslationException;
 import com.monk.search.SearchEngine;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -136,5 +141,19 @@ public record TextQuery(
         ObjectNode root = JSON.objectNode();
         root.putObject("edismax").put("query", baseField + ":" + capsuleArgs);
         return root;
+    }
+
+    @ApplicationScoped
+    public static class Parser implements QueryPayloadParser {
+        @Override
+        public String type() {
+            return "text";
+        }
+
+        @Override
+        public TextQuery parse(JsonParser parser, ObjectMapper mapper, ObjectNode node)
+                throws JsonProcessingException {
+            return mapper.treeToValue(node, TextQuery.class);
+        }
     }
 }

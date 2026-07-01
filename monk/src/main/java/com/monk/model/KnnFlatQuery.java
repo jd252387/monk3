@@ -1,15 +1,23 @@
 package com.monk.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.monk.json.QueryNodeDeserializer;
+import com.monk.json.QueryPayloadParser;
 import com.monk.search.QueryParseContext;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.validation.constraints.NotBlank;
 import jd.nomad.mapping.MappedField;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -84,5 +92,34 @@ public record KnnFlatQuery(
         return StreamSupport.stream(vector.spliterator(), false)
                 .map(JsonNode::asText)
                 .collect(Collectors.joining(",", "[", "]"));
+    }
+
+    @ApplicationScoped
+    public static class Parser implements QueryPayloadParser {
+        private static final Set<String> KNN_FLAT_FIELDS = Set.of("type", "text", "k");
+
+        @Override
+        public String type() {
+            return "knnFlat";
+        }
+
+        @Override
+        public KnnFlatQuery parse(JsonParser parser, ObjectMapper mapper, ObjectNode node)
+                throws JsonMappingException {
+            QueryNodeDeserializer.rejectUnknownFields(parser, node, KNN_FLAT_FIELDS, "knnFlat query");
+            JsonNode text = node.get("text");
+            if (text == null || text.isNull() || !text.isTextual() || text.textValue().isBlank()) {
+                throw MismatchedInputException.from(parser, Object.class, "knnFlat query requires a non-empty 'text' string");
+            }
+            JsonNode kNode = node.get("k");
+            Integer k = null;
+            if (kNode != null && !kNode.isNull()) {
+                if (!kNode.canConvertToInt() || kNode.intValue() < 1) {
+                    throw MismatchedInputException.from(parser, Object.class, "knnFlat query 'k' must be a positive integer");
+                }
+                k = kNode.intValue();
+            }
+            return new KnnFlatQuery(text.textValue(), k);
+        }
     }
 }
