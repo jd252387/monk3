@@ -955,6 +955,188 @@ class QueryResourceTest {
     }
 
     @Test
+    void parsesReverseNestedAggregationToRootAsElasticsearchReverseNested() {
+        // An omitted path returns to the root document: reverse_nested carries no path and the
+        // sub-aggregation resolves its field against the root mapping (plain, un-prefixed name).
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Reverse nested to root ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byPages": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters", "pages"] },
+                              "aggs": {
+                                "backToBook": {
+                                  "aggType": "reverseNested",
+                                  "args": {},
+                                  "aggs": {
+                                    "byYear": { "aggType": "terms", "args": { "field": "year" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byPages.nested.path", equalTo("chapters.pages"))
+                .body("[0].body.aggs.byPages.aggs.backToBook.reverse_nested", notNullValue())
+                .body("[0].body.aggs.byPages.aggs.backToBook.reverse_nested.path", nullValue())
+                .body("[0].body.aggs.byPages.aggs.backToBook.aggs.byYear.terms.field", equalTo("book_year"));
+    }
+
+    @Test
+    void parsesReverseNestedAggregationToIntermediateLevelElasticsearch() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Reverse nested to chapters ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byPages": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters", "pages"] },
+                              "aggs": {
+                                "backToChapter": {
+                                  "aggType": "reverseNested",
+                                  "args": { "path": ["chapters"] },
+                                  "aggs": {
+                                    "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("elastic-books"))
+                .body("[0].body.aggs.byPages.nested.path", equalTo("chapters.pages"))
+                .body("[0].body.aggs.byPages.aggs.backToChapter.reverse_nested.path", equalTo("chapters"))
+                .body("[0].body.aggs.byPages.aggs.backToChapter.aggs.byPageCount.terms.field",
+                        equalTo("chapters.page_count"));
+    }
+
+    @Test
+    void parsesReverseNestedAggregationToRootAsSolrBlockParentDomain() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Reverse nested to root Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byChapter": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters"] },
+                              "aggs": {
+                                "backToBook": {
+                                  "aggType": "reverseNested",
+                                  "args": {},
+                                  "aggs": {
+                                    "byYear": { "aggType": "terms", "args": { "field": "year" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].body.facet.byChapter.domain.blockChildren", equalTo("{!v=$root_identifier}"))
+                .body("[0].body.facet.byChapter.facet.backToBook.type", equalTo("query"))
+                .body("[0].body.facet.byChapter.facet.backToBook.q", equalTo("*:*"))
+                .body("[0].body.facet.byChapter.facet.backToBook.domain.blockParent", equalTo("{!v=$root_identifier}"))
+                .body("[0].body.facet.byChapter.facet.backToBook.facet.byYear.field", equalTo("book_year"))
+                .body("[0].body.queries.root_identifier.field.query", equalTo("book"));
+    }
+
+    @Test
+    void parsesReverseNestedAggregationToIntermediateLevelSolrBlockParentDomain() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Reverse nested to chapters Solr",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "publishedAt",
+                              "data": { "type": "range", "gte": "%s", "lte": "%s" }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "byPages": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters", "pages"] },
+                              "aggs": {
+                                "backToChapter": {
+                                  "aggType": "reverseNested",
+                                  "args": { "path": ["chapters"] },
+                                  "aggs": {
+                                    "byPageCount": { "aggType": "terms", "args": { "field": "pageCount" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(recentRange()))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].backend", equalTo("solr-books"))
+                .body("[0].body.facet.byPages.q", equalTo("_nest_path_:/chapters/pages"))
+                .body("[0].body.facet.byPages.facet.backToChapter.q", equalTo("*:*"))
+                .body("[0].body.facet.byPages.facet.backToChapter.domain.blockParent",
+                        equalTo("_nest_path_:/chapters"))
+                // Solr child fields keep plain names; the ancestor level is expressed by the domain.
+                .body("[0].body.facet.byPages.facet.backToChapter.facet.byPageCount.field", equalTo("page_count"));
+    }
+
+    @Test
     void parseEmitsElasticsearchResultOptionsAndAggregations() {
         given()
                 .contentType(ContentType.JSON)
@@ -2328,6 +2510,64 @@ class QueryResourceTest {
     }
 
     @Test
+    void executesReverseNestedAggregationAgainstElasticsearch() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Reverse nested aggregation book search ES",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "aggs": {
+                            "chapterDomain": {
+                              "aggType": "nested",
+                              "args": { "path": ["chapters"] },
+                              "aggs": {
+                                "backToBook": {
+                                  "aggType": "reverseNested",
+                                  "args": {},
+                                  "aggs": {
+                                    "byYear": { "aggType": "terms", "args": { "field": "year" } }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("aggregations.'elastic-books'.chapterDomain.value", equalTo(12))
+                .body("aggregations.'elastic-books'.chapterDomain.aggregations.backToBook.value", equalTo(3))
+                .body("aggregations.'elastic-books'.chapterDomain.aggregations.backToBook.aggregations.byYear.buckets[0].key",
+                        equalTo(2000.0f))
+                .body("aggregations.'elastic-books'.chapterDomain.aggregations.backToBook.aggregations.byYear.buckets[0].count",
+                        equalTo(2))
+                .body("aggregations.'elastic-books'.chapterDomain.aggregations.backToBook.aggregations.byYear.buckets[1].key",
+                        equalTo(2010.0f))
+                .body("aggregations.'elastic-books'.chapterDomain.aggregations.backToBook.aggregations.byYear.buckets[1].count",
+                        equalTo(1));
+
+        List<SearchBackendTestResource.RecordedRequest> requests = SearchBackendTestResource.requests();
+        assertThat(requests.size(), equalTo(1));
+        assertThat(requests.getFirst().body(), containsString(
+                "\"aggs\":{\"chapterDomain\":{\"nested\":{\"path\":\"chapters\"},"
+                        + "\"aggs\":{\"backToBook\":{\"reverse_nested\":{},"
+                        + "\"aggs\":{\"byYear\":{\"terms\":{\"field\":\"book_year\"}}}}}}}"));
+    }
+
+    @Test
     void executesNestedAggregationAgainstSolr() {
         SearchBackendTestResource.reset();
 
@@ -2652,6 +2892,16 @@ class QueryResourceTest {
         assertAggregationTranslationError("""
                 {"byChapter": {"aggType": "nested", "args": {"path": ["chapters"]}, "aggs": {"byTitle": {"aggType": "terms", "args": {"field": "title"}}}}}
                 """, "Aggregation type 'terms' is not supported for field 'title' with mapping type 'freetext'");
+
+        // reverseNested requires a nested domain to return from.
+        assertAggregationTranslationError("""
+                {"backToBook": {"aggType": "reverseNested", "args": {}, "aggs": {"byYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "Aggregation type 'reverseNested' is only valid inside a nested aggregation");
+
+        // The target must be a strict ancestor: the current level itself is rejected.
+        assertAggregationTranslationError("""
+                {"byChapter": {"aggType": "nested", "args": {"path": ["chapters"]}, "aggs": {"backToChapter": {"aggType": "reverseNested", "args": {"path": ["chapters"]}, "aggs": {"byPageCount": {"aggType": "terms", "args": {"field": "pageCount"}}}}}}}
+                """, "must name a strict ancestor of the current nested level 'chapters'");
     }
 
     @Test
@@ -2861,6 +3111,22 @@ class QueryResourceTest {
         assertAggregationStructureError("""
                 {"byChapter": {"aggType": "nested", "args": {"path": ["chapters", 1]}, "aggs": {"perPage": {"aggType": "terms", "args": {"field": "pageCount"}}}}}
                 """, "Nested aggregation args path must contain only non-empty strings");
+
+        assertAggregationStructureError("""
+                {"backToBook": {"aggType": "reverseNested", "args": {}}}
+                """, "ReverseNested aggregation requires one or more sub-aggregations");
+
+        assertAggregationStructureError("""
+                {"backToBook": {"aggType": "reverseNested", "args": {"foo": 1}, "aggs": {"byYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "Unknown reverseNested aggregation property: foo");
+
+        assertAggregationStructureError("""
+                {"backToBook": {"aggType": "reverseNested", "args": {"path": "chapters"}, "aggs": {"byYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "ReverseNested aggregation args path must be an array of strings");
+
+        assertAggregationStructureError("""
+                {"backToBook": {"aggType": "reverseNested", "args": {"path": ["chapters", 1]}, "aggs": {"byYear": {"aggType": "terms", "args": {"field": "year"}}}}}
+                """, "ReverseNested aggregation args path must contain only non-empty strings");
     }
 
     @Test
@@ -3205,7 +3471,8 @@ class QueryResourceTest {
                         "#/$defs/AvgAggregation",
                         "#/$defs/MinAggregation",
                         "#/$defs/MaxAggregation",
-                        "#/$defs/NestedAggregation"
+                        "#/$defs/NestedAggregation",
+                        "#/$defs/ReverseNestedAggregation"
                 ))
                 .body("$defs.TermsAggregation.properties.aggType.const", equalTo("terms"))
                 .body("$defs.UniqueAggregation.properties.aggType.const", equalTo("unique"))
@@ -3222,6 +3489,12 @@ class QueryResourceTest {
                 .body("$defs.NestedAggregation.properties.args.properties.path.type", equalTo("array"))
                 .body("$defs.NestedAggregation.properties.args.properties.path.items.type", equalTo("string"))
                 .body("$defs.NestedAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
+                .body("$defs.ReverseNestedAggregation.properties.aggType.const", equalTo("reverseNested"))
+                .body("$defs.ReverseNestedAggregation.required", containsInAnyOrder("aggType", "args", "aggs"))
+                // The reverse-nested path is optional: omitted or empty returns to the root document.
+                .body("$defs.ReverseNestedAggregation.properties.args.required", nullValue())
+                .body("$defs.ReverseNestedAggregation.properties.args.properties.path.type", equalTo("array"))
+                .body("$defs.ReverseNestedAggregation.properties.aggs.$ref", equalTo("#/$defs/Aggregations"))
                 .body("$defs.FilterAggregation.properties.args.properties.query.items.$ref", equalTo("#/$defs/QueryNode"))
                 .body("$defs.RangeAggregation.properties.args.required", containsInAnyOrder("field", "interval", "from", "to"))
                 .body("$defs.SubfacetsAggregation.properties.args.properties.filters.additionalProperties.$ref",

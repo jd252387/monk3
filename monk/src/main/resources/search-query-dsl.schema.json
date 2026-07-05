@@ -111,6 +111,9 @@
         },
         {
           "$ref": "#/$defs/NestedAggregation"
+        },
+        {
+          "$ref": "#/$defs/ReverseNestedAggregation"
         }
       ]
     },
@@ -441,6 +444,39 @@
         "aggs": {
           "$ref": "#/$defs/Aggregations",
           "description": "Sub-aggregations run within the nested subdocument domain. At least one is required."
+        }
+      }
+    },
+    "ReverseNestedAggregation": {
+      "type": "object",
+      "description": "Runs its sub-aggregations back up the subdocument hierarchy, at the ancestor level named by path. Only valid inside a nested aggregation. Translates to an Elasticsearch reverse_nested aggregation and a Solr blockParent domain change.",
+      "additionalProperties": false,
+      "required": [
+        "aggType",
+        "args",
+        "aggs"
+      ],
+      "properties": {
+        "aggType": {
+          "const": "reverseNested"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "Ordered list of subdocument fields naming the ancestor level to return to, absolute from the root; it must be a strict ancestor of the current nested level. Omitted or empty returns to the root document."
+            }
+          }
+        },
+        "aggs": {
+          "$ref": "#/$defs/Aggregations",
+          "description": "Sub-aggregations run within the ancestor domain. At least one is required."
         }
       }
     },

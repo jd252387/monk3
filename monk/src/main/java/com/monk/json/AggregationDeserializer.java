@@ -14,6 +14,7 @@ import com.monk.model.agg.NestedAggregation;
 import com.monk.model.query.QueryNode;
 import com.monk.model.query.QueryPayload;
 import com.monk.model.agg.RangeAggregation;
+import com.monk.model.agg.ReverseNestedAggregation;
 import com.monk.model.agg.SubfacetsAggregation;
 import com.monk.model.agg.TermsAggregation;
 import com.monk.model.agg.UniqueAggregation;
@@ -75,6 +76,7 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
             case "subfacets" -> readSubfacets(parser, mapper, args, subAggregations);
             case "filter" -> readFilter(parser, mapper, args, subAggregations);
             case "nested" -> readNested(parser, args, subAggregations);
+            case "reverseNested" -> readReverseNested(parser, args, subAggregations);
             case "unique" -> {
                 rejectSubAggregations(parser, subAggregations, aggType);
                 yield readUnique(parser, args);
@@ -221,6 +223,37 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
         return new NestedAggregation(readRequiredPath(parser, args), subAggregations);
     }
 
+    private static ReverseNestedAggregation readReverseNested(
+            JsonParser parser, JsonNode args, Map<String, Aggregation> subAggregations) throws JsonMappingException {
+        rejectUnknownFields(parser, args, NESTED_ARGS, "reverseNested aggregation");
+        if (subAggregations.isEmpty()) {
+            throw MismatchedInputException.from(parser, Object.class,
+                    "ReverseNested aggregation requires one or more sub-aggregations");
+        }
+        return new ReverseNestedAggregation(readOptionalPath(parser, args), subAggregations);
+    }
+
+    /** Reverse-nested path: absent or empty means "back to the root document". */
+    private static List<String> readOptionalPath(JsonParser parser, JsonNode args) throws JsonMappingException {
+        JsonNode pathNode = args.get("path");
+        if (pathNode == null || pathNode.isNull()) {
+            return List.of();
+        }
+        if (!pathNode.isArray()) {
+            throw MismatchedInputException.from(parser, Object.class,
+                    "ReverseNested aggregation args path must be an array of strings");
+        }
+        List<String> path = new ArrayList<>();
+        for (JsonNode element : pathNode) {
+            if (!element.isTextual() || element.textValue().isBlank()) {
+                throw MismatchedInputException.from(parser, Object.class,
+                        "ReverseNested aggregation args path must contain only non-empty strings");
+            }
+            path.add(element.textValue());
+        }
+        return List.copyOf(path);
+    }
+
     private static List<String> readRequiredPath(JsonParser parser, JsonNode args) throws JsonMappingException {
         JsonNode pathNode = args.get("path");
         if (pathNode == null || !pathNode.isArray() || pathNode.isEmpty()) {
@@ -264,6 +297,6 @@ public class AggregationDeserializer extends JsonDeserializer<Aggregation> {
     private static String unsupportedTypeMessage(String aggType) {
         return "Unsupported aggregation type '" + aggType
                 + "'. Supported aggregation types are 'terms', 'unique', 'range', 'subfacets', 'filter', 'sum', 'avg',"
-                + " 'min', 'max', and 'nested'.";
+                + " 'min', 'max', 'nested', and 'reverseNested'.";
     }
 }

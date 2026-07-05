@@ -13,10 +13,10 @@ import java.util.Map;
 
 @Schema(description = "A named facet/aggregation computed per backend over root document fields",
         oneOf = {TermsAggregation.class, UniqueAggregation.class, RangeAggregation.class, SubfacetsAggregation.class,
-                FilterAggregation.class, MetricAggregation.class, NestedAggregation.class})
+                FilterAggregation.class, MetricAggregation.class, NestedAggregation.class, ReverseNestedAggregation.class})
 public sealed interface Aggregation
         permits TermsAggregation, UniqueAggregation, RangeAggregation, SubfacetsAggregation, FilterAggregation,
-                MetricAggregation, NestedAggregation {
+                MetricAggregation, NestedAggregation, ReverseNestedAggregation {
     JsonNode toElasticsearch(AggregationContext context);
 
     JsonNode toSolr(AggregationContext context);

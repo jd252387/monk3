@@ -118,6 +118,18 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                               { "key": 20.0, "doc_count": 5 }
                             ]
                           }
+                        },
+                        "chapterDomain": {
+                          "doc_count": 12,
+                          "backToBook": {
+                            "doc_count": 3,
+                            "byYear": {
+                              "buckets": [
+                                { "key": 2000.0, "doc_count": 2 },
+                                { "key": 2010.0, "doc_count": 1 }
+                              ]
+                            }
+                          }
                         }
                       }
                     }

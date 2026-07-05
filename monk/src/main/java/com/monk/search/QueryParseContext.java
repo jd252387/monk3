@@ -62,6 +62,12 @@ public record QueryParseContext(
                 solrNestPath, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient, fieldTypeConfig);
     }
 
+    /** Returns a copy rebased on the root document with any nested descent dropped (reverse-nested aggregations). */
+    public QueryParseContext atRoot() {
+        return new QueryParseContext(mapping, mapping.root(), null, minimumMatch, virtualMapping, expander, null,
+                null, solrRootIdentifier, solrNamedQueries, vapiEndpoints, embeddingClient, fieldTypeConfig);
+    }
+
     public QueryParseContext withSolrNestedDocument(DocumentMapping documentMapping, String solrNestPath) {
         // nestedPath stays null so Solr child leaf fields keep plain names; the nest path
         // is expressed separately via the _nest_path_ field instead of a dotted prefix.

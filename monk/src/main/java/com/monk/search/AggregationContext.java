@@ -85,26 +85,7 @@ public record AggregationContext(
                         : current.solrNestPathMask();
             }
             for (String segment : path) {
-                QueryParseContext segmentContext = current;
-                MappedField mappedField = segmentContext.findMappedField(segment)
-                        .orElseThrow(() -> missingFieldException(segmentContext, segment, materialType));
-                if (!mappedField.isSubdocument()) {
-                    throw new QueryTranslationException(
-                            "Aggregation type '" + aggType + "' requires subdocument fields in its path; '"
-                                    + segment + "' is not a subdocument field for material type '" + materialType + "'");
-                }
-                DocumentMapping childDocument = segmentContext.requireDocument(mappedField.subdocumentType());
-                String childPath = mappedField.searchField();
-                switch (engine) {
-                    case ELASTICSEARCH -> {
-                        String fullPath = segmentContext.nestedPath() == null
-                                ? childPath
-                                : segmentContext.nestedPath() + "." + childPath;
-                        current = segmentContext.withNestedDocument(childDocument, fullPath);
-                    }
-                    case SOLR -> current = segmentContext.withSolrNestedDocument(
-                            childDocument, segmentContext.solrChildNestPath(childPath));
-                }
+                current = descendSegment(current, segment, aggType, engine, materialType);
             }
             switch (engine) {
                 case ELASTICSEARCH -> {
@@ -125,6 +106,88 @@ public record AggregationContext(
         return new NestedDomain(
                 new AggregationContext(nestedContexts, aggregationName, namedQueries),
                 elasticsearchPath, solrBlockMask, solrNestPath);
+    }
+
+    /**
+     * Resolves {@code path} — the subdocument hierarchy of the ancestor level to return to, absolute
+     * from the root (empty = the root document) — and returns the domain for a reverse-nested
+     * aggregation: a child {@link AggregationContext} rebased on that ancestor level, plus the
+     * Elasticsearch {@code reverse_nested} path (null for the root) or the Solr {@code blockParent}
+     * mask. Only valid when this context has descended into a nested domain, and the target must be
+     * a strict ancestor of the current level.
+     */
+    public NestedDomain enterReverseNested(List<String> path, String aggType, SearchEngine engine) {
+        Map<String, QueryParseContext> targetContexts = new LinkedHashMap<>();
+        Set<String> resolvedPaths = new LinkedHashSet<>();
+        String elasticsearchPath = null;
+        String solrBlockMask = null;
+        String solrNestPath = null;
+        for (Map.Entry<String, QueryParseContext> entry : contextsByMaterialType.entrySet()) {
+            String materialType = entry.getKey();
+            QueryParseContext current = entry.getValue();
+            String currentLevel = switch (engine) {
+                case ELASTICSEARCH -> current.nestedPath();
+                case SOLR -> current.solrNestPath();
+            };
+            if (currentLevel == null) {
+                throw new QueryTranslationException(
+                        "Aggregation type '" + aggType + "' is only valid inside a nested aggregation");
+            }
+            QueryParseContext target = current.atRoot();
+            for (String segment : path) {
+                target = descendSegment(target, segment, aggType, engine, materialType);
+            }
+            switch (engine) {
+                case ELASTICSEARCH -> {
+                    requireStrictAncestor(path, target.nestedPath(), currentLevel, ".", aggType);
+                    resolvedPaths.add(target.nestedPath());
+                    elasticsearchPath = target.nestedPath();
+                }
+                case SOLR -> {
+                    requireStrictAncestor(path, target.solrNestPath(), currentLevel, "/", aggType);
+                    solrBlockMask = target.solrNestPath() == null
+                            ? solrRootBlockMask()
+                            : target.solrNestPathMask();
+                    resolvedPaths.add(target.solrNestPath());
+                    solrNestPath = target.solrNestPath();
+                }
+            }
+            targetContexts.put(materialType, target);
+        }
+        if (resolvedPaths.size() > 1) {
+            throw new QueryTranslationException("Reverse nested aggregation path " + path
+                    + " resolves to different nested paths across the requested material types: " + resolvedPaths);
+        }
+        return new NestedDomain(
+                new AggregationContext(targetContexts, aggregationName, namedQueries),
+                elasticsearchPath, solrBlockMask, solrNestPath);
+    }
+
+    private static void requireStrictAncestor(
+            List<String> path, String targetPath, String currentLevel, String separator, String aggType) {
+        if (targetPath != null && !currentLevel.startsWith(targetPath + separator)) {
+            throw new QueryTranslationException("Aggregation type '" + aggType + "' path " + path
+                    + " must name a strict ancestor of the current nested level '" + currentLevel + "'");
+        }
+    }
+
+    /** Descends one subdocument path segment, mirroring the resolution in {@code BooleanQueryData.translate}. */
+    private QueryParseContext descendSegment(
+            QueryParseContext context, String segment, String aggType, SearchEngine engine, String materialType) {
+        MappedField mappedField = context.findMappedField(segment)
+                .orElseThrow(() -> missingFieldException(context, segment, materialType));
+        if (!mappedField.isSubdocument()) {
+            throw new QueryTranslationException(
+                    "Aggregation type '" + aggType + "' requires subdocument fields in its path; '"
+                            + segment + "' is not a subdocument field for material type '" + materialType + "'");
+        }
+        DocumentMapping childDocument = context.requireDocument(mappedField.subdocumentType());
+        String childPath = mappedField.searchField();
+        return switch (engine) {
+            case ELASTICSEARCH -> context.withNestedDocument(childDocument,
+                    context.nestedPath() == null ? childPath : context.nestedPath() + "." + childPath);
+            case SOLR -> context.withSolrNestedDocument(childDocument, context.solrChildNestPath(childPath));
+        };
     }
 
     /**
