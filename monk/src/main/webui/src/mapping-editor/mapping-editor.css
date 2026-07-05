@@ -1,0 +1,78 @@
+/* Mapping editor look, ported from the design spec. Layout and colors live
+   inline next to the markup (as in the spec); classes here cover only what
+   inline styles cannot: hover/focus states, placeholder/option/scrollbar
+   styling. !important lets the pseudo-state win over the inline base style. */
+
+.me-root {
+  background: #16181d;
+  color: #e6e9ef;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+.me-root ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.me-root ::-webkit-scrollbar-thumb {
+  background: #2f3440;
+  border-radius: 5px;
+  border: 2px solid #16181d;
+}
+.me-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.me-root input,
+.me-root select,
+.me-root textarea,
+.me-root button {
+  font-family: inherit;
+}
+.me-root select option {
+  background: #1c1f26;
+  color: #e6e9ef;
+}
+.me-root input::placeholder,
+.me-root textarea::placeholder {
+  color: #4a5060;
+}
+
+/* focus */
+.me-focus:focus {
+  border-color: #6ab8e8 !important;
+}
+.me-name:focus {
+  border-color: #2f3440 !important;
+  background: #12141a !important;
+}
+
+/* hover */
+.me-hover-row:hover {
+  background: rgba(106, 184, 232, 0.06) !important;
+}
+.me-hover-accent:hover {
+  color: #9fc9e8 !important;
+}
+.me-hover-accent-bg:hover {
+  background: rgba(106, 184, 232, 0.06) !important;
+}
+.me-hover-danger:hover {
+  color: #e07070 !important;
+}
+.me-hover-danger-bg:hover {
+  background: rgba(224, 112, 112, 0.1) !important;
+  border-radius: 4px;
+}
+.me-hover-light:hover {
+  color: #e6e9ef !important;
+}
+.me-hover-save:hover {
+  background: #8ecbf2 !important;
+}
+.me-hover-ph:hover {
+  background: rgba(232, 138, 184, 0.08) !important;
+}
+.me-hover-empty:hover {
+  color: #9fc9e8 !important;
+  border-color: #3a4a5a !important;
+}
