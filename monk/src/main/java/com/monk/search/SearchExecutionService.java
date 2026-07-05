@@ -11,7 +11,10 @@ import com.monk.model.agg.AggregationResult;
 import com.monk.model.BackendQuery;
 import com.monk.model.SearchExecutionRequest;
 import com.monk.model.SearchExecutionResponse;
+import com.monk.model.SearchQueryRequest;
 import com.monk.model.SearchResult;
+import com.monk.model.query.BooleanQueryData;
+import com.monk.model.query.QueryNode;
 import com.monk.search.QueryTranslationService.BackendTarget;
 import jakarta.enterprise.context.ApplicationScoped;
 import jd.nomad.config.catalog.ConfigurationCatalogService;
@@ -22,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -66,7 +70,18 @@ public class SearchExecutionService {
                                 .reversed())
                         .limit(request.size() != null ? request.size() : Long.MAX_VALUE)
                         .toList(),
-                hasAggregations(request) ? aggregationsByBackend(backendResults) : null);
+                hasAggregations(request) ? aggregationsByBackend(backendResults) : null,
+                mergedMatchedQueries(backendResults));
+    }
+
+    /** Merges each backend's matched-query map by name; null when no query was named. */
+    private static Map<String, List<String>> mergedMatchedQueries(List<BackendSearchResult> backendResults) {
+        Map<String, List<String>> matchedQueries = new LinkedHashMap<>();
+        for (BackendSearchResult backendResult : backendResults) {
+            backendResult.matchedQueries().forEach((name, ids) ->
+                    matchedQueries.computeIfAbsent(name, key -> new ArrayList<>()).addAll(ids));
+        }
+        return matchedQueries.isEmpty() ? null : matchedQueries;
     }
 
     private List<BackendSearchResult> executeBackendSearches(SearchExecutionRequest request) {
@@ -117,7 +132,30 @@ public class SearchExecutionService {
         return new BackendSearchResult(
                 target.name(),
                 parseResponse(target, projections, response),
+                matchedQueries(target, response),
                 hasAggregations(request) ? parseAggregations(target, request.aggs(), response) : null);
+    }
+
+    /**
+     * Extracts which documents matched each named query. Solr's MatchedQueriesComponent reports a ready
+     * name-to-ids summary; Elasticsearch reports a per-hit {@code matched_queries} list, inverted here
+     * using the same document-id resolution as the results. Empty when the query named nothing.
+     */
+    private static Map<String, List<String>> matchedQueries(BackendTarget target, JsonNode response) {
+        Map<String, List<String>> matched = new LinkedHashMap<>();
+        switch (target.engine()) {
+            case SOLR -> response.path("matched_queries_summary").fields().forEachRemaining(entry ->
+                    entry.getValue().forEach(id ->
+                            matched.computeIfAbsent(entry.getKey(), name -> new ArrayList<>()).add(id.asText())));
+            case ELASTICSEARCH -> {
+                for (JsonNode hit : arrayAt(response.at(target.engine().resultsPath()))) {
+                    String id = id(hit.path("_source"), hit.path("_id").asText(null), target.backend().primaryKey());
+                    hit.path("matched_queries").forEach(name ->
+                            matched.computeIfAbsent(name.asText(), key -> new ArrayList<>()).add(id));
+                }
+            }
+        }
+        return matched;
     }
 
     private ObjectNode buildRequestBody(
@@ -140,9 +178,27 @@ public class SearchExecutionService {
             body.set("queries", namedQueries);
         }
         if (target.engine() == SearchEngine.SOLR) {
-            body.putObject("params").put("uc", request.username());
+            ObjectNode params = body.putObject("params");
+            params.put("uc", request.username());
+            if (hasNamedQueries(request)) {
+                params.put("matched_queries", true);
+            }
         }
         return body;
+    }
+
+    // ponytail: detected per request, not per backend — a Solr backend whose slice names nothing
+    // still gets matched_queries=true, which just yields empty sections.
+    private static boolean hasNamedQueries(SearchExecutionRequest request) {
+        return request.query().stream()
+                .map(SearchQueryRequest::query)
+                .anyMatch(SearchExecutionService::hasNamedQueries);
+    }
+
+    private static boolean hasNamedQueries(QueryNode node) {
+        return node.name() != null
+                || node.data() instanceof BooleanQueryData bool
+                && bool.clauses().stream().anyMatch(SearchExecutionService::hasNamedQueries);
     }
 
     private static boolean hasAggregations(SearchExecutionRequest request) {
@@ -353,6 +409,7 @@ public class SearchExecutionService {
     private record BackendSearchResult(
             String backend,
             List<SearchResult> results,
+            Map<String, List<String>> matchedQueries,
             Map<String, AggregationResult> aggregations
     ) {
     }

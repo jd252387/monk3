@@ -46,6 +46,10 @@ import java.util.Map;
               },
               "uniqueYears": { "value": 42 }
             }
+          },
+          "matchedQueries": {
+            "recent": ["book-1", "article-1"],
+            "ml-titles": ["book-1"]
           }
         }
         """)
@@ -53,6 +57,9 @@ public record SearchExecutionResponse(
         List<SearchResult> results,
         @JsonInclude(JsonInclude.Include.NON_NULL)
         @Schema(description = "Normalized aggregation results keyed by backend name, then by aggregation name; only present when the request declares aggs")
-        Map<String, Map<String, AggregationResult>> aggregations
+        Map<String, Map<String, AggregationResult>> aggregations,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        @Schema(description = "IDs of the returned documents that matched each named query, keyed by query name and merged across backends; only present when the request names queries")
+        Map<String, List<String>> matchedQueries
 ) {
 }

@@ -23,7 +23,7 @@ import java.util.Set;
 
 @Singleton
 public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
-    private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "bool", "data", "filtering");
+    private static final Set<String> NODE_FIELDS = Set.of("field", "minimumMatch", "bool", "data", "filtering", "name");
 
     private final QueryPayloadRegistry payloadRegistry;
 
@@ -61,6 +61,8 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
 
         boolean filtering = readFiltering(parser, objectNode.get("filtering"));
 
+        String name = readName(parser, objectNode.get("name"));
+
         rejectUnknownFields(parser, objectNode, NODE_FIELDS, "query node");
 
         JsonNode dataNode = objectNode.get("data");
@@ -70,11 +72,21 @@ public class QueryNodeDeserializer extends JsonDeserializer<QueryNode> {
             }
             // A leaf node without data is only valid for predicate virtual fields; whether
             // the field actually resolves to a predicate is checked at translation time.
-            return new QueryNode(field, minimumMatch, bool, null, filtering);
+            return new QueryNode(field, minimumMatch, bool, null, filtering, name);
         }
 
         QueryData data = readData(parser, mapper, field, dataNode);
-        return new QueryNode(field, minimumMatch, bool, data, filtering);
+        return new QueryNode(field, minimumMatch, bool, data, filtering, name);
+    }
+
+    private static String readName(JsonParser parser, JsonNode nameNode) throws JsonMappingException {
+        if (nameNode == null || nameNode.isNull()) {
+            return null;
+        }
+        if (!nameNode.isTextual() || nameNode.textValue().isBlank()) {
+            throw MismatchedInputException.from(parser, Object.class, "name must be a non-blank string");
+        }
+        return nameNode.textValue();
     }
 
     private static boolean readFiltering(JsonParser parser, JsonNode filteringNode) throws JsonMappingException {

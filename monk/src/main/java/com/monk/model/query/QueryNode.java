@@ -31,17 +31,19 @@ public record QueryNode(
         @Positive @Schema(description = "Minimum number of should-clauses that must match (boolean nodes only)") Integer minimumMatch,
         @Schema(description = "How this node combines with its siblings (required when this node is a clause of a boolean node)") BooleanOccur bool,
         @Valid @Schema(description = "Query payload (leaf) or boolean clause list (boolean node); absent for predicate virtual fields") QueryData data,
-        @Schema(description = "When true (Solr only), wrap this node's query in a non-scoring bool filter with cache=false; ignored for Elasticsearch") boolean filtering
+        @Schema(description = "When true (Solr only), wrap this node's query in a non-scoring bool filter with cache=false; ignored for Elasticsearch") boolean filtering,
+        @Schema(description = "Optional query name; documents matching this node are reported per name in the response's matchedQueries") String name
 ) {
     public QueryNode(String field, Integer minimumMatch, BooleanOccur bool, QueryData data) {
-        this(field, minimumMatch, bool, data, false);
+        this(field, minimumMatch, bool, data, false, null);
     }
 
     public JsonNode translate(SearchEngine engine, QueryParseContext context) {
         JsonNode translated = translateData(engine, context);
-        return filtering && engine == SearchEngine.SOLR
-                ? QueryJson.solrCachelessFilter(translated)
-                : translated;
+        if (filtering && engine == SearchEngine.SOLR) {
+            translated = QueryJson.solrCachelessFilter(translated);
+        }
+        return name == null ? translated : QueryJson.named(engine, name, translated);
     }
 
     private JsonNode translateData(SearchEngine engine, QueryParseContext context) {

@@ -4292,6 +4292,139 @@ class QueryResourceTest {
                 """);
     }
 
+    @Test
+    void parsesNamedQueryToElasticsearchName() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Named Elasticsearch query",
+                          "materialTypes": ["book"],
+                          "query": {
+                            "field": "title",
+                            "name": "ml-titles",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "phrase", "value": "machine learning" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.query.bool.must[0].bool._name", equalTo("ml-titles"))
+                .body("[0].body.query.bool.must[0].bool.must[0].match_phrase.book_title", equalTo("machine learning"));
+    }
+
+    @Test
+    void parsesNamedQueryToSolrNameAndEnablesMatchedQueriesComponent() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(parseRequest("""
+                        {
+                          "name": "Named Solr query",
+                          "materialTypes": ["article"],
+                          "query": {
+                            "field": "title",
+                            "name": "recent",
+                            "data": {
+                              "type": "text",
+                              "phrases": [{ "type": "phrase", "value": "history" }]
+                            }
+                          }
+                        }
+                        """))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.query.bool.must[0].bool.name", equalTo("recent"))
+                .body("[0].body.query.bool.must[0].bool.must[0].field.f", equalTo("article_headline"))
+                .body("[0].body.params.matched_queries", equalTo(true));
+    }
+
+    @Test
+    void returnsMatchedQueriesMergedAcrossBackends() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Named search",
+                            "materialTypes": ["book", "article"],
+                            "query": {
+                              "field": "",
+                              "data": [
+                                {
+                                  "field": "title",
+                                  "bool": "should",
+                                  "name": "ml-titles",
+                                  "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "machine learning" }] }
+                                },
+                                {
+                                  "field": "year",
+                                  "bool": "should",
+                                  "name": "recent",
+                                  "data": { "type": "range", "gte": 2020 }
+                                }
+                              ]
+                            }
+                          }],
+                          "fields": ["title"],
+                          "size": 10
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("matchedQueries.'ml-titles'", equalTo(List.of("book-1")))
+                .body("matchedQueries.recent", equalTo(List.of("book-1", "article-1")));
+
+        Map<String, String> requestBodiesByPath = new LinkedHashMap<>();
+        for (SearchBackendTestResource.RecordedRequest request : SearchBackendTestResource.requests()) {
+            requestBodiesByPath.put(request.path(), request.body());
+        }
+        assertThat(requestBodiesByPath.get("/es/books/_search"), containsString("\"_name\":\"ml-titles\""));
+        assertThat(requestBodiesByPath.get("/solr/articles/select"), containsString("\"name\":\"recent\""));
+        assertThat(requestBodiesByPath.get("/solr/articles/select"), containsString("\"matched_queries\":true"));
+    }
+
+    @Test
+    void omitsMatchedQueriesWhenNoQueryIsNamed() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Unnamed search",
+                            "materialTypes": ["article"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "history" }] }
+                            }
+                          }],
+                          "fields": ["title"],
+                          "size": 10
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .body("matchedQueries", nullValue())
+                .body("results[0].id", equalTo("article-1"));
+
+        assertThat(SearchBackendTestResource.requests().getFirst().body(), not(containsString("matched_queries")));
+    }
+
     /** Lower (7 days ago) and upper (now) bounds for a "recently published" range, for use with formatted(). */
     private static Object[] recentRange() {
         Instant now = Instant.now();

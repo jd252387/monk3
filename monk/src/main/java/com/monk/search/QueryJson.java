@@ -64,6 +64,18 @@ public final class QueryJson {
     }
 
     /**
+     * Wraps a translated query in a single-clause {@code bool} (identical score) carrying the engine's
+     * query-name param: Elasticsearch {@code _name}, or the Solr {@code name} local param picked up by
+     * {@code QParser} for the MatchedQueriesComponent (SOLR-18227). The wrapper avoids per-query-type
+     * {@code _name} placement quirks in Elasticsearch.
+     */
+    public static ObjectNode named(SearchEngine engine, String name, JsonNode query) {
+        ObjectNode root = boolMust(List.of(query));
+        ((ObjectNode) root.get("bool")).put(engine.queryNameProperty(), name);
+        return root;
+    }
+
+    /**
      * Builds a single {@code bool} query from pre-translated should/must/must_not clauses.
      * {@code minimumShouldMatch} is emitted only when there are should clauses. When the query is
      * purely negative (must_not only), an engine match-all clause is added to {@code must} so the

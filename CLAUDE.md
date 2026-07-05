@@ -60,6 +60,8 @@ Both `POST` endpoints take a `SearchExecutionRequest`: a `username` (forwarded t
 
 A `QueryNode`'s `minimumMatch` is only meaningful on boolean nodes (it sets minimum-should-match over the `should` clauses); its `bool` is only meaningful when the node is itself a clause of a boolean node.
 
+Any node may carry an optional `name` (translated to Elasticsearch `_name` / a Solr `name` local param plus the `matched_queries=true` request param for the MatchedQueriesComponent, SOLR-18227); the search response then includes a `matchedQueries` map of query name → IDs of the returned documents that matched it, merged across backends.
+
 ### Aggregations
 
 The request's optional `aggs` is a map of name → `Aggregation` (a sealed interface deserialized by `AggregationDeserializer`, dispatching on `aggType`), computed per backend and translated to native ES aggregations / Solr JSON facets. Each carries an `args` object and may declare nested `aggs` (sub-aggregations that run over each bucket the parent produces). Types: `terms`, `range`, `subfacets`, `filter`, `unique`, the metrics `sum` / `avg` / `min` / `max` (`MetricAggregation`), `nested`, and `reverseNested`. `unique` and the metrics reject sub-aggregations.

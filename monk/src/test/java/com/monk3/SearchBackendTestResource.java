@@ -19,11 +19,51 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 
 public class SearchBackendTestResource implements QuarkusTestResourceLifecycleManager {
     private static final long PARALLEL_REQUEST_TIMEOUT_SECONDS = 2L;
     private static final List<RecordedRequest> REQUESTS = new CopyOnWriteArrayList<>();
     private static final AtomicReference<CountDownLatch> PARALLEL_REQUESTS = new AtomicReference<>();
+
+    /** Served for /es/books when the query names queries (body contains "_name"), like a real ES would. */
+    private static final String ES_BOOKS_NAMED_RESPONSE = """
+            {
+              "hits": {
+                "max_score": 20.0,
+                "hits": [
+                  {
+                    "_id": "book-1",
+                    "_score": 10.0,
+                    "matched_queries": ["ml-titles", "recent"],
+                    "_source": {
+                      "id": "book-1",
+                      "book_title": "Java Records",
+                      "book_year": 2025
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+    /** Served for /solr/articles when the MatchedQueriesComponent is enabled (matched_queries=true param). */
+    private static final String SOLR_ARTICLES_NAMED_RESPONSE = """
+            {
+              "response": {
+                "docs": [
+                  {
+                    "id": "article-1",
+                    "score": 5.0,
+                    "article_headline": "Solr Article",
+                    "article_year": 2024
+                  }
+                ]
+              },
+              "matched_queries_per_hit": { "article-1": ["recent"] },
+              "matched_queries_summary": { "recent": ["article-1"] }
+            }
+            """;
 
     private HttpServer server;
     private ExecutorService executor;
@@ -35,7 +75,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
     public Map<String, String> start() {
         try {
             server = HttpServer.create(new InetSocketAddress(0), 0);
-            server.createContext("/es/books/_search", exchange -> respond(exchange, """
+            server.createContext("/es/books/_search", exchange -> respond(exchange, requestBody ->
+                    requestBody.contains("\"_name\"") ? ES_BOOKS_NAMED_RESPONSE : """
                     {
                       "hits": {
                         "max_score": 20.0,
@@ -134,7 +175,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       }
                     }
                     """));
-            server.createContext("/solr/articles/select", exchange -> respond(exchange, """
+            server.createContext("/solr/articles/select", exchange -> respond(exchange, requestBody ->
+                    requestBody.contains("\"matched_queries\"") ? SOLR_ARTICLES_NAMED_RESPONSE : """
                     {
                       "response": {
                         "docs": [
@@ -338,13 +380,15 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
     }
 
     private static void respond(HttpExchange exchange, String body) throws IOException {
-        byte[] requestBody = exchange.getRequestBody().readAllBytes();
-        REQUESTS.add(new RecordedRequest(
-                exchange.getRequestURI().getPath(),
-                new String(requestBody, StandardCharsets.UTF_8)));
+        respond(exchange, requestBody -> body);
+    }
+
+    private static void respond(HttpExchange exchange, UnaryOperator<String> bodyForRequest) throws IOException {
+        String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+        REQUESTS.add(new RecordedRequest(exchange.getRequestURI().getPath(), requestBody));
         awaitParallelRequests();
 
-        byte[] responseBody = body.getBytes(StandardCharsets.UTF_8);
+        byte[] responseBody = bodyForRequest.apply(requestBody).getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, responseBody.length);
         exchange.getResponseBody().write(responseBody);
