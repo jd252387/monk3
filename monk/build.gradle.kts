@@ -19,6 +19,9 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 dependencies {
+    implementation("io.quarkiverse.helm:quarkus-helm:1.4.1")
+    implementation(libs.quarkus.smallrye.health)
+    implementation(libs.quarkus.openshift)
     implementation(enforcedPlatform(libs.quarkus.bom))
     implementation(project(":catalog"))
     implementation(libs.quarkus.config.yaml)

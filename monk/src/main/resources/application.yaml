@@ -35,10 +35,20 @@ quarkus:
     group: monk
     name: monk
     tag: latest
+    builder: jib
   jib:
     # The app is compiled to Java 25 bytecode, so the runtime base image must ship a Java 25 JRE
     # (Quarkus' default UBI base image is Java 21).
     base-jvm-image: eclipse-temurin:25-jre
+  # Generates a Helm chart into target/helm at build time from the container-image/http config
+  # above, instead of a hand-maintained chart.
+  helm:
+    enabled: true
+    repository:
+      deployment-target: openshift
+  openshift:
+    route:
+      expose: true
   dev-ui:
     allow-extension-management: false
 

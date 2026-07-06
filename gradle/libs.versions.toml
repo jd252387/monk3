@@ -14,6 +14,8 @@ quarkus-rest = { module = "io.quarkus:quarkus-rest" }
 quarkus-rest-jackson = { module = "io.quarkus:quarkus-rest-jackson" }
 quarkus-hibernate-validator = { module = "io.quarkus:quarkus-hibernate-validator" }
 quarkus-smallrye-openapi = { module = "io.quarkus:quarkus-smallrye-openapi" }
+quarkus-smallrye-health = { module = "io.quarkus:quarkus-smallrye-health" }
+quarkus-openshift = { module = "io.quarkus:quarkus-openshift" }
 quarkus-container-image-jib = { module = "io.quarkus:quarkus-container-image-jib" }
 quarkus-quinoa = { module = "io.quarkiverse.quinoa:quarkus-quinoa", version.ref = "quinoa" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
