@@ -22,7 +22,8 @@
     },
     "category": {
       "type": "string",
-      "aggregatable": true
+      "aggregatable": true,
+      "searchable": false
     },
     "price": {
       "type": "number"
