@@ -27,7 +27,8 @@
       "destinationField": "ds"
     },
     "price": {
-      "type": "number"
+      "type": "boolean",
+      "destinationField": "ew"
     },
     "description": {
       "type": "freetext"
