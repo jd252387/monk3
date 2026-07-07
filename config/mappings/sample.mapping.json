@@ -23,7 +23,8 @@
     "category": {
       "type": "string",
       "aggregatable": true,
-      "searchable": false
+      "searchable": false,
+      "destinationField": "ds"
     },
     "price": {
       "type": "number"
