@@ -18,7 +18,7 @@
       "destinationField": "material_tewyewpe"
     },
     "title": {
-      "type": "freetext"
+      "type": "number"
     },
     "category": {
       "type": "datetime",
