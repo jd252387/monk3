@@ -14,7 +14,7 @@
       }
     },
     "materialType": {
-      "type": "string",
+      "type": "datetime",
       "destinationField": "material_tewyewpe"
     },
     "title": {
