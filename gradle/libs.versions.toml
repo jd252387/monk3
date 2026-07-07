@@ -1,9 +1,9 @@
 [versions]
-quarkus = "3.33.1.1"
+quarkus = "3.36.2"
 # Quinoa must be new enough to use Quarkus' VertxHttpBuildTimeConfig: 2.5.x references the
 # removed io.quarkus.vertx.http.runtime.HttpBuildTimeConfig and fails on Quarkus 3.33.
 # 2.8.2 targets Quarkus 3.27.3 (<= 3.33, so no forward-incompat); 2.8.3 targets 3.36.2.
-quinoa = "2.8.2"
+quinoa = "2.8.3"
 lombok = "1.18.46"
 
 [libraries]

@@ -13,6 +13,7 @@ if (!('Buffer' in globalThis)) (globalThis as Record<string, unknown>).Buffer = 
 
 const env = import.meta.env;
 const DIR = '/repo';
+const GIT_DIR = env.VITE_MAPPINGS_GIT_DIR || '';
 
 export const gitConfigured = Boolean(env.VITE_MAPPINGS_GIT_URL);
 
@@ -88,7 +89,8 @@ export async function loadRepo(): Promise<MappingEntry[]> {
     ...remoteOpts(),
   });
   const files: string[] = [];
-  await findMappingFiles(DIR, files);
+  const scanRoot = GIT_DIR ? DIR + '/' + GIT_DIR : DIR;
+  await findMappingFiles(scanRoot, files);
   const entries: MappingEntry[] = [];
   for (const f of files.sort()) {
     entries.push({

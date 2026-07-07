@@ -18,6 +18,8 @@ quarkus:
     default-models-expand-depth: 1
     try-it-out-enabled: true
     urls-primary-name: "monk API v1"
+  devservices:
+    enabled: false
   smallrye-openapi:
     info-title: "Monk"
     info-version: "1.0.0"
