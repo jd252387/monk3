@@ -15,7 +15,7 @@
     },
     "materialType": {
       "type": "string",
-      "destinationField": "material_tyewpe"
+      "destinationField": "material_tewyewpe"
     },
     "title": {
       "type": "freetext"
