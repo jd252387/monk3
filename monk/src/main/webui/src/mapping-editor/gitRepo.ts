@@ -46,12 +46,22 @@ const virtualPath = (mappingPath: string) => mappingPath.replace(/\.mapping\.jso
 
 function remoteOpts() {
   const token = env.VITE_MAPPINGS_GIT_TOKEN;
+  const headers: Record<string, string> = {};
+  if (token) {
+    const username = env.VITE_MAPPINGS_GIT_USERNAME || token;
+    headers.Authorization = 'Basic ' + btoa(username + ':' + token);
+  }
   return {
     http,
     corsProxy: env.VITE_MAPPINGS_GIT_CORS_PROXY || undefined,
-    onAuth: token
-      ? () => ({ username: env.VITE_MAPPINGS_GIT_USERNAME || token, password: token })
-      : undefined,
+    // Send the auth header on every request proactively — isomorphic-git's
+    // onAuth is only called *after* the first unauthenticated request gets a
+    // 401, which triggers the browser's native auth dialog. Passing `headers`
+    // puts the Authorization header on the first request, avoiding the 401.
+    headers,
+    // onAuth kept as fallback; if the initial request still gets challenged
+    // (expired token, etc.), retry with the same header.
+    onAuth: token ? () => ({ headers }) : undefined,
   };
 }
 
