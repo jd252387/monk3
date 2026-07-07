@@ -18,7 +18,8 @@
       "destinationField": "material_tewyewpe"
     },
     "title": {
-      "type": "number"
+      "type": "number",
+      "aggregatable": true
     },
     "category": {
       "type": "datetime",
