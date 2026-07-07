@@ -21,7 +21,7 @@
       "type": "freetext"
     },
     "category": {
-      "type": "string",
+      "type": "datetime",
       "aggregatable": true,
       "searchable": false,
       "destinationField": "ds"
