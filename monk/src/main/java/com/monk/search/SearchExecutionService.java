@@ -2,7 +2,6 @@ package com.monk.search;
 
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -13,6 +12,8 @@ import com.monk.model.SearchExecutionRequest;
 import com.monk.model.SearchExecutionResponse;
 import com.monk.model.SearchQueryRequest;
 import com.monk.model.SearchResult;
+import com.monk.model.SortClause;
+import com.monk.model.SortOrder;
 import com.monk.model.query.BooleanQueryData;
 import com.monk.model.query.QueryNode;
 import com.monk.search.QueryTranslationService.BackendTarget;
@@ -22,37 +23,34 @@ import jd.nomad.mapping.BackendConfig;
 import jd.nomad.mapping.MappedField;
 import jd.nomad.mapping.SearchMapping;
 import lombok.RequiredArgsConstructor;
+import org.jboss.logging.Logger;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 @ApplicationScoped
 @RequiredArgsConstructor
 public class SearchExecutionService {
-    private static final String CONTENT_TYPE = "Content-Type";
-    private static final String APPLICATION_JSON = "application/json";
+    private static final Logger LOG = Logger.getLogger(SearchExecutionService.class);
     private static final JsonPointer ELASTICSEARCH_MAX_SCORE_PATH = JsonPointer.compile("/hits/max_score");
 
-    private final ObjectMapper objectMapper;
     private final QueryTranslationService queryTranslationService;
     private final ConfigurationCatalogService catalogService;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final BackendHttpClient backendHttpClient;
 
     public SearchExecutionResponse search(SearchExecutionRequest request) {
         List<BackendSearchResult> backendResults = executeBackendSearches(request);
@@ -65,13 +63,52 @@ public class SearchExecutionService {
 
         return new SearchExecutionResponse(
                 results.stream()
-                        .sorted(Comparator.comparingDouble(SearchResult::normalizedScore)
-                                .thenComparingDouble(SearchResult::score)
-                                .reversed())
+                        .sorted(mergeOrdering(request.sort()))
                         .limit(request.size() != null ? request.size() : Long.MAX_VALUE)
                         .toList(),
                 hasAggregations(request) ? aggregationsByBackend(backendResults) : null,
                 mergedMatchedQueries(backendResults));
+    }
+
+    /** Default relevance ordering (score descending) unless the request asked for explicit sort keys. */
+    private static Comparator<SearchResult> mergeOrdering(List<SortClause> sort) {
+        if (sort == null || sort.isEmpty()) {
+            return Comparator.comparingDouble(SearchResult::normalizedScore)
+                    .thenComparingDouble(SearchResult::score)
+                    .reversed();
+        }
+        Comparator<SearchResult> ordering = clauseComparator(sort.getFirst());
+        for (SortClause clause : sort.subList(1, sort.size())) {
+            ordering = ordering.thenComparing(clauseComparator(clause));
+        }
+        return ordering;
+    }
+
+    private static Comparator<SearchResult> clauseComparator(SortClause clause) {
+        if (clause.isScore()) {
+            Comparator<SearchResult> byScore = Comparator.comparingDouble(SearchResult::normalizedScore)
+                    .thenComparingDouble(SearchResult::score);
+            return clause.order() == SortOrder.DESC ? byScore.reversed() : byScore;
+        }
+        // ponytail: numeric-vs-lexical only (ISO-8601 datetimes sort correctly as text); missing sorts
+        // last in both directions. Upgrade to locale collation / typed compare if a field needs it.
+        Comparator<JsonNode> values = SearchExecutionService::compareValues;
+        Comparator<JsonNode> directed = Comparator.nullsLast(
+                clause.order() == SortOrder.DESC ? values.reversed() : values);
+        return Comparator.comparing(result -> sortFieldValue(result, clause.field()), directed);
+    }
+
+    /** A result's sort value for a logical field, or {@code null} when the field is absent/null. */
+    private static JsonNode sortFieldValue(SearchResult result, String field) {
+        JsonNode value = result.sortValues() == null ? null : result.sortValues().get(field);
+        return present(value) ? value : null;
+    }
+
+    private static int compareValues(JsonNode left, JsonNode right) {
+        if (left.isNumber() && right.isNumber()) {
+            return Double.compare(left.asDouble(), right.asDouble());
+        }
+        return left.asText().compareTo(right.asText());
     }
 
     /** Merges each backend's matched-query map by name; null when no query was named. */
@@ -85,31 +122,45 @@ public class SearchExecutionService {
     }
 
     private List<BackendSearchResult> executeBackendSearches(SearchExecutionRequest request) {
-        List<Callable<BackendSearchResult>> searches = queryTranslationService.resolveTargets(request.query()).stream()
+        List<BackendTarget> targets = queryTranslationService.resolveTargets(request.query());
+        List<Callable<BackendSearchResult>> searches = targets.stream()
                 .map(target -> (Callable<BackendSearchResult>) () -> searchBackend(target, request))
                 .toList();
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            return executor.invokeAll(searches).stream()
-                    .map(SearchExecutionService::completed)
-                    .toList();
+            List<Future<BackendSearchResult>> futures = executor.invokeAll(searches);
+            List<BackendSearchResult> results = new ArrayList<>();
+            int failures = 0;
+            for (int index = 0; index < futures.size(); index++) {
+                BackendTarget target = targets.get(index);
+                try {
+                    results.add(futures.get(index).get());
+                } catch (ExecutionException exception) {
+                    // A backend HTTP failure drops just that backend so the fan-out still returns
+                    // partial results; translation/embedding errors (any other cause) fail the request.
+                    if (!(exception.getCause() instanceof SearchExecutionException backendFailure)) {
+                        throw rethrow(exception.getCause());
+                    }
+                    failures++;
+                    LOG.warnf("Search backend '%s' failed; returning partial results without it: %s",
+                            target.name(), backendFailure.getMessage());
+                    results.add(BackendSearchResult.empty(target.name()));
+                }
+            }
+            if (!targets.isEmpty() && failures == targets.size()) {
+                throw new SearchExecutionException("All search backends failed");
+            }
+            return results;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new SearchExecutionException("Search request was interrupted", exception);
         }
     }
 
-    private static BackendSearchResult completed(Future<BackendSearchResult> search) {
-        try {
-            return search.get();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new SearchExecutionException("Search request was interrupted", exception);
-        } catch (ExecutionException exception) {
-            if (exception.getCause() instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw new SearchExecutionException("Search backend request failed", exception.getCause());
+    private static RuntimeException rethrow(Throwable cause) {
+        if (cause instanceof RuntimeException runtimeException) {
+            return runtimeException;
         }
+        return new SearchExecutionException("Search backend request failed", cause);
     }
 
     /**
@@ -120,18 +171,21 @@ public class SearchExecutionService {
         return queryTranslationService.resolveTargets(request.query()).stream()
                 .map(target -> new BackendQuery(
                         target.name(), target.engine(), target.materialTypes(),
-                        buildRequestBody(target, request, projections(target, request.fields()))))
+                        buildRequestBody(target, request, projections(target, request.fields()),
+                                sortResolutions(target, request.sort()))))
                 .toList();
     }
 
     private BackendSearchResult searchBackend(BackendTarget target, SearchExecutionRequest request) {
         List<FieldProjection> projections = projections(target, request.fields());
-        ObjectNode body = buildRequestBody(target, request, projections);
+        List<SortResolution> sortResolutions = sortResolutions(target, request.sort());
+        ObjectNode body = buildRequestBody(target, request, projections, sortResolutions);
 
-        JsonNode response = postJson(target.name(), targetUri(target.backend(), target.engine()), body);
+        JsonNode response = backendHttpClient.post(
+                target.name(), target.engine().name(), targetUri(target.backend(), target.engine()), body);
         return new BackendSearchResult(
                 target.name(),
-                parseResponse(target, projections, response),
+                parseResponse(target, projections, sortResolutions, response),
                 matchedQueries(target, response),
                 hasAggregations(request) ? parseAggregations(target, request.aggs(), response) : null);
     }
@@ -161,13 +215,14 @@ public class SearchExecutionService {
     private ObjectNode buildRequestBody(
             BackendTarget target,
             SearchExecutionRequest request,
-            List<FieldProjection> projections
+            List<FieldProjection> projections,
+            List<SortResolution> sortResolutions
     ) {
         ObjectNode body = JsonNodeFactory.instance.objectNode();
         QueryTranslationService.QueryTranslation queryTranslation = queryTranslationService.translate(target);
         body.set("query", queryTranslation.query());
         ObjectNode namedQueries = queryTranslation.namedQueries();
-        applyResultOptions(target, body, projections, request);
+        applyResultOptions(target, body, projections, sortResolutions, request);
         if (hasAggregations(request)) {
             QueryTranslationService.AggregationTranslation translation =
                     queryTranslationService.translateAggregations(target, request.aggs());
@@ -231,9 +286,10 @@ public class SearchExecutionService {
             BackendTarget target,
             ObjectNode body,
             List<FieldProjection> projections,
+            List<SortResolution> sortResolutions,
             SearchExecutionRequest request
     ) {
-        Set<String> storedFields = storedFields(target.backend().primaryKey(), projections);
+        Set<String> storedFields = storedFields(target.backend().primaryKey(), projections, sortResolutions);
         body.put(target.engine().sizeProperty(), size(request, target.backend()));
         switch (target.engine()) {
             case ELASTICSEARCH -> storedFields.forEach(body.putArray("_source")::add);
@@ -243,43 +299,86 @@ public class SearchExecutionService {
                 storedFields.forEach(fields::add);
             }
         }
+        applySort(target, body, sortResolutions);
     }
 
-    private JsonNode postJson(String backendName, URI uri, JsonNode body) {
-        try {
-            HttpRequest request = HttpRequest.newBuilder(uri)
-                    .header(CONTENT_TYPE, APPLICATION_JSON)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(objectMapper.writeValueAsBytes(body)))
-                    .build();
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new SearchExecutionException(
-                        "Search backend '" + backendName + "' returned HTTP " + response.statusCode() + " - " + new String(response.body()));
-            }
-            return objectMapper.readTree(response.body());
-        } catch (IOException exception) {
-            throw new SearchExecutionException("Search backend '" + backendName + "' returned invalid JSON", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new SearchExecutionException("Search backend '" + backendName + "' request was interrupted", exception);
+    /**
+     * Translates the resolved sort keys into the backend's native form: an Elasticsearch {@code sort} array of
+     * {@code {field: {order}}} objects, or a Solr {@code sort} string ({@code "field asc, …"}). The relevance
+     * token uses the engine's score field ({@code _score} / {@code score}).
+     */
+    private static void applySort(BackendTarget target, ObjectNode body, List<SortResolution> sortResolutions) {
+        if (sortResolutions.isEmpty()) {
+            return;
         }
+        switch (target.engine()) {
+            case ELASTICSEARCH -> {
+                ArrayNode sort = body.putArray(target.engine().sortProperty());
+                for (SortResolution resolution : sortResolutions) {
+                    sort.addObject().putObject(sortField(target.engine(), resolution))
+                            .put("order", resolution.clause().order().json());
+                }
+            }
+            case SOLR -> body.put(target.engine().sortProperty(), sortResolutions.stream()
+                    .map(resolution -> sortField(target.engine(), resolution) + " " + resolution.clause().order().json())
+                    .collect(Collectors.joining(", ")));
+        }
+    }
+
+    private static String sortField(SearchEngine engine, SortResolution resolution) {
+        return resolution.storedField() != null ? resolution.storedField() : engine.scoreField();
+    }
+
+    /**
+     * Resolves each requested sort key against the backend's mapping, enforcing {@code sortable}. The relevance
+     * token ({@code _score}) resolves to a null stored field (handled natively); other keys resolve to the
+     * mapped stored field, rejecting subdocument fields and fields not declared {@code sortable}.
+     */
+    private List<SortResolution> sortResolutions(BackendTarget target, List<SortClause> sort) {
+        if (sort == null || sort.isEmpty()) {
+            return List.of();
+        }
+        SearchMapping mapping = catalogService.mappingForBackend(target.name());
+        String materialType = target.materialTypes().getFirst();
+        return sort.stream()
+                .map(clause -> new SortResolution(clause,
+                        clause.isScore() ? null : sortField(mapping, materialType, clause.field())))
+                .toList();
+    }
+
+    private static String sortField(SearchMapping mapping, String materialType, String logicalField) {
+        MappedField mappedField = mapping.root()
+                .field(logicalField)
+                .orElseThrow(() -> new QueryTranslationException(
+                        "Field '" + logicalField + "' is not defined for material type '" + materialType + "'"));
+        if (mappedField.isSubdocument()) {
+            throw new QueryTranslationException(
+                    "Subdocument field '" + logicalField + "' cannot be used to sort results");
+        }
+        if (!mappedField.isSortable()) {
+            throw new QueryTranslationException(
+                    "Field '" + logicalField + "' is not sortable for material type '" + materialType + "'");
+        }
+        return mappedField.searchField();
     }
 
     private List<SearchResult> parseResponse(
             BackendTarget target,
             List<FieldProjection> projections,
+            List<SortResolution> sortResolutions,
             JsonNode response
     ) {
         ArrayNode hits = arrayAt(response.at(target.engine().resultsPath()));
         double maxScore = maxScore(target.engine(), response, hits);
         return StreamSupport.stream(hits.spliterator(), false)
-                .map(hit -> searchResult(target, projections, hit, maxScore))
+                .map(hit -> searchResult(target, projections, sortResolutions, hit, maxScore))
                 .toList();
     }
 
     private SearchResult searchResult(
             BackendTarget target,
             List<FieldProjection> projections,
+            List<SortResolution> sortResolutions,
             JsonNode hit,
             double maxScore
     ) {
@@ -291,7 +390,19 @@ public class SearchExecutionService {
                 id(document, target.engine() == SearchEngine.ELASTICSEARCH ? hit.path("_id").asText(null) : null, target.backend().primaryKey()),
                 score,
                 normalizedScore(score, maxScore),
-                logicalFields(document, projections));
+                logicalFields(document, projections),
+                sortValues(document, sortResolutions));
+    }
+
+    /** Sort-field values keyed by logical field name, so the cross-backend merge can order by them. */
+    private static Map<String, JsonNode> sortValues(JsonNode document, List<SortResolution> sortResolutions) {
+        Map<String, JsonNode> values = new LinkedHashMap<>();
+        for (SortResolution resolution : sortResolutions) {
+            if (resolution.storedField() != null) {
+                values.put(resolution.clause().field(), document.get(resolution.storedField()));
+            }
+        }
+        return values;
     }
 
     private List<FieldProjection> projections(BackendTarget target, List<String> logicalFields) {
@@ -317,11 +428,16 @@ public class SearchExecutionService {
         return new FieldProjection(logicalField, mappedField.searchField());
     }
 
-    private Set<String> storedFields(String primaryKey, List<FieldProjection> projections) {
+    private Set<String> storedFields(String primaryKey, List<FieldProjection> projections, List<SortResolution> sortResolutions) {
         Set<String> fields = new LinkedHashSet<>();
         fields.add(primaryKey);
         projections.stream()
                 .map(FieldProjection::storedField)
+                .forEach(fields::add);
+        // A sort field must be fetched even when not projected, so the merge comparator can read its value.
+        sortResolutions.stream()
+                .map(SortResolution::storedField)
+                .filter(Objects::nonNull)
                 .forEach(fields::add);
         return fields;
     }
@@ -406,11 +522,18 @@ public class SearchExecutionService {
     private record FieldProjection(String logicalName, String storedField) {
     }
 
+    /** A requested sort key resolved against a backend: its stored field, or {@code null} for the {@code _score} token. */
+    private record SortResolution(SortClause clause, String storedField) {
+    }
+
     private record BackendSearchResult(
             String backend,
             List<SearchResult> results,
             Map<String, List<String>> matchedQueries,
             Map<String, AggregationResult> aggregations
     ) {
+        static BackendSearchResult empty(String backend) {
+            return new BackendSearchResult(backend, List.of(), Map.of(), null);
+        }
     }
 }

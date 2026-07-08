@@ -32,6 +32,31 @@
       "description": "Optional maximum number of results to return per backend.",
       "minimum": 1
     },
+    "sort": {
+      "type": "array",
+      "description": "Optional ordered sort keys, applied per backend and to the merged results. Absent means order by relevance.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Logical sortable field to sort by, or the reserved '_score' token for relevance."
+          },
+          "order": {
+            "type": "string",
+            "description": "Sort direction; defaults to asc.",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          }
+        }
+      }
+    },
     "aggs": {
       "$ref": "#/$defs/Aggregations",
       "description": "Optional named facets/aggregations over root document fields, computed per backend."

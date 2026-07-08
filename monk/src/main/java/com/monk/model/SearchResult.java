@@ -1,5 +1,6 @@
 package com.monk.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monk.search.SearchEngine;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -26,6 +27,9 @@ public record SearchResult(
         String id,
         double score,
         double normalizedScore,
-        Map<String, JsonNode> fields
+        Map<String, JsonNode> fields,
+        // Values of the requested sort fields keyed by logical field name, carried only so the
+        // cross-backend merge can order results; never serialized in the response.
+        @JsonIgnore Map<String, JsonNode> sortValues
 ) {
 }

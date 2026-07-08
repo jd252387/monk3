@@ -20,7 +20,8 @@
     "year": {
       "type": "number",
       "destinationField": "article_year",
-      "aggregatable": true
+      "aggregatable": true,
+      "sortable": true
     },
     "publishedAt": {
       "type": "datetime",

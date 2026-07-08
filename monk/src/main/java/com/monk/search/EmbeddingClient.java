@@ -5,8 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.monk.mapping.EmbeddingConfig;
+import io.quarkus.cache.CacheResult;
 import jakarta.enterprise.context.ApplicationScoped;
-import lombok.RequiredArgsConstructor;
+import org.eclipse.microprofile.faulttolerance.Retry;
 
 import java.io.IOException;
 import java.net.URI;
@@ -20,21 +21,35 @@ import java.net.http.HttpResponse;
  * translating {@code knnFlat} queries; the returned vector is inlined into the engine query.
  */
 @ApplicationScoped
-@RequiredArgsConstructor
 public class EmbeddingClient {
     private static final String CONTENT_TYPE = "Content-Type";
     private static final String APPLICATION_JSON = "application/json";
 
     private final EmbeddingConfig config;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient;
 
-    /** Returns the {@code embedding_vector} array node for the given text, or throws on any failure. */
+    public EmbeddingClient(EmbeddingConfig config, ObjectMapper objectMapper) {
+        this.config = config;
+        this.objectMapper = objectMapper;
+        this.httpClient = HttpClient.newBuilder().connectTimeout(config.connectTimeout()).build();
+    }
+
+    /**
+     * Returns the {@code embedding_vector} array node for the given text, or throws on any failure.
+     * Cached by text (identical {@code knnFlat} input skips the round-trip); retried on failure, and
+     * {@code @CacheResult} never caches the thrown exception, so failures stay retryable.
+     */
+    @CacheResult(cacheName = "embeddings")
+    // ponytail: retries every failure including a deterministic bad response shape; bounded and the
+    // result is cached, so amplification is negligible. Narrow retryOn if that ever changes.
+    @Retry(maxRetries = 2, delay = 200, retryOn = QueryTranslationException.class)
     public JsonNode embed(String text) {
         ObjectNode body = JsonNodeFactory.instance.objectNode();
         body.putArray("texts").add(text);
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create(config.url()))
+                    .timeout(config.requestTimeout())
                     .header(CONTENT_TYPE, APPLICATION_JSON)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(objectMapper.writeValueAsBytes(body)))
                     .build();

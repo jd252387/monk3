@@ -1860,6 +1860,97 @@ class QueryResourceTest {
     }
 
     @Test
+    void returnsPartialResultsWhenOneBackendInTheFanOutFails() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Degraded fan-out",
+                            "materialTypes": ["book", "broken"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title", "year"],
+                          "size": 10
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results.size()", equalTo(1))
+                .body("results[0].backend", equalTo("elastic-books"))
+                .body("results[0].id", equalTo("book-1"));
+    }
+
+    @Test
+    void recordsPerBackendTimerOnThePrometheusEndpoint() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "Timed search",
+                            "materialTypes": ["book"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title", "year"],
+                          "size": 10
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200);
+
+        given()
+                .when().get("/q/metrics")
+                .then()
+                .statusCode(200)
+                .body(containsString("monk_backend_request"))
+                .body(containsString("backend=\"elastic-books\""));
+    }
+
+    @Test
+    void failsWithBadGatewayWhenEveryBackendFails() {
+        SearchBackendTestResource.reset();
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {
+                          "username": "tester",
+                          "query": [{
+                            "name": "All failed",
+                            "materialTypes": ["broken"],
+                            "query": {
+                              "field": "title",
+                              "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] }
+                            }
+                          }],
+                          "fields": ["title", "year"],
+                          "size": 10
+                        }
+                        """)
+                .when().post("/queries/search")
+                .then()
+                .statusCode(502)
+                .body("error.code", equalTo("search_execution_failed"))
+                .body("error.message", containsString("All search backends failed"));
+    }
+
+    @Test
     void executesTermsAndUniqueAggregationsAgainstElasticsearch() {
         SearchBackendTestResource.reset();
 
@@ -4441,6 +4532,133 @@ class QueryResourceTest {
     }
 
     /** Wraps a query request in the SearchExecutionRequest envelope shared by /queries/parse and /queries/search. */
+    @Test
+    void parseEmitsElasticsearchSortForSortableField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortRequest("book", """
+                        [{ "field": "year", "order": "desc" }]"""))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("ELASTICSEARCH"))
+                .body("[0].body.sort[0].book_year.order", equalTo("desc"));
+    }
+
+    @Test
+    void parseEmitsSolrSortStringForSortableField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortRequest("article", """
+                        [{ "field": "year", "order": "desc" }]"""))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("[0].engine", equalTo("SOLR"))
+                .body("[0].body.sort", equalTo("article_year desc"));
+    }
+
+    @Test
+    void sortDefaultsToAscendingWhenOrderOmitted() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortRequest("article", """
+                        [{ "field": "year" }]"""))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .body("[0].body.sort", equalTo("article_year asc"));
+    }
+
+    @Test
+    void sortByRelevanceTokenUsesEngineScoreField() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortRequest("book", """
+                        [{ "field": "_score", "order": "desc" }]"""))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(200)
+                .body("[0].body.sort[0]._score.order", equalTo("desc"));
+    }
+
+    @Test
+    void sortByNonSortableFieldIsRejected() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortRequest("book", """
+                        [{ "field": "title" }]"""))
+                .when().post("/queries/parse")
+                .then()
+                .statusCode(400)
+                .contentType(ContentType.JSON)
+                .body("error.code", equalTo("query_translation_failed"))
+                .body("error.message", containsString("not sortable"));
+    }
+
+    @Test
+    void sortsMergedResultsByFieldDescendingAcrossBackends() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortedMergeRequest("desc"))
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results.size()", equalTo(2))
+                .body("results[0].id", equalTo("book-1"))
+                .body("results[0].fields.year", equalTo(2025))
+                .body("results[1].id", equalTo("article-1"))
+                .body("results[1].fields.year", equalTo(2024));
+    }
+
+    @Test
+    void sortsMergedResultsByFieldAscendingAcrossBackends() {
+        given()
+                .contentType(ContentType.JSON)
+                .body(sortedMergeRequest("asc"))
+                .when().post("/queries/search")
+                .then()
+                .statusCode(200)
+                .contentType(ContentType.JSON)
+                .body("results.size()", equalTo(2))
+                .body("results[0].id", equalTo("article-1"))
+                .body("results[1].id", equalTo("book-1"));
+    }
+
+    private static String sortRequest(String materialType, String sort) {
+        return """
+                {
+                  "username": "tester",
+                  "query": [{
+                    "name": "Sorted query",
+                    "materialTypes": ["%s"],
+                    "query": { "field": "title", "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] } }
+                  }],
+                  "fields": ["title"],
+                  "sort": %s
+                }
+                """.formatted(materialType, sort);
+    }
+
+    private static String sortedMergeRequest(String order) {
+        return """
+                {
+                  "username": "tester",
+                  "query": [{
+                    "name": "Merged sorted search",
+                    "materialTypes": ["book", "article"],
+                    "query": { "field": "title", "data": { "type": "text", "phrases": [{ "type": "phrase", "value": "java" }] } }
+                  }],
+                  "fields": ["title", "year"],
+                  "size": 10,
+                  "sort": [{ "field": "year", "order": "%s" }]
+                }
+                """.formatted(order);
+    }
+
     private static String parseRequest(String query) {
         return """
                 {

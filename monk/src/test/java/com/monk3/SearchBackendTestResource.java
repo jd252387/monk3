@@ -266,6 +266,15 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       ]
                     }
                     """));
+            // Always fails, to exercise the fan-out's graceful degradation (partial results) and the
+            // all-backends-failed guard.
+            server.createContext("/es/broken/_search", exchange -> {
+                exchange.getRequestBody().readAllBytes();
+                byte[] body = "{\"error\":\"boom\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(500, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
             executor = Executors.newVirtualThreadPerTaskExecutor();
             server.setExecutor(executor);
             server.start();
@@ -282,10 +291,11 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                     {"backends":{
                       "elastic-books":{"engine":"ELASTICSEARCH","url":"%s/es","index":"books","primaryKey":"id","physical":"%s","virtual":"%s"},
                       "elastic-empty":{"engine":"ELASTICSEARCH","url":"%s/es","index":"empty","primaryKey":"id","physical":"%s"},
+                      "elastic-broken":{"engine":"ELASTICSEARCH","url":"%s/es","index":"broken","primaryKey":"id","physical":"%s"},
                       "solr-articles":{"engine":"SOLR","url":"%s/solr","collection":"articles","primaryKey":"id","physical":"%s"},
                       "solr-books":{"engine":"SOLR","url":"%s/solr","collection":"books","primaryKey":"id","physical":"%s","virtual":"%s"}
                     }}""".formatted(baseUrl, bookMapping, bookVirtual, baseUrl, datasetMapping,
-                            baseUrl, articleMapping, baseUrl, bookMapping, bookVirtual);
+                            baseUrl, bookMapping, baseUrl, articleMapping, baseUrl, bookMapping, bookVirtual);
             backendsFile = Files.createTempFile("monk-test-backends", ".json");
             Files.writeString(backendsFile, backendsJson);
 
@@ -306,7 +316,8 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                       "book_elastic": {"backend":"elastic-books","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"book_elastic"}]}}},
                       "article": {"backend":"solr-articles","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"article"}]}}},
                       "article_solr": {"backend":"solr-articles","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"article_solr"}]}}},
-                      "emptyset":{"backend":"elastic-empty","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"emptyset"}]}}}
+                      "emptyset":{"backend":"elastic-empty","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"emptyset"}]}}},
+                      "broken":{"backend":"elastic-broken","filter":{"field":"materialType","data":{"type":"text","phrases":[{"type":"phrase","value":"broken"}]}}}
                     }}""";
             catalogFile = Files.createTempFile("monk-test-catalog", ".json");
             Files.writeString(catalogFile, catalogJson);
@@ -322,6 +333,9 @@ public class SearchBackendTestResource implements QuarkusTestResourceLifecycleMa
                     "indexer.catalog.file.backends", backendsFile.toAbsolutePath().toString(),
                     "indexer.catalog.file.config", catalogFile.toAbsolutePath().toString(),
                     "indexer.catalog.file.datasources", datasourcesFile.toAbsolutePath().toString(),
+                    // Tests assert the embedding endpoint is hit per request; caching would short-circuit
+                    // repeated identical text across tests. Caching is exercised in dev/prod, not here.
+                    "quarkus.cache.enabled", "false",
                     "monk.embedding.url", baseUrl + "/embedding/embed");
         } catch (IOException exception) {
             throw new UncheckedIOException("Failed to start search backend test server", exception);

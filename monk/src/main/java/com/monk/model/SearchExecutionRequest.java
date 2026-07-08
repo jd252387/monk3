@@ -37,6 +37,7 @@ import java.util.Map;
           }],
           "fields": ["title", "year", "author"],
           "size": 20,
+          "sort": [{ "field": "year", "order": "desc" }],
           "aggs": {
             "byAuthor": {
               "aggType": "terms",
@@ -61,6 +62,8 @@ public record SearchExecutionRequest(
         List<@NotNull @Valid SearchQueryRequest> query,
         @NotEmpty @Schema(description = "Field names to project in the response") List<@NotBlank String> fields,
         @Positive @Schema(description = "Maximum number of results to return per backend", example = "20") Integer size,
+        @Schema(description = "Optional sort keys applied per backend and to the merged results; each is a logical field (or '_score') plus asc/desc. Defaults to relevance when absent.")
+        List<@NotNull @Valid SortClause> sort,
         @Schema(description = "Optional named facets/aggregations over root document fields, computed per backend")
         Map<@NotBlank String, @NotNull @Valid Aggregation> aggs
 ) {

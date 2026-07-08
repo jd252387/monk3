@@ -11,8 +11,8 @@ import lombok.experimental.Accessors;
 @Accessors(fluent = true)
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public enum SearchEngine {
-    ELASTICSEARCH("minimum_should_match", JsonPointer.compile("/hits/hits"), "_score", "aggs", "aggregations", "size", "_name"),
-    SOLR("mm", JsonPointer.compile("/response/docs"), "score", "facet", "facets", "limit", "name");
+    ELASTICSEARCH("minimum_should_match", JsonPointer.compile("/hits/hits"), "_score", "aggs", "aggregations", "size", "_name", "sort"),
+    SOLR("mm", JsonPointer.compile("/response/docs"), "score", "facet", "facets", "limit", "name", "sort");
 
     private final String minimumShouldMatchProperty;
     private final JsonPointer resultsPath;
@@ -21,6 +21,7 @@ public enum SearchEngine {
     private final String aggregationsResponseProperty;
     private final String sizeProperty;
     private final String queryNameProperty;
+    private final String sortProperty;
 
     public static SearchEngine of(BackendEngine engine) {
         return valueOf(engine.name());
