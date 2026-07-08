@@ -364,3 +364,78 @@ export function validate(m: MappingDoc, v: VirtualDoc): Validation {
   for (const k of Object.keys(verrs)) total += verrs[k].length;
   return { errs, verrs, total };
 }
+
+// ---------- change diff (pending edits since last commit) ----------
+
+/** One top-level key whose value differs between baseline and current. '—' = absent. */
+export interface KeyChange {
+  key: string;
+  from: string;
+  to: string;
+}
+
+export interface Change {
+  scope: 'physical' | 'virtual';
+  /** 'block.field' — same key style as validate(). */
+  path: string;
+  kind: 'added' | 'removed' | 'changed';
+  /** Populated for changed physical fields; empty otherwise. */
+  keys: KeyChange[];
+}
+
+/** Display a field-value scalar/object as a short string; absent -> '—'. */
+function fmtVal(v: unknown): string {
+  if (v === undefined) return '—';
+  if (v === null || typeof v !== 'object') return String(v);
+  return JSON.stringify(v);
+}
+
+/** Top-level keys of two physical field objects that differ, as from → to. */
+function keyChanges(a: Record<string, unknown>, b: Record<string, unknown>): KeyChange[] {
+  const out: KeyChange[] = [];
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out.push({ key: k, from: fmtVal(a[k]), to: fmtVal(b[k]) });
+  }
+  return out;
+}
+
+/** Diff every 'block.field' between the last-committed baseline and current docs. */
+export function diffMapping(
+  base: { mapping: MappingDoc; virtual: VirtualDoc },
+  cur: { mapping: MappingDoc; virtual: VirtualDoc },
+): Change[] {
+  const out: Change[] = [];
+
+  const scan = (
+    scope: 'physical' | 'virtual',
+    b: Record<string, Record<string, unknown>>,
+    c: Record<string, Record<string, unknown>>,
+  ) => {
+    const blocks = [...new Set([...Object.keys(b), ...Object.keys(c)])].sort();
+    for (const blk of blocks) {
+      const bf = b[blk] || {};
+      const cf = c[blk] || {};
+      const fields = [...new Set([...Object.keys(bf), ...Object.keys(cf)])].sort();
+      for (const f of fields) {
+        const inB = f in bf;
+        const inC = f in cf;
+        const path = blk + '.' + f;
+        if (inB && !inC) out.push({ scope, path, kind: 'removed', keys: [] });
+        else if (!inB && inC) out.push({ scope, path, kind: 'added', keys: [] });
+        else if (JSON.stringify(bf[f]) !== JSON.stringify(cf[f])) {
+          // Key detail only for physical fields; identifier (raw query) and virtual: badge only.
+          const keys =
+            scope === 'physical' && f !== 'identifier'
+              ? keyChanges(bf[f] as Record<string, unknown>, cf[f] as Record<string, unknown>)
+              : [];
+          out.push({ scope, path, kind: 'changed', keys });
+        }
+      }
+    }
+  };
+
+  scan('physical', base.mapping, cur.mapping);
+  scan('virtual', base.virtual, cur.virtual);
+  return out;
+}

@@ -106,10 +106,8 @@ export default function JsonPane({
   return (
     <div
       style={{
-        width: 340,
-        flex: 'none',
+        flex: 1,
         background: '#12141a',
-        borderLeft: '1px solid #2a2e37',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,

@@ -1,6 +1,6 @@
 import { TYPE_META, VTYPE_COLOR, uniqueName, type EditorApi, type Validation } from './model';
 
-const BLOCK_HEADER_STYLE = {
+export const BLOCK_HEADER_STYLE = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,

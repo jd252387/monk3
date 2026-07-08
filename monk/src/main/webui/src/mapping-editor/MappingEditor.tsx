@@ -3,7 +3,8 @@ import { Button, Modal, Select, Textarea, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import './mapping-editor.css';
 import { gitConfigured, loadRepo, readMapping, saveMapping, type MappingEntry } from './gitRepo';
-import { clone, validate, type EditorApi, type EditorState } from './model';
+import { clone, diffMapping, validate, type EditorApi, type EditorState } from './model';
+import ChangesPane from './ChangesPane';
 import JsonPane from './JsonPane';
 import PhysicalInspector from './PhysicalInspector';
 import TreePane from './TreePane';
@@ -42,6 +43,7 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
   const [commitName, setCommitName] = useState(() => localStorage.getItem(COMMIT_NAME_KEY) ?? '');
   const [commitMsg, setCommitMsg] = useState('');
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<'json' | 'changes'>('json');
 
   const api: EditorApi = {
     state,
@@ -151,6 +153,12 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
 
   const validation = validate(state.mapping, state.virtual);
   const { errs, verrs, total } = validation;
+
+  // Pending edits since the last load/commit (savedRef baseline vs current docs).
+  const changes = diffMapping(
+    JSON.parse(savedRef.current || '{"mapping":{},"virtual":{}}'),
+    { mapping: state.mapping, virtual: state.virtual },
+  );
 
   const tabPhys = state.tab === 'physical';
   const fileName = selected ? selected.name + (tabPhys ? '.mapping.json' : '.virtual.json') : '';
@@ -332,12 +340,67 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
             )}
           </div>
 
-          <JsonPane
-            doc={tabPhys ? state.mapping : state.virtual}
-            schema={tabPhys ? './mappings.schema.json' : './virtual-mapping.schema.json'}
-            sel={tabPhys ? state.selPhys : state.selVirt}
-            fileName={fileName}
-          />
+          <div
+            style={{
+              width: 340,
+              flex: 'none',
+              background: '#12141a',
+              borderLeft: '1px solid #2a2e37',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 4, padding: '8px 10px', borderBottom: '1px solid #2a2e37', flex: 'none' }}>
+              {(['json', 'changes'] as const).map((t) => {
+                const on = rightTab === t;
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setRightTab(t)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      font: "600 10px 'IBM Plex Mono',monospace",
+                      letterSpacing: '.06em',
+                      color: on ? '#e6e9ef' : '#79818f',
+                      background: on ? '#242832' : 'transparent',
+                      border: '1px solid ' + (on ? '#2f3440' : 'transparent'),
+                      borderRadius: 5,
+                      padding: '4px 9px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t === 'json' ? 'JSON' : 'CHANGES'}
+                    {t === 'changes' && changes.length > 0 && (
+                      <span
+                        style={{
+                          font: "600 9px 'IBM Plex Mono',monospace",
+                          color: '#101216',
+                          background: '#e8b04a',
+                          borderRadius: 8,
+                          padding: '1px 6px',
+                        }}
+                      >
+                        {changes.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {rightTab === 'json' ? (
+              <JsonPane
+                doc={tabPhys ? state.mapping : state.virtual}
+                schema={tabPhys ? './mappings.schema.json' : './virtual-mapping.schema.json'}
+                sel={tabPhys ? state.selPhys : state.selVirt}
+                fileName={fileName}
+              />
+            ) : (
+              <ChangesPane changes={changes} />
+            )}
+          </div>
         </div>
       )}
 
