@@ -83,21 +83,26 @@ async function findMappingFiles(dir: string, out: string[]): Promise<void> {
   }
 }
 
-/** Wipes the local clone, clones the configured repo fresh, and lists its mappings. */
+/** Clones or updates the configured repo and lists its mappings. */
 export async function loadRepo(): Promise<MappingEntry[]> {
   if (!env.VITE_MAPPINGS_GIT_URL) throw new Error('VITE_MAPPINGS_GIT_URL is not configured');
-  // ponytail: fresh clone on every page load instead of pull/merge — config repos are tiny.
-  fs = new LightningFS('monk-mappings', { wipe: true });
+  fs = new LightningFS('monk-mappings', { wipe: false });
   schemaRefs.clear();
-  await git.clone({
+  const opts = {
     fs,
     dir: DIR,
     url: resolveUrl(env.VITE_MAPPINGS_GIT_URL),
     ref: env.VITE_MAPPINGS_GIT_BRANCH || undefined,
     singleBranch: true,
-    noTags: true,
     ...remoteOpts(),
-  });
+  };
+  try {
+    await fs.promises.stat(DIR);
+    // ponytail: existing clone — fast-forward instead of re-cloning
+    await git.pull({ ...opts, fastForwardOnly: true, author: { name: 'monk' } });
+  } catch {
+    await git.clone({ ...opts, noTags: true });
+  }
   const files: string[] = [];
   const scanRoot = GIT_DIR ? DIR + '/' + GIT_DIR : DIR;
   await findMappingFiles(scanRoot, files);

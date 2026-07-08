@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Modal, Select, Textarea, TextInput } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import './mapping-editor.css';
 import { gitConfigured, loadRepo, readMapping, saveMapping, type MappingEntry } from './gitRepo';
 import { clone, validate, type EditorApi, type EditorState } from './model';
@@ -9,6 +10,7 @@ import TreePane from './TreePane';
 import VirtualInspector from './VirtualInspector';
 
 const COMMIT_NAME_KEY = 'monk.commitName';
+const DRAFT_PREFIX = 'monk.draft.';
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -39,6 +41,7 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [commitName, setCommitName] = useState(() => localStorage.getItem(COMMIT_NAME_KEY) ?? '');
   const [commitMsg, setCommitMsg] = useState('');
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   const api: EditorApi = {
     state,
@@ -55,17 +58,25 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
     try {
       const { mapping, virtual } = await readMapping(entry);
       savedRef.current = JSON.stringify({ mapping, virtual });
+      const draftJson = localStorage.getItem(DRAFT_PREFIX + entry.path);
+      let dm = mapping, dv = virtual, dd: Record<string, string> = {}, isDirty = false;
+      if (draftJson) {
+        try {
+          const d = JSON.parse(draftJson);
+          dm = d.mapping; dv = d.virtual; dd = d.drafts || {}; isDirty = true;
+        } catch { /* corrupt draft */ }
+      }
       setSelected(entry);
       setState((s) => ({
         ...s,
-        mapping,
-        virtual,
+        mapping: dm,
+        virtual: dv,
         selPhys: null,
         selVirt: null,
         collapsed: {},
         filter: '',
-        dirty: false,
-        drafts: {},
+        dirty: isDirty,
+        drafts: dd,
         vJsonEditing: false,
       }));
     } catch (e) {
@@ -94,10 +105,20 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
       });
   }, []);
 
+  // Persist unsaved changes so they survive a page reload.
+  useEffect(() => {
+    if (!selected || !state.dirty) return;
+    try {
+      localStorage.setItem(DRAFT_PREFIX + selected.path,
+        JSON.stringify({ mapping: state.mapping, virtual: state.virtual, drafts: state.drafts }));
+    } catch { /* storage full or disabled */ }
+  }, [selected, state.dirty, state.mapping, state.virtual, state.drafts]);
+
   const pick = (path: string | null) => {
     const entry = entries?.find((x) => x.path === path);
     if (!entry || entry === selected) return;
     if (state.dirty && !window.confirm('Discard unsaved changes to ' + selected?.name + '?')) return;
+    if (selected) localStorage.removeItem(DRAFT_PREFIX + selected.path);
     void open(entry);
   };
 
@@ -111,9 +132,16 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
         message: commitMsg.trim(),
       });
       localStorage.setItem(COMMIT_NAME_KEY, commitName.trim());
+      localStorage.removeItem(DRAFT_PREFIX + selected.path);
       savedRef.current = JSON.stringify({ mapping: state.mapping, virtual: state.virtual });
       api.patch({ dirty: false });
       setSaveOpen(false);
+      notifications.show({
+        title: 'Pushed to Git',
+        message: `${selected.name} saved and pushed.`,
+        color: 'green',
+        autoClose: 4000,
+      });
     } catch (e) {
       setSaveErr(errText(e));
     } finally {
@@ -245,10 +273,7 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
         <button
           className="me-hover-light"
           disabled={!selected || !state.dirty}
-          onClick={() => {
-            const sv = JSON.parse(savedRef.current);
-            api.patch({ mapping: sv.mapping, virtual: sv.virtual, dirty: false, drafts: {}, vJsonEditing: false });
-          }}
+          onClick={() => setDiscardOpen(true)}
           style={{ font: "500 11px 'IBM Plex Sans',sans-serif", color: '#8b93a3', padding: '4px 10px', background: 'transparent', border: 'none', cursor: 'pointer' }}
         >
           Discard
@@ -315,6 +340,24 @@ export default function MappingEditor({ nav }: { nav?: ReactNode }) {
           />
         </div>
       )}
+
+      <Modal opened={discardOpen} onClose={() => setDiscardOpen(false)} title="Discard changes" centered>
+        <div style={{ font: "400 13px 'IBM Plex Sans',sans-serif", color: '#8b93a3', marginBottom: 16 }}>
+          All unsaved changes to <strong>{selected?.name}</strong> will be lost. This cannot be undone.
+        </div>
+        <Button
+          fullWidth
+          color="red"
+          onClick={() => {
+            const sv = JSON.parse(savedRef.current);
+            if (selected) localStorage.removeItem(DRAFT_PREFIX + selected.path);
+            api.patch({ mapping: sv.mapping, virtual: sv.virtual, dirty: false, drafts: {}, vJsonEditing: false });
+            setDiscardOpen(false);
+          }}
+        >
+          Discard
+        </Button>
+      </Modal>
 
       <Modal opened={saveOpen} onClose={() => !saving && setSaveOpen(false)} title="Commit & push mapping" centered>
         <TextInput
